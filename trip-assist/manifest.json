@@ -2,11 +2,12 @@
   "manifest_version": 3,
   "name": "旅行の日程調整・ルート決定アシスト",
   "version": "1.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwRa9tQ+mji0JcR+p45Nw9CVmnbm7nNmb7KOOvSMeMY6DoahfZP7Xb6XJJp5woqB9rK3ckNrBclluYJJtnsNN3pZ1j9C/fKrRsMCfyhvtngqZA48aIxFL8pjQw1rfMxKmWstnHJFudYBHwOC3g+c8xwPcsH4mkwPGYSQqCRrhmQ5CB0pfAE2Bz51MBIlqBqzrn4/RKg3jeYsoENpK5r7gel8i7jfbVoRHt+X7o87fsuHICQce7bUDkRWnHCwqVCuTrkLw3pToODSXCmGzKrcF9zqstJYV3rggfIfYRfwDzVk0pOXm4rU3VkB9DfEwQQtetg9N2FNyVCtYZ2fBufSLtQIDAQAB",
   "description": "Google マップ上で、友達との旅行の日程調整とルート決定をアシストします。",
   "permissions": ["identity", "storage"],
   "host_permissions": ["https://www.googleapis.com/*"],
   "oauth2": {
-    "client_id": "pfnfijipoailikndgajlkmljbmpebaml.apps.googleusercontent.com",
+    "client_id": "opkkbacjhlbbndbbgikpihlkkejihnjf.apps.googleusercontent.com",
     "scopes": ["https://www.googleapis.com/auth/calendar.events"]
   },
   "background": { "service_worker": "background.js" },

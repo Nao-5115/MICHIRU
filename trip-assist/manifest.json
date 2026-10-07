@@ -7,7 +7,7 @@
   "permissions": ["identity", "storage"],
   "host_permissions": ["https://www.googleapis.com/*"],
   "oauth2": {
-    "client_id": "opkkbacjhlbbndbbgikpihlkkejihnjf.apps.googleusercontent.com",
+    "client_id": "657617351264-t63dqc72gde735ahq5v6sb5du3r4mm8g.apps.googleusercontent.com",
     "scopes": ["https://www.googleapis.com/auth/calendar.events"]
   },
   "background": { "service_worker": "background.js" },

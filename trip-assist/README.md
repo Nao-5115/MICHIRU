@@ -4,44 +4,189 @@ Google マップ上にサイドパネルを重ねて表示し、友達との旅�
 Google カレンダーの予定を重ねて表示でき、確定した日程としおりをカレンダーへ登録できます。
 サーバー・DB は不要です（データは `chrome.storage.sync` のみ）。Google Maps Platform の API は使用しません。
 
+## 目次
+
+1. [ファイル構成](#ファイル構成)
+2. [利用者向け：導入手順](#利用者向け導入手順)
+3. [開発者向け：初回セットアップ（最初の 1 回だけ）](#開発者向け初回セットアップ最初の-1-回だけ)
+4. [開発の進め方（更新・動作確認）](#開発の進め方更新動作確認)
+5. [使い方](#使い方)
+6. [仕様上の判断（変更しやすい箇所）](#仕様上の判断変更しやすい箇所)
+7. [注意事項・制限](#注意事項制限)
+
 ## ファイル構成
 
 | ファイル | 役割 |
 |---|---|
-| `manifest.json` | Manifest V3 設定（**OAuth クライアント ID はここで差し替え**） |
+| `manifest.json` | Manifest V3 設定（`key`：拡張機能 ID の固定、`oauth2.client_id`：OAuth クライアント ID） |
 | `background.js` | Service Worker。OAuth（`chrome.identity`）と Calendar API 呼び出し |
 | `lib.js` | 共有コードの変換、距離計算（Haversine）、訪問順最適化、しおり生成 |
 | `panel.js` / `panel.css` | Google マップ上のサイドパネル（Shadow DOM。マップの DOM には非依存） |
 
-## セットアップ手順
+---
 
-### 1. 拡張機能の ID を確認する
-1. Chrome で `chrome://extensions` を開き、右上の「デベロッパーモード」を ON にします。
-2. 「パッケージ化されていない拡張機能を読み込む」でこのフォルダを選択します。
-3. 表示された **拡張機能 ID**（32 文字）を控えます。
-   - ※ 読み込みフォルダのパスが変わると ID も変わります。固定したい場合は、`manifest.json` に `"key"` を追加してください（[公式ドキュメント](https://developer.chrome.com/docs/extensions/reference/manifest/key)参照）。
+## 利用者向け：導入手順
 
-### 2. Google Cloud Console の設定
+> 開発者による初回セットアップが完了している場合、利用者が行う作業は以下のみです。
+> Google Cloud Console の操作は不要です。
+
+### 事前に必要なこと
+
+- Google Chrome を使用し、**Google アカウントでブラウザにログイン**していること
+- 開発者に **自分の Google アカウントのメールアドレスを伝え、テストユーザーに追加してもらう**こと
+
+### 手順
+
+1. このリポジトリを取得します。
+   ```bash
+   git clone <このリポジトリの URL>
+   ```
+   （Git を使わない場合は、GitHub の「Code」→「Download ZIP」で取得して展開してください。）
+2. Chrome で `chrome://extensions` を開き、右上の **「デベロッパーモード」** を ON にします。
+3. **「パッケージ化されていない拡張機能を読み込む」** をクリックし、`trip-assist` フォルダを選択します。
+4. Google マップ（`google.com/maps` / `google.co.jp/maps`）を開き、右上の **「旅」ボタン** からパネルを開きます。
+5. 初回のカレンダー操作時に Google のログイン画面が表示されます。
+   - 「Google はこのアプリを確認していません」と表示された場合は、**「詳細」→「（アプリ名）に移動」** を選択して進みます。
+   - 約 7 日ごとに再ログインが必要になることがあります（テスト運用の仕様）。
+
+### 更新するとき
+
+```bash
+git pull
+```
+
+その後、`chrome://extensions` で拡張機能カードの **再読み込み（🔄）ボタン** を押し、Google マップのページをリロードしてください。
+
+---
+
+## 開発者向け：初回セットアップ（最初の 1 回だけ）
+
+以下は **開発者が 1 回だけ** 行う作業です。完了後、`manifest.json` を含めてコミットすれば、他のメンバーは clone するだけで同じ設定で動作します。
+
+> **チームの他の開発メンバーへ**
+> `key` と `oauth2.client_id` は設定済みです。以下の初回セットアップを行う必要はありません（鍵の作成・Google Cloud Console の操作は不要）。
+> - `manifest.json` の **`key` と `oauth2.client_id` の行は変更・削除しないでください**（変更すると拡張機能 ID が変わり、全員が認証できなくなります）。
+> - `manifest.json` を編集・マージした際は、これらの行が消えたり壊れたりしていないか確認してください。
+> - 秘密鍵（`key.pem`）は設定者のみが保管しており、他のメンバーは持っていなくても動作します。
+> - 新しく利用する人を追加する場合は、その人の Google アカウントのメールアドレスを設定者に伝えてください（Google Cloud Console のテストユーザーへの追加が必要です）。
+
+### 1. 鍵を作成して拡張機能 ID を固定する　（組み込み済み）
+
+拡張機能 ID は通常、読み込むフォルダのパスで変わってしまいます。`manifest.json` に公開鍵（`key`）を入れることで、どの環境でも同じ ID になります。
+
+**鍵の作成**（`trip-assist` フォルダの **外** で実行してください）
+
+```bash
+openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt -out key.pem
+```
+
+**公開鍵の取り出し**
+
+```bash
+openssl rsa -in key.pem -pubout -outform DER | openssl base64 -A
+```
+
+出力された 1 行の文字列を、`manifest.json` の `key` に設定します（改行・スペースを含めないこと）。
+
+```json
+{
+  "manifest_version": 3,
+  "name": "旅行の日程調整・ルート決定アシスト",
+  "version": "1.0.0",
+  "key": "MIIBIjANBgkqh...（出力された文字列）",
+  ...
+}
+```
+
+> `openssl` が使えない環境では、Node.js でも生成できます。
+> ```js
+> const { generateKeyPairSync } = require('crypto');
+> const fs = require('fs');
+> const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+> fs.writeFileSync('key.pem', privateKey.export({ type: 'pkcs8', format: 'pem' }));
+> console.log(publicKey.export({ type: 'spki', format: 'der' }).toString('base64'));
+> ```
+
+**秘密鍵（`key.pem`）は絶対にリポジトリへ含めないでください。** `.gitignore` に以下を追加します。
+
+```
+*.pem
+```
+
+- `manifest.json` の `key`（公開鍵）はコミットして問題ありません。
+- `key.pem` は紛失しないよう、別の安全な場所に保管してください。
+
+### 2. 拡張機能 ID を確認する
+
+1. `chrome://extensions` で拡張機能を読み込み（すでに読み込み済みの場合は一度削除して読み込み直す）、カードに表示される **拡張機能 ID（32 文字）** を控えます。
+2. 念のため、フォルダを別の場所にコピーして読み込み、**同じ ID になること** を確認すると確実です。
+
+### 3. Google Cloud Console の設定
+
 1. [Google Cloud Console](https://console.cloud.google.com/) で **新しいプロジェクト** を作成します。
 2. 「API とサービス」→「ライブラリ」から **Google Calendar API** を有効化します。
 3. 「API とサービス」→「OAuth 同意画面」を設定します。
-   - ユーザーの種類: 外部（個人利用なら「テスト」状態のままで可）
+   - ユーザーの種類: 外部（個人・友人間の利用なら「テスト」状態のままで可）
    - アプリ名・サポートメールなどを入力
    - **スコープ**に `https://www.googleapis.com/auth/calendar.events` を追加
-   - 「テストユーザー」に、利用する自分と友達の Google アカウントを追加
+   - **テストユーザー**に、利用する本人と友達の Google アカウントを追加（最大 100 人）
 4. 「認証情報」→「認証情報を作成」→「OAuth クライアント ID」を選択します。
    - アプリケーションの種類: **Chrome 拡張機能**
-   - アイテム ID: 手順 1 で控えた **拡張機能 ID**
-5. 発行された **クライアント ID** を `manifest.json` の `oauth2.client_id` に貼り付けます。
+   - アイテム ID: 手順 2 で控えた **拡張機能 ID**（コピー＆ペーストで正確に入力）
+5. 発行された **クライアント ID**（`数字-英数字.apps.googleusercontent.com` の形式）を `manifest.json` の `oauth2.client_id` に貼り付けます。
    ```json
    "oauth2": { "client_id": "123456-xxxx.apps.googleusercontent.com", ... }
    ```
+   > 拡張機能 ID（32 文字の英小文字）と **クライアント ID は別物** です。取り違えないよう注意してください。
 6. `chrome://extensions` で拡張機能を **再読み込み** します。
 
-### 3. 必要なスコープ
+### 4. 動作確認
+
+Google マップを開き、「旅」ボタン → 日程タブで候補日を追加 → 「カレンダーの予定を読み込む」を押します。Google のログイン後に予定が読み込まれれば設定完了です。
+
+### 5. コミットして共有する
+
+`manifest.json`（`key` と `client_id` を設定済み）をコミット・push します。`key.pem` が含まれていないことを必ず確認してください。
+
+```bash
+git status            # key.pem が表示されないことを確認
+git ls-files | grep pem   # 何も表示されなければ OK
+```
+
+### 必要なスコープ
+
 - `https://www.googleapis.com/auth/calendar.events`（予定の読み取りと作成）
 
-> 公開（一般配布）する場合は、このスコープが「機密性の高いスコープ」に該当するため Google の OAuth 検証が必要です。個人・友人間利用ならテスト状態で運用できます（テストユーザーは最大 100 人、トークンは 7 日で失効することがあります）。
+> 公開（一般配布）する場合は、このスコープが「機密性の高いスコープ」に該当するため Google の OAuth 検証が必要です。個人・友人間の利用であれば、テスト状態で運用できます（テストユーザーは最大 100 人、トークンは約 7 日で失効することがあります）。
+
+---
+
+## 開発の進め方（更新・動作確認）
+
+### 変更後の反映方法
+
+| 変更内容 | 必要な操作 |
+|---|---|
+| `panel.js` / `panel.css` / `lib.js` | 拡張機能の再読み込み ＋ Google マップのページをリロード |
+| `background.js` | 拡張機能の再読み込み |
+| `manifest.json` | 拡張機能の再読み込み（内容によっては再承認が必要） |
+
+保存済みのデータ（候補日・返答など）は、再読み込みでは消えません。
+
+### 設定のやり直しが必要になる変更
+
+通常の機能追加やバグ修正では初回セットアップのやり直しは不要ですが、以下の変更を行う場合は注意してください。
+**特に `manifest.json` の `key` と `oauth2.client_id` は、チーム全員の動作に影響するため変更しないでください。**
+
+| 変更 | 影響 |
+|---|---|
+| `key` を変更 | 拡張機能 ID が変わる → **クライアント ID の作り直しが必要** |
+| `oauth2.client_id` を変更 | 認証設定のやり直し |
+| `oauth2.scopes` を追加 | OAuth 同意画面のスコープ追加、利用者の再同意が必要 |
+| `permissions` / `host_permissions` を追加 | Chrome が利用者に再承認を求める |
+| 利用者（友達）を追加 | Google Cloud Console のテストユーザーにメールアドレスを追加 |
+
+---
 
 ## 使い方
 
@@ -71,3 +216,4 @@ Google カレンダーの予定を重ねて表示でき、確定した日程と�
 - 共有コード／返答コードは Base64 化された JSON で、暗号化はされていません。個人のカレンダー予定の内容は含まれません。
 - 取り込んだコードは内容を検証し、画面表示はすべてテキストとして扱います（不正なコードはエラー表示）。
 - 移動時間は直線距離ベースの概算です。実際の経路・交通機関は考慮しません。
+- Google 認証には `chrome.identity` を使用しているため、**Chrome に Google アカウントでログインしている必要**があります（Edge・Brave 等では動作しない場合があります）。

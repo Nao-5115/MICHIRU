@@ -43,23 +43,55 @@
     catch (e) { flash('保存に失敗しました（容量上限の可能性があります）: ' + e.message, 'err'); return false; }
   }
 
-  // v1.3: スポットは chrome.storage.local に保存（容量が大きく、同期不要）
+  // v1.3: スポットは Firestore に保存（複数ユーザーで共有、大容量対応）
+
+  /** Firestore から最新 MAX_SPOTS 件を取得して S.localSpots に格納 */
   async function loadSpots() {
+    const db = window._db;
+    if (!db) {
+      console.warn('[TripAssist] Firestore が初期化されていません。firebase/firebase-config.js を確認してください。');
+      S.localSpots = [];
+      return;
+    }
     try {
-      const data = await chrome.storage.local.get('localSpots');
-      S.localSpots = Array.isArray(data.localSpots) ? data.localSpots : [];
+      const snap = await db.collection('spots').orderBy('registeredAt', 'desc').limit(MAX_SPOTS).get();
+      S.localSpots = snap.docs.map((doc) => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          name: d.name ?? '',
+          lat: d.lat ?? 0,
+          lng: d.lng ?? 0,
+          category: d.category ?? 'その他',
+          description: d.description ?? '',
+          recommendation: d.recommendation ?? '',
+          registeredBy: d.registeredBy ?? '',
+          registeredAt: d.registeredAt?.toDate?.().toISOString() ?? new Date().toISOString()
+        };
+      });
     } catch (e) {
+      console.error('[TripAssist] スポットの読み込みに失敗しました:', e);
       S.localSpots = [];
     }
   }
-  async function saveSpots() {
-    try {
-      await chrome.storage.local.set({ localSpots: S.localSpots });
-      return true;
-    } catch (e) {
-      flash('スポットの保存に失敗しました: ' + e.message, 'err');
-      return false;
-    }
+
+  /** スポットを Firestore に追加し、新しいドキュメント ID を返す */
+  async function addSpotToFirestore(spot) {
+    const db = window._db;
+    if (!db) throw new Error('Firestore が初期化されていません。firebase/firebase-config.js を確認してください。');
+    const { id: _id, registeredAt: _ts, ...data } = spot;
+    const ref = await db.collection('spots').add({
+      ...data,
+      registeredAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    return ref.id;
+  }
+
+  /** Firestore からスポットを削除する */
+  async function deleteSpotFromFirestore(spotId) {
+    const db = window._db;
+    if (!db) throw new Error('Firestore が初期化されていません。firebase/firebase-config.js を確認してください。');
+    await db.collection('spots').doc(spotId).delete();
   }
 
   async function clearNav() {
@@ -579,7 +611,7 @@
         if (isDuplicateSpot(ll.lat, ll.lng)) return flash('同じ場所が既に登録されています（50m 以内）', 'err');
 
         const spot = {
-          id: rid(),
+          id: '',  // Firestore が採番するため、ひとまず空文字
           name: name.slice(0, 60),
           lat: ll.lat,
           lng: ll.lng,
@@ -589,15 +621,17 @@
           registeredBy: byIn.value.trim().slice(0, 40),
           registeredAt: new Date().toISOString()
         };
-        S.localSpots.push(spot);
-        if (await saveSpots()) {
+        try {
+          const newId = await addSpotToFirestore(spot);
+          spot.id = newId;
+          S.localSpots.unshift(spot); // 新しい順（先頭）に追加
           flash(`「${spot.name}」を${spot.category}として登録しました`);
           updateOverlay();
           // フォームをリセット
           nameIn.value = ''; catSel.value = ''; descIn.value = ''; recIn.value = ''; byIn.value = '';
           render();
-        } else {
-          S.localSpots.pop(); // 保存失敗時はロールバック
+        } catch (e) {
+          flash('スポットの保存に失敗しました: ' + e.message, 'err');
         }
       }, 'primary'));
 
@@ -615,11 +649,17 @@
                 h('span', { class: 'spot-cat', style: `background:${color}20;color:${color};border-color:${color}40` }, spot.category)),
               btn('削除', async () => {
                 if (!confirm(`「${spot.name}」をスポット一覧から削除しますか？この操作は取り消せません。`)) return;
+                const prev = S.localSpots;
                 S.localSpots = S.localSpots.filter((s) => s.id !== spot.id);
-                if (!(await saveSpots())) { S.localSpots.push(spot); return; }
-                updateOverlay();
-                flash(`「${spot.name}」を削除しました`);
-                render();
+                try {
+                  await deleteSpotFromFirestore(spot.id);
+                  updateOverlay();
+                  flash(`「${spot.name}」を削除しました`);
+                  render();
+                } catch (e) {
+                  S.localSpots = prev; // ロールバック
+                  flash('スポットの削除に失敗しました: ' + e.message, 'err');
+                }
               }, 'small danger')),
             h('div', { class: 'muted' },
               `📌 ${spot.lat.toFixed(5)}, ${spot.lng.toFixed(5)}`,
@@ -868,7 +908,7 @@
 
   async function boot() {
     await load();
-    await loadSpots(); // v1.3: スポットをローカルストレージから読み込む
+    await loadSpots(); // v1.3: Firestore からスポットを読み込む
     const nav = S.nav;
     if (nav) {
       if (!nav.ts || Date.now() - nav.ts > 12 * 3600 * 1000) {

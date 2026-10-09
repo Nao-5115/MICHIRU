@@ -17,7 +17,14 @@
         "https://www.google.co.jp/maps/*",
         "https://maps.google.com/*"
       ],
-      "js": ["lib.js", "panel.js"],
+      "js": [
+        "firebase/firebase-app-compat.js",
+        "firebase/firebase-firestore-compat.js",
+        "firebase/firebase-config.js",
+        "firebase/firebase-init.js",
+        "lib.js",
+        "panel.js"
+      ],
       "run_at": "document_idle"
     }
   ],

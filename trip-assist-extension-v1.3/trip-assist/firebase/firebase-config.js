@@ -7,12 +7,13 @@
 // =====================================================
 
 const firebaseConfig = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
+  apiKey: "AIzaSyAmDdh__tk-5OCx88KguX4ZJGWTTuAbGhI",
+  authDomain: "sage-byte-510900-e0.firebaseapp.com",
+  databaseURL: "https://sage-byte-510900-e0-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "sage-byte-510900-e0",
+  storageBucket: "sage-byte-510900-e0.firebasestorage.app",
+  messagingSenderId: "657617351264",
+  appId: "1:657617351264:web:81e31423dd15807a100905"
 };
 
 // 他のスクリプトから参照できるようにグローバルに公開

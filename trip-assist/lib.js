@@ -101,13 +101,16 @@
     if (m && okLL(+m[1], +m[2])) return { lat: +m[1], lng: +m[2] };
     return null;
   }
-  function extractPlaceName(href, title) {
-    const m = href.match(/\/maps\/place\/([^/@?]+)/);
-    if (m) {
-      try { return decodeURIComponent(m[1].replace(/\+/g, ' ')); } catch (_) {}
-    }
-    const t = (title || '').replace(/\s*-\s*Google\s*(マップ|Maps)\s*$/, '').trim();
-    return t || '地点';
+  const UNNAMED_PLACE = '名称未設定の地点';
+  // /maps/place/<場所名>/@lat,lng,zoom... の <場所名> を取り出す。無ければ null
+  function extractPlaceName(href) {
+    const m = href.match(/\/maps\/place\/([^/@?#]+)/);
+    if (!m) return null;
+    let name = m[1].replace(/\+/g, ' '); // + は空白に戻してからデコード（%2B はそのまま + になる）
+    try { name = decodeURIComponent(name); } catch (_) {}
+    name = name.trim().slice(0, 60);
+    if (!name || /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(name)) return null; // 座標だけの名前は場所名とみなさない
+    return name;
   }
 
   // ---------- 距離・訪問順 ----------
@@ -177,36 +180,66 @@
     const t = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
     return day > 0 ? `${t}(+${day}日)` : t;
   }
-  // places: 訪問順に並んだ地点配列
-  function buildItinerary(places, { startMin, speed, defaultStay, stays }) {
-    const v = speed > 0 ? speed : 40;
+  const MODE_LABEL = { car: '車', train: '電車' };
+  const DEFAULT_SPEED = { car: 40, train: 35 };
+  const DEFAULT_DETOUR = 1.3;
+  const ESTIMATE_NOTE = '※移動時間は「直線距離 × 迂回係数 ÷ 想定速度」による概算です。実際の経路・交通状況・乗換や待ち時間は考慮していません。';
+  // places: 訪問順の地点配列 / speeds, detours: {car, train} / modeOf(前の地点, 次の地点) → 'car' | 'train'
+  function buildItinerary(places, { startMin, speeds, detours, defaultStay, stays, modeOf }) {
     const rows = [];
-    let totalKm = 0;
+    let totalKm = 0, totalRoadKm = 0;
     places.forEach((p, i) => {
-      let arrive = startMin, km = 0, travel = 0;
+      let arrive = startMin, km = 0, roadKm = 0, travel = 0, mode = null, detour = 1;
       if (i > 0) {
+        mode = modeOf ? modeOf(places[i - 1], p) : 'car';
+        if (!MODE_LABEL[mode]) mode = 'car';
+        const v = speeds && speeds[mode] > 0 ? speeds[mode] : DEFAULT_SPEED[mode];
+        detour = detours && detours[mode] >= 1 ? detours[mode] : DEFAULT_DETOUR;
         km = haversine(places[i - 1], p);
-        travel = Math.max(1, Math.round((km / v) * 60));
+        roadKm = km * detour;
+        travel = Math.max(1, Math.round((roadKm / v) * 60));
         arrive = rows[i - 1].depart + travel;
         totalKm += km;
+        totalRoadKm += roadKm;
       }
       const stay = Number.isFinite(stays[p.id]) ? stays[p.id] : defaultStay;
-      rows.push({ place: p, arrive, stay, depart: arrive + stay, km, travel });
+      rows.push({ place: p, arrive, stay, depart: arrive + stay, km, roadKm, travel, mode, detour });
     });
-    return { rows, totalKm };
+    return { rows, totalKm, totalRoadKm };
   }
   function itineraryText(rows) {
     const out = [];
     rows.forEach((r, i) => {
-      if (i > 0) out.push(`  ↓ ${fmtTime(rows[i - 1].depart)}出発 → ${fmtTime(r.arrive)}到着（直線 ${r.km.toFixed(1)}km・約${r.travel}分）`);
+      if (i > 0) out.push(`  ↓ ${fmtTime(rows[i - 1].depart)}出発 → ${fmtTime(r.arrive)}到着（${MODE_LABEL[r.mode]}・直線${r.km.toFixed(1)}km×${r.detour}≒約${r.roadKm.toFixed(1)}km・約${r.travel}分）`);
       out.push(`■ ${r.place.name}（滞在${r.stay}分 / ${fmtTime(r.arrive)}〜${fmtTime(r.depart)}）`);
     });
+    out.push('', ESTIMATE_NOTE);
     return out.join('\n');
+  }
+
+  // ---------- Google Maps URLs（区間ごと 2 地点のみ。waypoints は使わない） ----------
+  function mapsDirUrl(from, to, mode) {
+    const p = new URLSearchParams(); // カンマは %2C にエンコードされる
+    p.set('api', '1');
+    p.set('origin', `${from.lat},${from.lng}`);
+    p.set('destination', `${to.lat},${to.lng}`);
+    p.set('travelmode', mode === 'train' ? 'transit' : 'driving');
+    return 'https://www.google.com/maps/dir/?' + p.toString();
+  }
+
+  // 登録済み予定（{start, end, allDay}）の表示用文字列。終日予定の end は排他的終了日
+  function fmtEventWhen(r) {
+    if (r.allDay) {
+      const e = addDays(r.end, -1);
+      return r.start === e ? fmtDate(r.start) : `${fmtDate(r.start)}〜${fmtDate(e)}`;
+    }
+    const sd = r.start.slice(0, 10), ed = r.end.slice(0, 10);
+    return `${fmtDate(sd)} ${r.start.slice(11, 16)}〜${ed === sd ? '' : fmtDate(ed) + ' '}${r.end.slice(11, 16)}`;
   }
 
   window.TripLib = {
     encodeCode, decodeCode, parseInvite, parseReply, makeInviteCode, makeReplyCode, rank,
     addDays, fmtDate, fmtRange, conflicts, extractLatLng, extractPlaceName,
-    haversine, optimize, parseTime, fmtTime, buildItinerary, itineraryText, MAX_CANDS
+    haversine, optimize, parseTime, fmtTime, buildItinerary, itineraryText, mapsDirUrl, fmtEventWhen, MODE_LABEL, UNNAMED_PLACE, ESTIMATE_NOTE, MAX_CANDS
   };
 })();

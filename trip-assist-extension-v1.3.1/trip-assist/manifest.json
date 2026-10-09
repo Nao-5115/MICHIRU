@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "旅行の日程調整・ルート決定アシスト",
+  "version": "1.2.0",
+  "description": "Google マップ上で、友達との旅行の日程調整とルート決定をアシストします。",
+  "permissions": ["identity", "storage"],
+  "host_permissions": [
+  "https://www.googleapis.com/*",
+  "https://identitytoolkit.googleapis.com/*",
+  "https://*.firebasedatabase.app/*"
+  ],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwRa9tQ+mji0JcR+p45Nw9CVmnbm7nNmb7KOOvSMeMY6DoahfZP7Xb6XJJp5woqB9rK3ckNrBclluYJJtnsNN3pZ1j9C/fKrRsMCfyhvtngqZA48aIxFL8pjQw1rfMxKmWstnHJFudYBHwOC3g+c8xwPcsH4mkwPGYSQqCRrhmQ5CB0pfAE2Bz51MBIlqBqzrn4/RKg3jeYsoENpK5r7gel8i7jfbVoRHt+X7o87fsuHICQce7bUDkRWnHCwqVCuTrkLw3pToODSXCmGzKrcF9zqstJYV3rggfIfYRfwDzVk0pOXm4rU3VkB9DfEwQQtetg9N2FNyVCtYZ2fBufSLtQIDAQAB",
+  "oauth2": {
+    "client_id": "657617351264-t63dqc72gde735ahq5v6sb5du3r4mm8g.apps.googleusercontent.com",
+    "scopes": [
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile"
+    ]
+  },
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.google.com/maps/*",
+        "https://www.google.co.jp/maps/*",
+        "https://maps.google.com/*"
+      ],
+      "js": ["lib.js", "panel.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["panel.css"],
+      "matches": [
+        "https://www.google.com/*",
+        "https://www.google.co.jp/*",
+        "https://maps.google.com/*"
+      ]
+    }
+  ]
+}

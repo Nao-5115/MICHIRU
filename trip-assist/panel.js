@@ -2,12 +2,12 @@
 (() => {
   if (document.getElementById('tripassist-host')) return;
   const T = TripLib;
-  const KEYS = ['title', 'candidates', 'responses', 'received', 'places', 'settings', 'inviteId', 'legModes', 'nav', 'tripId'];
+  const KEYS = ['title', 'candidates', 'responses', 'received', 'places', 'settings', 'inviteId', 'legModes', 'nav', 'tripId', 'savedRoutes'];
 const DEF = {
-  title: '', candidates: [], responses: [], received: null, places: [], inviteId: null, legModes: {}, nav: null, tripId: null,
+  title: '', candidates: [], responses: [], received: null, places: [], inviteId: null, legModes: {}, nav: null, tripId: null, savedRoutes: [],
   settings: { speedCar: 40, speedTrain: 35, detourCar: 1.3, detourTrain: 1.3, startTime: '09:00', defaultStay: 60, stays: {}, confirmedId: null, timed: true }
   };
-  const S = { events: null, tab: 'schedule', open: false, shareCode: '', replyCode: '', regResults: null, myEvents: [], selDel: new Set(), delResults: null, dragId: null, pendingScroll: null, trip: null, uid: null, tripTried: false };
+  const S = { events: null, tab: 'schedule', open: false, shareCode: '', replyCode: '', regResults: null, myEvents: [], selDel: new Set(), delResults: null, dragId: null, pendingScroll: null, trip: null, uid: null, tripTried: false, activeRouteId: null };
   const rid = () => Math.random().toString(36).slice(2, 10);
 
   // ---------- ストレージ ----------
@@ -212,7 +212,47 @@ const DEF = {
         } catch (e) { flash(e.message, 'err'); }
       }, 'primary'),
       S.received ? viewAnswerForm() : null);
-    return [sec1, sec2, sec3];
+    // ---- 保存したルート セクション ----
+    const routeNameIn = h('input', { type: 'text', placeholder: 'ルート名（例: 1日目ルート）', maxlength: 40 });
+    const routeUrlIn  = h('input', { type: 'text', placeholder: 'Google マップのルートURL (maps/dir/...)', maxlength: 2000 });
+
+    const secRoute = h('section', {},
+      h('h3', {}, '🗺️ 保存したルート'),
+      h('p', { class: 'muted' }, 'Google マップでルートを作成し、URLをコピーして登録してください。'),
+      h('label', {}, 'ルート名', routeNameIn),
+      h('label', {}, 'URL', routeUrlIn),
+      h('div', { style: 'display:flex;justify-content:flex-end;margin-top:4px;' },
+        btn('ルートを保存', async () => {
+          const name = routeNameIn.value.trim();
+          const url  = routeUrlIn.value.trim();
+          if (!name) return flash('ルート名を入力してください', 'err');
+          if (!url.includes('maps/dir/')) return flash('Google マップのルートURL（maps/dir/...）を入力してください', 'err');
+          const waypoints = parseRouteUrl(url);
+          if (!waypoints.length) return flash('URLから座標を取得できませんでした。地点に座標が含まれるURLを使用してください。', 'err');
+          S.savedRoutes.push({ id: rid(), name, url, waypoints, color: ROUTE_COLORS[S.savedRoutes.length % ROUTE_COLORS.length] });
+          await save('savedRoutes');
+          routeNameIn.value = ''; routeUrlIn.value = '';
+          render();
+          flash(`「${name}」を保存しました`);
+        }, 'primary')),
+      S.savedRoutes.length ? h('ul', { class: 'list' }, S.savedRoutes.map((r) =>
+        h('li', { style: 'display:flex;align-items:center;gap:8px;padding:6px 0;' },
+          h('span', { style: `width:12px;height:12px;border-radius:50%;background:${r.color};flex-shrink:0;display:inline-block;` }),
+          h('span', { style: 'flex:1;font-weight:bold;' }, r.name),
+          h('span', { class: 'muted', style: 'font-size:11px;' }, `${r.waypoints.length}地点`),
+          btn(S.activeRouteId === r.id ? '✓ 表示中' : '表示', () => {
+            S.activeRouteId = S.activeRouteId === r.id ? null : r.id;
+            updateRouteOverlay();
+            render();
+          }, S.activeRouteId === r.id ? 'small primary' : 'small'),
+          btn('削除', async () => {
+            S.savedRoutes = S.savedRoutes.filter((x) => x.id !== r.id);
+            if (S.activeRouteId === r.id) { S.activeRouteId = null; updateRouteOverlay(); }
+            await save('savedRoutes');
+            render();
+          }, 'small danger')))) : h('p', { class: 'muted' }, '保存したルートはありません。'));
+
+    return [sec1, sec2, sec3, secRoute];
   }
 
   function viewAnswerForm() {
@@ -344,6 +384,139 @@ const DEF = {
     return li;
   }
 
+  // ===== ルートオーバーレイ =====
+  const ROUTE_COLORS = ['#1a73e8','#e53935','#43a047','#f57c00','#8e24aa','#00838f'];
+
+  // Google マップの /dir/ URL から座標配列を抽出
+  function parseRouteUrl(url) {
+    let u = url;
+    try { u = decodeURIComponent(url); } catch(_) {}
+    const dirMatch = u.match(/\/dir\/([^@?#]+)/);
+    if (!dirMatch) return [];
+    const parts = dirMatch[1].split('/').filter(Boolean);
+    const coords = [];
+    for (const part of parts) {
+      const m = part.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)$/);
+      if (m) coords.push({ lat: +m[1], lng: +m[2] });
+    }
+    return coords;
+  }
+
+  // Mercator投影
+  function mercY(latDeg) {
+    const s = Math.sin(latDeg * Math.PI / 180);
+    return Math.log((1 + s) / (1 - s)) / (4 * Math.PI);
+  }
+  function getMapState() {
+    const m = location.href.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*),(\d+(?:\.\d+)?)z/);
+    return m ? { lat: +m[1], lng: +m[2], zoom: +m[3] } : null;
+  }
+  function toScreen(lat, lng, state) {
+    const scale = 256 * Math.pow(2, state.zoom);
+    const cx = (state.lng + 180) / 360 * scale;
+    const cy = (0.5 - mercY(state.lat)) * scale;
+    return {
+      x: window.innerWidth  / 2 + ((lng + 180) / 360 * scale - cx),
+      y: window.innerHeight / 2 + ((0.5 - mercY(lat)) * scale - cy)
+    };
+  }
+
+  // SVGオーバーレイを作成
+  const routeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  routeSvg.id = 'ta-route-svg';
+  routeSvg.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:2000;overflow:visible;';
+  document.body.appendChild(routeSvg);
+
+  function updateRouteOverlay() {
+    routeSvg.innerHTML = '';
+    const state = getMapState();
+    if (!state || !S.activeRouteId) return;
+    const route = S.savedRoutes.find((r) => r.id === S.activeRouteId);
+    if (!route || route.waypoints.length < 2) return;
+
+    const pts = route.waypoints.map((w) => toScreen(w.lat, w.lng, state));
+
+    // ポリライン
+    const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    polyline.setAttribute('points', pts.map((p) => `${p.x},${p.y}`).join(' '));
+    polyline.setAttribute('fill', 'none');
+    polyline.setAttribute('stroke', route.color);
+    polyline.setAttribute('stroke-width', '4');
+    polyline.setAttribute('stroke-opacity', '0.85');
+    polyline.setAttribute('stroke-linecap', 'round');
+    polyline.setAttribute('stroke-linejoin', 'round');
+    routeSvg.appendChild(polyline);
+
+    // 各地点に丸マーカー
+    pts.forEach((p, i) => {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', p.x);
+      circle.setAttribute('cy', p.y);
+      circle.setAttribute('r', i === 0 || i === pts.length - 1 ? 8 : 5);
+      circle.setAttribute('fill', route.color);
+      circle.setAttribute('stroke', '#fff');
+      circle.setAttribute('stroke-width', '2');
+      routeSvg.appendChild(circle);
+
+      // 番号ラベル
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', p.x);
+      text.setAttribute('y', p.y - 12);
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('font-size', '11');
+      text.setAttribute('font-weight', 'bold');
+      text.setAttribute('fill', route.color);
+      text.setAttribute('stroke', '#fff');
+      text.setAttribute('stroke-width', '3');
+      text.setAttribute('paint-order', 'stroke');
+      text.textContent = i + 1;
+      routeSvg.appendChild(text);
+    });
+  }
+
+  // ドラッグ追従
+  let _routeDragStart = null;
+  let _routeBasePoints = [];
+  document.addEventListener('mousedown', () => {
+    if (!S.activeRouteId) return;
+    const state = getMapState();
+    if (!state) return;
+    const route = S.savedRoutes.find((r) => r.id === S.activeRouteId);
+    if (!route) return;
+    _routeBasePoints = route.waypoints.map((w) => toScreen(w.lat, w.lng, state));
+    _routeDragStart = { x: event.clientX, y: event.clientY };
+  }, true);
+  document.addEventListener('mousemove', () => {
+    if (!_routeDragStart || !S.activeRouteId) return;
+    const dx = event.clientX - _routeDragStart.x;
+    const dy = event.clientY - _routeDragStart.y;
+    const pts = _routeBasePoints.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+    // ポリラインを直接更新
+    const pl = routeSvg.querySelector('polyline');
+    if (pl) pl.setAttribute('points', pts.map((p) => `${p.x},${p.y}`).join(' '));
+    const circles = routeSvg.querySelectorAll('circle');
+    const texts   = routeSvg.querySelectorAll('text');
+    circles.forEach((c, i) => { c.setAttribute('cx', pts[i].x); c.setAttribute('cy', pts[i].y); });
+    texts.forEach((t, i) => { t.setAttribute('x', pts[i].x); t.setAttribute('y', pts[i].y - 12); });
+  }, true);
+  document.addEventListener('mouseup', () => {
+    if (!_routeDragStart) return;
+    _routeDragStart = null;
+    updateRouteOverlay();
+  }, true);
+
+  // URLポーリング（ズーム対応）
+  let _lastRouteHref = location.href;
+  setInterval(() => {
+    if (location.href !== _lastRouteHref) {
+      _lastRouteHref = location.href;
+      if (!_routeDragStart) updateRouteOverlay();
+    }
+  }, 100);
+  window.addEventListener('resize', updateRouteOverlay);
+
+  // ===== ルートオーバーレイ ここまで =====
+
   function viewRoute() {
     const st = S.settings;
     const nameIn = h('input', { type: 'text', placeholder: '地点名（空欄なら URL から自動取得）', maxlength: 60 });
@@ -396,7 +569,47 @@ const DEF = {
         i > 0 ? legView(it.rows[i - 1], r) : null,
         h('div', { class: 'stop' }, h('b', {}, r.place.name), ` 滞在${r.stay}分 (${T.fmtTime(r.arrive)}〜${T.fmtTime(r.depart)})`)))),
       h('p', { class: 'note' }, T.ESTIMATE_NOTE)) : null;
-    return [sec1, sec2, sec3];
+    // ---- 保存したルート セクション ----
+    const routeNameIn = h('input', { type: 'text', placeholder: 'ルート名（例: 1日目ルート）', maxlength: 40 });
+    const routeUrlIn  = h('input', { type: 'text', placeholder: 'Google マップのルートURL (maps/dir/...)', maxlength: 2000 });
+
+    const secRoute = h('section', {},
+      h('h3', {}, '🗺️ 保存したルート'),
+      h('p', { class: 'muted' }, 'Google マップでルートを作成し、URLをコピーして登録してください。'),
+      h('label', {}, 'ルート名', routeNameIn),
+      h('label', {}, 'URL', routeUrlIn),
+      h('div', { style: 'display:flex;justify-content:flex-end;margin-top:4px;' },
+        btn('ルートを保存', async () => {
+          const name = routeNameIn.value.trim();
+          const url  = routeUrlIn.value.trim();
+          if (!name) return flash('ルート名を入力してください', 'err');
+          if (!url.includes('maps/dir/')) return flash('Google マップのルートURL（maps/dir/...）を入力してください', 'err');
+          const waypoints = parseRouteUrl(url);
+          if (!waypoints.length) return flash('URLから座標を取得できませんでした。地点に座標が含まれるURLを使用してください。', 'err');
+          S.savedRoutes.push({ id: rid(), name, url, waypoints, color: ROUTE_COLORS[S.savedRoutes.length % ROUTE_COLORS.length] });
+          await save('savedRoutes');
+          routeNameIn.value = ''; routeUrlIn.value = '';
+          render();
+          flash(`「${name}」を保存しました`);
+        }, 'primary')),
+      S.savedRoutes.length ? h('ul', { class: 'list' }, S.savedRoutes.map((r) =>
+        h('li', { style: 'display:flex;align-items:center;gap:8px;padding:6px 0;' },
+          h('span', { style: `width:12px;height:12px;border-radius:50%;background:${r.color};flex-shrink:0;display:inline-block;` }),
+          h('span', { style: 'flex:1;font-weight:bold;' }, r.name),
+          h('span', { class: 'muted', style: 'font-size:11px;' }, `${r.waypoints.length}地点`),
+          btn(S.activeRouteId === r.id ? '✓ 表示中' : '表示', () => {
+            S.activeRouteId = S.activeRouteId === r.id ? null : r.id;
+            updateRouteOverlay();
+            render();
+          }, S.activeRouteId === r.id ? 'small primary' : 'small'),
+          btn('削除', async () => {
+            S.savedRoutes = S.savedRoutes.filter((x) => x.id !== r.id);
+            if (S.activeRouteId === r.id) { S.activeRouteId = null; updateRouteOverlay(); }
+            await save('savedRoutes');
+            render();
+          }, 'small danger')))) : h('p', { class: 'muted' }, '保存したルートはありません。'));
+
+    return [sec1, sec2, sec3, secRoute];
   }
 
   // ---------- 登録タブ ----------

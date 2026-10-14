@@ -7,8 +7,12 @@
     title: '', candidates: [], responses: [], received: null, places: [], inviteId: null, legModes: {}, nav: null,
     settings: { speedCar: 40, speedTrain: 35, detourCar: 1.3, detourTrain: 1.3, startTime: '09:00', defaultStay: 60, stays: {}, confirmedId: null, timed: true }
   };
-  const S = { events: null, tab: 'schedule', open: false, shareCode: '', replyCode: '', regResults: null, myEvents: [], selDel: new Set(), delResults: null, dragId: null, pendingScroll: null };
+  const S = { events: null, tab: 'schedule', open: false, shareCode: '', replyCode: '', regResults: null, myEvents: [], selDel: new Set(), delResults: null, dragId: null, pendingScroll: null, localSpots: [] };
   const rid = () => Math.random().toString(36).slice(2, 10);
+
+  // おすすめスポット定数
+  const SPOT_CATEGORIES = ['観光スポット', '飲食店', '穴場スポット', 'カフェ', 'ショッピング', '自然・景色', 'その他'];
+  const MAX_SPOTS = 100;
 
   // ---------- ストレージ ----------
   async function load() {
@@ -49,6 +53,58 @@
     location.assign(S.nav.fromUrl);
   }
 
+  // v1.3: スポットは Firestore に保存（複数ユーザーで共有、大容量対応）
+
+  /** Firestore から最新 MAX_SPOTS 件を取得して S.localSpots に格納 */
+  async function loadSpots() {
+    const db = window._db;
+    if (!db) {
+      console.warn('[TripAssist] Firestore が初期化されていません。firebase/firebase-config.js を確認してください。');
+      S.localSpots = [];
+      return;
+    }
+    try {
+      const snap = await db.collection('spots').orderBy('registeredAt', 'desc').limit(MAX_SPOTS).get();
+      S.localSpots = snap.docs.map((doc) => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          name: d.name ?? '',
+          lat: d.lat ?? 0,
+          lng: d.lng ?? 0,
+          category: d.category ?? 'その他',
+          description: d.description ?? '',
+          recommendation: d.recommendation ?? '',
+          rating: d.rating ?? 0,
+          registeredBy: d.registeredBy ?? '',
+          registeredAt: d.registeredAt?.toDate?.().toISOString() ?? new Date().toISOString()
+        };
+      });
+    } catch (e) {
+      console.error('[TripAssist] スポットの読み込みに失敗しました:', e);
+      S.localSpots = [];
+    }
+  }
+
+  /** スポットを Firestore に追加し、新しいドキュメント ID を返す */
+  async function addSpotToFirestore(spot) {
+    const db = window._db;
+    if (!db) throw new Error('Firestore が初期化されていません。firebase/firebase-config.js を確認してください。');
+    const { id: _id, registeredAt: _ts, ...data } = spot;
+    const ref = await db.collection('spots').add({
+      ...data,
+      registeredAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    return ref.id;
+  }
+
+  /** Firestore からスポットを削除する */
+  async function deleteSpotFromFirestore(spotId) {
+    const db = window._db;
+    if (!db) throw new Error('Firestore が初期化されていません。firebase/firebase-config.js を確認してください。');
+    await db.collection('spots').doc(spotId).delete();
+  }
+
   // ---------- DOM ヘルパ（textContent のみ使用） ----------
   function h(tag, props = {}, ...kids) {
     const e = document.createElement(tag);
@@ -72,7 +128,7 @@
   const tabsEl = h('div', { class: 'tabs' });
   const navBar = h('div', { class: 'navbar', hidden: true });
   const panel = h('div', { class: 'panel', hidden: true },
-    h('div', { class: 'head' }, h('strong', {}, '旅行アシスト'), btn('×', () => toggle(false), 'icon')),
+    h('div', { class: 'head' }, h('img', { src: chrome.runtime.getURL('michiru-logo.png'), alt: 'MICHIRU', style: 'height:38px;vertical-align:middle;' }), btn('×', () => toggle(false), 'icon')),
     navBar, tabsEl, statusEl, body);
   const fab = h('button', { class: 'fab', type: 'button', title: '旅行アシストを開く', onclick: () => toggle(true) }, '旅');
   root.append(h('link', { rel: 'stylesheet', href: chrome.runtime.getURL('panel.css') }), panel, fab);
@@ -128,7 +184,7 @@
     if (!S.events) return null;
     const cf = T.conflicts(c, S.events);
     if (!cf.length) return null;
-    return h('div', { class: 'warn' }, '⚠ この日は既に予定が入っています',
+    return h('div', { class: 'warn' }, h('span', { class: 'material-symbols-outlined', style: 'font-size:16px' }, 'warning'), ' この日は既に予定が入っています',
       h('ul', {}, cf.slice(0, 4).map((e) => h('li', {}, e.summary))));
   };
 
@@ -327,7 +383,7 @@
             S.dragId = p.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', p.id);
             e.dataTransfer.setDragImage(li, 12, 12); li.classList.add('dragging');
           },
-          ondragend: () => { S.dragId = null; clearMarks(); } }, '☰'),
+          ondragend: () => { S.dragId = null; clearMarks(); } }, h('span', { class: 'material-symbols-outlined', style: 'font-size:18px;margin:0' }, 'drag_indicator')),
         h('span', { class: 'idx' }, `${i + 1}.`),
         h('input', { type: 'text', class: 'pname' + (p.name === T.UNNAMED_PLACE ? ' unnamed' : ''), value: p.name, maxlength: 60,
           placeholder: '地点名を入力', 'aria-label': '地点名',
@@ -356,7 +412,7 @@
       } });
     const sec1 = h('section', {},
       h('h3', {}, '訪問地点（上から順に訪問）'),
-      h('p', { class: 'muted' }, 'Google マップで場所を開いてから登録してください。☰ をドラッグすると並べ替えられます（先頭が出発地点）。'),
+      h('p', { class: 'muted' }, 'Google マップで場所を開いてから登録してください。', h('span', { class: 'material-symbols-outlined', style: 'font-size:14px' }, 'drag_indicator'), ' をドラッグすると並べ替えられます（先頭が出発地点）。'),
       nameIn,
       btn('現在のページの地点を登録', async () => {
         const ll = T.extractLatLng(location.href);
@@ -457,7 +513,7 @@
         render();
       }, 'primary'),
       S.regResults ? h('ul', { class: 'list' }, S.regResults.map((r) =>
-        h('li', { class: r.ok ? 'okli' : 'warn' }, (r.ok ? '✔ ' : '✖ ') + r.name + (r.ok ? '' : ` — ${r.error}`)))) : null);
+        h('li', { class: r.ok ? 'okli' : 'warn' }, h('span', { class: 'material-symbols-outlined', style: 'font-size:14px' }, r.ok ? 'check_circle' : 'cancel'), ' ' + r.name + (r.ok ? '' : ` — ${r.error}`)))) : null);
     return [sec, viewMyEvents()];
   }
 
@@ -497,11 +553,578 @@
           flash(ng ? `${ng} 件の削除に失敗しました` : `${S.delResults.length} 件の予定を処理しました`, ng ? 'err' : 'ok');
           render();
         }, 'danger')) : null,
-      S.delResults ? h('ul', { class: 'list' }, S.delResults.map((x) => h('li', { class: x.ok ? 'okli' : 'warn' }, (x.ok ? '✔ ' : '✖ ') + x.text))) : null);
+      S.delResults ? h('ul', { class: 'list' }, S.delResults.map((x) => h('li', { class: x.ok ? 'okli' : 'warn' }, h('span', { class: 'material-symbols-outlined', style: 'font-size:14px' }, x.ok ? 'check_circle' : 'cancel'), ' ' + x.text))) : null);
   }
 
+  // ========== v1.3: おすすめスポット機能 ==========
+
+  // スポット入力バリデーション
+  function validateSpotInput(name, category, rating) {
+    if (!name || name.length === 0) return 'スポット名を入力してください';
+    if (name.length > 60) return 'スポット名は60文字以内で入力してください';
+    if (!SPOT_CATEGORIES.includes(category)) return 'カテゴリを選択してください';
+    if (!rating || rating < 1) return '評価（星）を選択してください';
+    return null;
+  }
+
+  // 重複スポット判定（50m 以内に同一スポットがある場合は重複と判定）
+  function isDuplicateSpot(lat, lng) {
+    const R = 6371000;
+    return S.localSpots.some((s) => {
+      const dLat = (s.lat - lat) * Math.PI / 180;
+      const dLng = (s.lng - lng) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat * Math.PI / 180) * Math.cos(s.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(a)) < 50;
+    });
+  }
+
+  // カテゴリ色のマッピング
+  const CAT_COLOR = {
+    '観光スポット': '#1a73e8', '飲食店': '#e53935', '穴場スポット': '#7b1fa2',
+    'カフェ': '#f57c00', 'ショッピング': '#0097a7', '自然・景色': '#388e3c', 'その他': '#616161'
+  };
+
+  // ---------- スポットタブ ----------
+  // ---- レビューオーバーレイ（パネル内スライド）----
+  function showReviewsOverlay(spots, spotName) {
+    // 既存のオーバーレイを削除
+    panel.querySelectorAll('.spot-review-overlay').forEach((el) => el.remove());
+
+    function renderStars(rating, size = 18) {
+      return h('div', { class: 'rev-stars' },
+        ...Array.from({ length: 5 }, (_, i) =>
+          h('span', { class: 'material-symbols-outlined',
+            style: `font-size:${size}px;color:${i < rating ? '#fbbc04' : '#dadce0'};font-variation-settings:"FILL" ${i < rating ? 1 : 0},"wght" 400,"GRAD" 0,"opsz" 24;` }, 'star')));
+    }
+
+    const overlay = h('div', { class: 'spot-review-overlay' },
+      // ヘッダー
+      h('div', { class: 'rev-head' },
+        h('button', { class: 'rev-back', type: 'button', onclick: () => {
+          overlay.style.transform = 'translateX(100%)';
+          setTimeout(() => overlay.remove(), 350);
+        } }, h('span', { class: 'material-symbols-outlined' }, 'arrow_back'), ' 戻る'),
+        h('span', { class: 'rev-title' }, spotName || 'このスポットのレビュー')),
+      // 平均評価サマリー
+      (() => {
+        const rated = spots.filter((s) => s.rating > 0);
+        if (!rated.length) return null;
+        const avg = rated.reduce((sum, s) => sum + s.rating, 0) / rated.length;
+        const avgRounded = Math.round(avg * 10) / 10;
+        return h('div', { class: 'rev-summary' },
+          h('div', { class: 'rev-avg-score' }, avgRounded.toFixed(1)),
+          renderStars(Math.round(avg), 20),
+          h('div', { class: 'rev-avg-sub' }, `${rated.length}件のレビュー`));
+      })(),
+      // レビュー一覧
+      h('div', { class: 'rev-list' },
+        ...spots.map((s) => {
+          const dateStr = s.registeredAt
+            ? new Date(s.registeredAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })
+            : '';
+          return h('div', { class: 'rev-item' },
+            h('div', { class: 'rev-item-head' },
+              h('div', { class: 'rev-avatar' },
+                h('span', { class: 'material-symbols-outlined', style: 'font-size:28px;color:#9aa0a6;' }, 'account_circle')),
+              h('div', { class: 'rev-meta' },
+                h('div', { class: 'rev-name' }, s.registeredBy || '匿名ユーザー'),
+                h('div', { class: 'rev-meta2' },
+                  s.rating ? renderStars(s.rating, 16) : null,
+                  h('span', { class: 'rev-date' }, dateStr)))),
+            h('div', { class: 'rev-cat' }, s.category),
+            s.description ? h('p', { class: 'rev-desc' }, s.description) : null,
+            s.recommendation ? h('p', { class: 'rev-comment' }, s.recommendation) : null);
+        })));
+
+    panel.appendChild(overlay);
+    // ぬるっとスライドイン
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { overlay.style.transform = 'translateX(0)'; });
+    });
+  }
+
+  function viewSpots() {
+    // ① スポット名：ピンから自動取得、なければ手動入力
+    const autoName = T.extractPlaceName(location.href);
+    const nameIn = h('input', { type: 'text',
+      placeholder: autoName ? '（自動取得済み）変更する場合は入力' : '名称を手動で入力してください',
+      maxlength: 60, value: autoName || '' });
+
+    // ② カテゴリアイコングリッド（再クリックで選択解除）
+    const CAT_ICONS = ['place', 'restaurant', 'explore', 'local_cafe', 'shopping_bag', 'park', 'more_horiz'];
+    const CAT_LABELS_SHORT = ['観光', '飲食', '穴場', 'カフェ', 'ショッピング', '自然', 'その他'];
+    let _catValue = '';
+    const catGrid = h('div', { class: 'cat-grid' },
+      ...SPOT_CATEGORIES.map((c, i) => {
+        const btn2 = h('button', { class: 'cat-btn', type: 'button', title: c,
+          onclick: () => {
+            if (btn2.classList.contains('selected')) {
+              btn2.classList.remove('selected');
+              _catValue = '';
+            } else {
+              catGrid.querySelectorAll('.cat-btn').forEach((b) => b.classList.remove('selected'));
+              btn2.classList.add('selected');
+              _catValue = c;
+            }
+          } },
+          h('span', { class: 'material-symbols-outlined' }, CAT_ICONS[i] || 'place'),
+          h('span', { class: 'cat-label' }, CAT_LABELS_SHORT[i] || c));
+        return btn2;
+      }));
+    const catSel = { get value() { return _catValue; }, set value(v) { _catValue = v; catGrid.querySelectorAll('.cat-btn').forEach((b) => { if (b.title === v) b.classList.add('selected'); else b.classList.remove('selected'); }); } };
+
+    const descIn = h('textarea', { placeholder: 'レビュー（任意、500文字以内）', maxlength: 500, rows: 3 });
+    const recIn = h('textarea', { placeholder: '一言コメント（任意、200文字以内）', maxlength: 200, rows: 2 });
+
+    // ③ 星5段階評価
+    let _rating = 0;
+    const stars = Array.from({ length: 5 }, (_, i) => {
+      const s = h('span', { class: 'material-symbols-outlined rate-star',
+        style: 'font-size:32px;cursor:pointer;color:#dadce0;transition:color .1s,font-variation-settings .1s;',
+        onclick: () => {
+          _rating = (_rating === i + 1) ? 0 : i + 1; // 同じ星を押したら解除
+          updateRatingStars();
+        },
+        onmouseover: () => highlightStars(i + 1),
+        onmouseout: () => updateRatingStars() },
+        'star');
+      return s;
+    });
+    const ratingEl = h('div', { class: 'rate-row' }, ...stars,
+      h('span', { class: 'rate-label', style: 'color:#e53935;font-weight:bold;' }, '必須'));
+    function highlightStars(n) {
+      stars.forEach((s, i) => {
+        s.style.color = i < n ? '#fbbc04' : '#dadce0';
+        s.style.fontVariationSettings = `"FILL" ${i < n ? 1 : 0},"wght" 400,"GRAD" 0,"opsz" 24`;
+      });
+    }
+    function updateRatingStars() { highlightStars(_rating); }
+
+    const byIn = h('input', { type: 'text', placeholder: '登録者名（地元民としての名前・ハンドル名など）', maxlength: 40 });
+
+    // ④ 現在地付近の過去レビューを表示
+    const ll = T.extractLatLng(location.href);
+    const nearbySpots = ll ? S.localSpots.filter((s) => {
+      const R = 6371000;
+      const dLat = (s.lat - ll.lat) * Math.PI / 180;
+      const dLng = (s.lng - ll.lng) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(ll.lat * Math.PI / 180) * Math.cos(s.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(a)) < 100;
+    }) : [];
+
+    const reviewsLinkEl = nearbySpots.length > 0
+      ? h('button', { class: 'rev-link-btn', type: 'button',
+          onclick: () => showReviewsOverlay(nearbySpots, autoName || nameIn.value.trim()) },
+          h('span', { class: 'material-symbols-outlined', style: 'font-size:16px;vertical-align:middle;' }, 'rate_review'),
+          ` 過去のレビュー ${nearbySpots.length}件`,
+          h('span', { class: 'material-symbols-outlined', style: 'font-size:16px;vertical-align:middle;margin-left:2px;' }, 'chevron_right'))
+      : null;
+
+    const sec1 = h('section', {},
+      h('h3', { style: 'font-size:18px;margin:4px 0 10px;color:#202124;' }, h('span', { class: 'material-symbols-outlined', style: 'font-size:20px;vertical-align:middle;color:#DB4437;' }, 'location_on'), ' 地元おすすめスポットを登録'),
+      h('label', {}, 'スポット名', nameIn),
+      reviewsLinkEl,
+      h('label', {}, 'カテゴリ', catGrid),
+      h('label', {}, 'レビュー', descIn),
+      h('label', {}, '一言コメント', recIn),
+      h('label', {}, '評価', ratingEl),
+      h('label', {}, '登録者名（地元民として）', byIn),
+      h('div', { style: 'display:flex;justify-content:flex-end;' },
+      h('button', { class: 'btn primary', type: 'button', style: 'display:flex;align-items:center;gap:6px;', onclick: async () => {
+        const ll2 = T.extractLatLng(location.href);
+        if (!ll2) return flash('この URL から位置情報を取得できません。Google マップで場所を選択してからお試しください。', 'err');
+        const name = nameIn.value.trim();
+        const category = catSel.value;
+
+        const err = validateSpotInput(name, category, _rating);
+        if (err) return flash(err, 'err');
+        if (S.localSpots.length >= MAX_SPOTS) return flash(`登録できるスポットは最大 ${MAX_SPOTS} 件です`, 'err');
+
+
+        const spot = {
+          id: '',
+          name: name.slice(0, 60),
+          lat: ll2.lat,
+          lng: ll2.lng,
+          category,
+          description: descIn.value.trim().slice(0, 500),
+          recommendation: recIn.value.trim().slice(0, 200),
+          rating: _rating,
+          registeredBy: byIn.value.trim().slice(0, 40),
+          registeredAt: new Date().toISOString()
+        };
+        try {
+          const newId = await addSpotToFirestore(spot);
+          spot.id = newId;
+          S.localSpots.unshift(spot);
+          flash(`「${spot.name}」を${spot.category}として登録しました`);
+          updateOverlay();
+          nameIn.value = ''; catSel.value = ''; descIn.value = ''; recIn.value = '';
+          byIn.value = ''; _rating = 0; updateRatingStars();
+          render();
+        } catch (e) {
+          flash('スポットの保存に失敗しました: ' + e.message, 'err');
+        }
+      } }, h('span', { class: 'material-symbols-outlined', style: 'font-size:18px;' }, 'keep'), '登録')));
+
+    // ⑤ 登録済みスポット一覧（セクションヘッダーをクリックで展開）
+    const sorted = [...S.localSpots].reverse();
+    const expandedIds = new Set();
+
+    function renderStarsSmall(rating) {
+      if (!rating) return null;
+      return h('span', { class: 'spot-stars-sm' },
+        ...Array.from({ length: 5 }, (_, i) =>
+          h('span', { class: 'material-symbols-outlined',
+            style: `font-size:13px;color:${i < rating ? '#fbbc04' : '#dadce0'};font-variation-settings:"FILL" ${i < rating ? 1 : 0},"wght" 400,"GRAD" 0,"opsz" 24;` }, 'star')));
+    }
+
+    const spotList = S.localSpots.length === 0
+      ? h('p', { class: 'muted', style: 'padding:8px 0;' }, '登録されたスポットはまだありません。上のフォームから登録してください。')
+      : h('ul', { class: 'list' }, sorted.map((spot) => {
+          const color = CAT_COLOR[spot.category] || '#616161';
+
+          const detail = h('div', { class: 'spot-detail', style: 'display:none;' },
+            h('div', { class: 'muted', style: 'margin-top:4px;' },
+              h('span', { class: 'material-symbols-outlined', style: 'font-size:14px;vertical-align:middle;' }, 'pin_drop'),
+              ` ${spot.lat.toFixed(5)}, ${spot.lng.toFixed(5)}`,
+              spot.registeredBy ? h('span', {}, '　', h('span', { class: 'material-symbols-outlined', style: 'font-size:14px;vertical-align:middle;' }, 'person'), ` ${spot.registeredBy}`) : null,
+              `　${new Date(spot.registeredAt).toLocaleDateString('ja-JP')}`),
+            spot.description ? h('p', { class: 'muted spot-desc' }, spot.description) : null,
+            spot.recommendation ? h('p', { class: 'muted spot-rec' },
+              h('span', { class: 'material-symbols-outlined', style: 'font-size:14px;vertical-align:middle;' }, 'auto_awesome'),
+              ' ' + spot.recommendation) : null);
+
+          const chevron = h('span', { class: 'material-symbols-outlined', style: 'font-size:16px;transition:transform .2s;color:#5f6368;' }, 'expand_more');
+
+          const header = h('div', { class: 'line spot-header', style: 'cursor:pointer;', onclick: () => {
+            const isOpen = expandedIds.has(spot.id);
+            if (isOpen) {
+              expandedIds.delete(spot.id);
+              detail.style.display = 'none';
+              chevron.style.transform = '';
+            } else {
+              expandedIds.add(spot.id);
+              detail.style.display = 'block';
+              chevron.style.transform = 'rotate(180deg)';
+            }
+          } },
+            h('span', { style: 'display:flex;align-items:center;gap:6px;flex:1;min-width:0;overflow:hidden;' },
+              chevron,
+              h('span', { style: 'display:flex;flex-direction:column;gap:1px;min-width:0;' },
+                h('b', {}, spot.name),
+                h('span', { style: 'display:flex;align-items:center;gap:4px;flex-wrap:wrap;' },
+                  h('span', { class: 'spot-cat', style: `background:${color}20;color:${color};border-color:${color}40` }, spot.category),
+                  renderStarsSmall(spot.rating)))),
+            btn('削除', async (e) => {
+              e.stopPropagation();
+              if (!confirm(`「${spot.name}」をスポット一覧から削除しますか？この操作は取り消せません。`)) return;
+              const prev = S.localSpots;
+              S.localSpots = S.localSpots.filter((s) => s.id !== spot.id);
+              try {
+                await deleteSpotFromFirestore(spot.id);
+                updateOverlay();
+                flash(`「${spot.name}」を削除しました`);
+                render();
+              } catch (e2) {
+                S.localSpots = prev;
+                flash('スポットの削除に失敗しました: ' + e2.message, 'err');
+              }
+            }, 'small danger'));
+
+          return h('li', {}, header, detail);
+        }));
+
+    let listOpen = false;
+    const listChevron = h('span', { class: 'material-symbols-outlined', style: 'font-size:18px;transition:transform .2s;' }, 'chevron_right');
+    const listBody = h('div', { style: 'display:none;padding-top:4px;' }, spotList);
+    const sec2 = h('section', { class: 'spot-list-section' },
+      h('div', { class: 'spot-list-toggle', onclick: () => {
+        listOpen = !listOpen;
+        listBody.style.display = listOpen ? 'block' : 'none';
+        listChevron.style.transform = listOpen ? 'rotate(90deg)' : '';
+      } },
+        listChevron,
+        ` 登録済みスポット（${S.localSpots.length} 件）`));
+    sec2.appendChild(listBody);
+
+    return [sec1, sec2];
+  }
+
+  // ========== v1.3: マップマーカーオーバーレイ ==========
+
+  // Mercator 投影の Y 座標（0〜0.5 の範囲）
+  function mercY(latDeg) {
+    const s = Math.sin(latDeg * Math.PI / 180);
+    return Math.log((1 + s) / (1 - s)) / (4 * Math.PI);
+  }
+
+  // URL から Google マップの中心座標とズームレベルを取得
+  function getMapState() {
+    const m = location.href.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*),(\d+(?:\.\d+)?)z/);
+    return m ? { lat: +m[1], lng: +m[2], zoom: +m[3] } : null;
+  }
+
+  // スポット座標 → スクリーン座標（px）
+  function spotToScreen(spot, state) {
+    const scale = 256 * Math.pow(2, state.zoom);
+    const cx = (state.lng + 180) / 360 * scale;
+    const cy = (0.5 - mercY(state.lat)) * scale;
+    const wx = (spot.lng + 180) / 360 * scale;
+    const wy = (0.5 - mercY(spot.lat)) * scale;
+    return {
+      x: window.innerWidth / 2 + (wx - cx),
+      y: window.innerHeight / 2 + (wy - cy)
+    };
+  }
+
+  // --- オーバーレイ DOM 初期化（Shadow DOM の外、通常の document に配置） ---
+  if (!document.getElementById('ta-overlay-style')) {
+    const style = document.createElement('style');
+    style.id = 'ta-overlay-style';
+    style.textContent = [
+      '#ta-spot-overlay{position:fixed;inset:0;pointer-events:none;z-index:2147483646;overflow:hidden;}',
+      '.ta-marker{position:absolute;pointer-events:auto;cursor:pointer;transform:translate(-12px,-28px);}',
+      '.ta-pin{width:24px;height:24px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);',
+      'border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);transition:transform .15s;}',
+      '.ta-marker:hover .ta-pin{transform:rotate(-45deg) scale(1.2);}',
+      '.ta-pin-dot{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(45deg);',
+      'width:8px;height:8px;background:rgba(255,255,255,.9);border-radius:50%;}',
+      '.ta-tooltip{position:absolute;left:28px;top:-4px;background:rgba(32,33,36,.85);color:#fff;',
+      'font:bold 11px -apple-system,"Segoe UI",Meiryo,sans-serif;padding:3px 8px;border-radius:4px;',
+      'white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;max-width:180px;overflow:hidden;text-overflow:ellipsis;}',
+      '.ta-marker:hover .ta-tooltip{opacity:1;}',
+      '.ta-popup{position:absolute;background:#fff;border-radius:10px;',
+      'box-shadow:0 4px 16px rgba(0,0,0,.3);padding:12px 14px;width:260px;',
+      'pointer-events:auto;z-index:2;font:13px/1.5 -apple-system,"Segoe UI",Meiryo,sans-serif;}',
+      '.ta-popup-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px;}',
+      '.ta-popup h4{margin:0;font-size:14px;color:#202124;flex:1;line-height:1.3;}',
+      '.ta-cat-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;margin-bottom:6px;}',
+      '.ta-popup-desc{margin:4px 0;font-size:12px;color:#5f6368;line-height:1.5;}',
+      '.ta-popup-rec{margin:4px 0;font-size:12px;color:#1e6b3c;background:#e6f4ea;padding:4px 8px;border-radius:4px;}',
+      '.ta-popup-meta{margin-top:6px;font-size:11px;color:#9aa0a6;}',
+      '.ta-close-btn{border:none;background:none;font-size:20px;cursor:pointer;color:#9aa0a6;',
+      'line-height:1;padding:0;flex-shrink:0;transition:color .1s;}',
+      '.ta-close-btn:hover{color:#202124;}',
+      '.ta-maps-link{display:inline-block;margin-top:6px;font-size:11px;color:#1a73e8;text-decoration:none;font-weight:bold;}',
+      '.ta-maps-link:hover{text-decoration:underline;}',
+      '.ta-ms{font-family:"Material Symbols Outlined";font-weight:normal;font-style:normal;font-size:14px;line-height:1;vertical-align:middle;letter-spacing:normal;text-transform:none;white-space:nowrap;word-wrap:normal;direction:ltr;}',
+      '.ta-bubble{position:absolute;left:12px;bottom:30px;transform:translateX(-50%);background:#fff;border-radius:10px;padding:4px 9px;font:bold 11px -apple-system,"Segoe UI",Meiryo,sans-serif;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;box-shadow:0 2px 8px rgba(0,0,0,.25);border:1.5px solid #ccc;pointer-events:none;transition:opacity .15s;}',
+      '.ta-bubble::after{content:"";position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);border:7px solid transparent;border-top-color:#fff;border-bottom:0;filter:drop-shadow(0 2px 2px rgba(0,0,0,.15));}'
+    ].join('');
+    document.head.appendChild(style);
+    if (!document.getElementById('ta-ms-font')) {
+      const fl = document.createElement('link');
+      fl.id = 'ta-ms-font';
+      fl.rel = 'stylesheet';
+      fl.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200';
+      document.head.appendChild(fl);
+    }
+  }
+
+  const overlayEl = (() => {
+    let el = document.getElementById('ta-spot-overlay');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'ta-spot-overlay';
+      document.documentElement.appendChild(el);
+    }
+    return el;
+  })();
+
+  let activePopupId = null;
+
+  function clearPopup() {
+    overlayEl.querySelectorAll('.ta-popup').forEach((el) => el.remove());
+    activePopupId = null;
+  }
+
+  function showSpotPopup(spot, px, py) {
+    // 同じスポットを再クリックした場合は閉じる
+    if (activePopupId === spot.id) { clearPopup(); return; }
+    clearPopup();
+    activePopupId = spot.id;
+
+    const popup = document.createElement('div');
+    popup.className = 'ta-popup';
+
+    // 画面端・パネルに重ならないよう位置を調整
+    const panelW = S.open ? 380 : 56;
+    const maxLeft = window.innerWidth - panelW - 270;
+    const left = Math.min(Math.max(10, px + 20), maxLeft);
+    const top = Math.max(10, Math.min(py - 40, window.innerHeight - 240));
+    popup.style.cssText = `left:${left}px;top:${top}px;`;
+
+    // ヘッダー（タイトル + 閉じるボタン）
+    const head = document.createElement('div');
+    head.className = 'ta-popup-head';
+    const h4 = document.createElement('h4');
+    h4.textContent = spot.name;
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'ta-close-btn';
+    closeBtn.textContent = '×';
+    closeBtn.title = '閉じる';
+    closeBtn.onclick = (e) => { e.stopPropagation(); clearPopup(); };
+    head.append(h4, closeBtn);
+    popup.appendChild(head);
+
+    // カテゴリバッジ
+    const color = CAT_COLOR[spot.category] || '#616161';
+    const catBadge = document.createElement('span');
+    catBadge.className = 'ta-cat-badge';
+    catBadge.style.cssText = `background:${color}20;color:${color};border:1px solid ${color}40;`;
+    catBadge.textContent = spot.category;
+    popup.appendChild(catBadge);
+
+    // レビュー
+    if (spot.description) {
+      const p = document.createElement('p');
+      p.className = 'ta-popup-desc';
+      p.textContent = spot.description;
+      popup.appendChild(p);
+    }
+
+    // 一言コメント
+    if (spot.recommendation) {
+      const p = document.createElement('p');
+      p.className = 'ta-popup-rec';
+      const recIcon = document.createElement('span');
+      recIcon.className = 'ta-ms';
+      recIcon.textContent = 'auto_awesome';
+      p.appendChild(recIcon);
+      p.appendChild(document.createTextNode(' ' + spot.recommendation));
+      popup.appendChild(p);
+    }
+
+    // Google マップリンク
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(spot.lat + ',' + spot.lng)}`;
+    const link = document.createElement('a');
+    link.className = 'ta-maps-link';
+    link.href = mapsUrl;
+    const mapIcon = document.createElement('span');
+    mapIcon.className = 'ta-ms';
+    mapIcon.textContent = 'map';
+    link.appendChild(mapIcon);
+    link.appendChild(document.createTextNode(' Google マップで開く'));
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    popup.appendChild(link);
+
+    // 登録者・日時
+    const metaParts = [];
+    if (spot.registeredBy) { const pIcon = document.createElement('span'); pIcon.className = 'ta-ms'; pIcon.textContent = 'person'; metaParts.push(pIcon); metaParts.push(' ' + spot.registeredBy); }
+    if (spot.registeredAt) metaParts.push(new Date(spot.registeredAt).toLocaleDateString('ja-JP'));
+    if (metaParts.length) {
+      const meta = document.createElement('div');
+      meta.className = 'ta-popup-meta';
+      meta.textContent = metaParts.join('　');
+      popup.appendChild(meta);
+    }
+
+    overlayEl.appendChild(popup);
+  }
+
+  // マーカーを再描画（ポップアップは保持）
+  function updateOverlay() {
+    overlayEl.querySelectorAll('.ta-marker').forEach((el) => el.remove());
+    const state = getMapState();
+    if (!state || !S.localSpots.length) return;
+    const ZOOM_THRESHOLD = 14;
+    const showBubble = state.zoom >= 15;
+
+    if (state.zoom < ZOOM_THRESHOLD) return;
+    const mapW = window.innerWidth;
+    const mapH = window.innerHeight;
+    const margin = 60; // 画面外のマーカーは非表示
+
+    for (const spot of S.localSpots) {
+      const { x: px, y: py } = spotToScreen(spot, state);
+      if (px < -margin || px > mapW + margin || py < -margin || py > mapH + margin) continue;
+
+      const color = CAT_COLOR[spot.category] || '#616161';
+      const marker = document.createElement('div');
+      marker.className = 'ta-marker';
+      marker.style.cssText = `left:${px}px;top:${py}px;`;
+      marker.dataset.baseX = px;
+      marker.dataset.baseY = py;
+      marker.setAttribute('data-spot-id', spot.id);
+
+      // ピン（涙滴型）
+      const pin = document.createElement('div');
+      pin.className = 'ta-pin';
+      pin.style.background = color;
+
+      // 中央の白丸
+      const dot = document.createElement('div');
+      dot.className = 'ta-pin-dot';
+      pin.appendChild(dot);
+      marker.appendChild(pin);
+
+      // ホバー時のラベル（スポット名）
+      const tooltip = document.createElement('div');
+      tooltip.className = 'ta-tooltip';
+      tooltip.textContent = spot.name;
+      marker.appendChild(tooltip);
+
+      // 一言コメントの吹き出し
+      if (spot.recommendation && showBubble) {
+        const bubble = document.createElement('div');
+        bubble.className = 'ta-bubble';
+        bubble.style.borderColor = color + '80';
+        const maxLen = 22;
+        bubble.textContent = spot.recommendation.length > maxLen
+          ? spot.recommendation.slice(0, maxLen) + '…'
+          : spot.recommendation;
+        marker.appendChild(bubble);
+      }
+
+      marker.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showSpotPopup(spot, px, py);
+      });
+
+      overlayEl.appendChild(marker);
+    }
+  }
+
+  // マップのパン・ズーム（URL変化）を検知してマーカーを更新
+  // --- ドラッグ追従: マウス移動量をリアルタイムでマーカーにオフセット ---
+  let _dragStart = null;
+  document.addEventListener('mousedown', (e) => {
+    const state = getMapState();
+    if (!state || !S.localSpots.length) return;
+    _dragStart = { x: e.clientX, y: e.clientY };
+  }, true);
+  document.addEventListener('mousemove', (e) => {
+    if (!_dragStart) return;
+    const dx = e.clientX - _dragStart.x;
+    const dy = e.clientY - _dragStart.y;
+    overlayEl.querySelectorAll('.ta-marker').forEach((m) => {
+      const bx = parseFloat(m.dataset.baseX) || 0;
+      const by = parseFloat(m.dataset.baseY) || 0;
+      m.style.left = (bx + dx) + 'px';
+      m.style.top  = (by + dy) + 'px';
+    });
+  }, true);
+  document.addEventListener('mouseup', () => {
+    if (!_dragStart) return;
+    _dragStart = null;
+    clearPopup();
+    updateOverlay();
+  }, true);
+
+  // URL変化を100msで監視（ズームイン/アウト対応）
+  let lastHref = location.href;
+  setInterval(() => {
+    if (location.href !== lastHref) {
+      lastHref = location.href;
+      if (!_dragStart) { clearPopup(); updateOverlay(); }
+    }
+  }, 100);
+  window.addEventListener('resize', () => { clearPopup(); updateOverlay(); });
+
   // ---------- 描画 ----------
-  const TABS = [['schedule', '日程', viewSchedule], ['route', 'ルート', viewRoute], ['register', '登録', viewRegister]];
+  const TABS = [['schedule', '日程', viewSchedule], ['route', 'ルート', viewRoute], ['register', '登録', viewRegister], ['spots', 'スポット', viewSpots]];
   function render() {
     if (!S.open) return;
     tabsEl.replaceChildren(...TABS.map(([k, label]) =>
@@ -520,18 +1143,21 @@
   // 起動時: ルート案内への遷移後（または元の画面への復帰後）はパネルを自動で再表示して状態を復元
   async function boot() {
     await load();
+    await loadSpots(); // スポットを Firestore から読み込む
     const nav = S.nav;
     if (nav) {
       if (!nav.ts || Date.now() - nav.ts > 12 * 3600 * 1000) {
         await clearNav(); // 古い遷移記録は破棄
       } else {
-        S.tab = ['schedule', 'route', 'register'].includes(nav.tab) ? nav.tab : 'route';
+        S.tab = ['schedule', 'route', 'register', 'spots'].includes(nav.tab) ? nav.tab : 'route';
         S.pendingScroll = nav.scroll || 0;
         if (nav.back || !isDirPage()) await clearNav(); // 元の画面に戻った → 復元して終了
         toggle(true);
+        updateOverlay(); // スポットマーカーを復元
         return;
       }
     }
+    updateOverlay(); // 起動時にスポットマーカーを表示
     render();
   }
   boot().catch((e) => flash('設定の読み込みに失敗しました: ' + e.message, 'err'));

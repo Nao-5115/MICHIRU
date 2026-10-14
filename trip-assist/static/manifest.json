@@ -1,0 +1,57 @@
+{
+  "manifest_version": 3,
+  "name": "旅行の日程調整・ルート決定アシスト",
+  "version": "2.0.0",
+  "description": "Google マップ上で、友達との旅行の日程調整・訪問地点の投票・ルート決定をリアルタイム共有でアシストします。",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoisGgjxCRSlDxkZ7CFEzUnW3hordou4GKulSELGZ6U5jO5AxlLqP68+OI/as+SWjliilTY0ErD/R2dXzihnJy2aKmUSX3chzZZaUx2dvjQ/j9sCf0pMMmooZ9LsOy/oGtbPWkeZyv4HjMa/wsX/EH1CFVRckHXaYB5ylxcqKi1CoVK9xSMO+m5L+ff7bneLHRe1zqGovjKp2FYwMm0C08o3Od56VQPbR1gYa2xFhCaCg/p1GQ18qQL+BXZm6wR9k+axLj8wnqxg3ymC9d6tQFMQuabfGr5PXfQqXqWZjWOQpp9fxm2he+2GRSOn068Rmkw4kDo1ZHVXP0+d4ZHv5dQIDAQAB",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "identity",
+    "storage",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "https://www.googleapis.com/*",
+    "https://identitytoolkit.googleapis.com/*",
+    "https://securetoken.googleapis.com/*",
+    "https://*.firebasedatabase.app/*",
+    "https://*.firebaseio.com/*"
+  ],
+  "oauth2": {
+    "client_id": "657617351264-t63dqc72gde735ahq5v6sb5du3r4mm8g.apps.googleusercontent.com",
+    "scopes": [
+      "openid",
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/calendar.events"
+    ]
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.google.com/maps/*",
+        "https://www.google.co.jp/maps/*",
+        "https://maps.google.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "panel.css"
+      ],
+      "matches": [
+        "https://www.google.com/*",
+        "https://www.google.co.jp/*",
+        "https://maps.google.com/*"
+      ]
+    }
+  ]
+}

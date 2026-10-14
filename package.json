@@ -1,0 +1,24 @@
+{
+  "name": "trip-assist-extension",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "旅行の日程調整・ルート決定アシスト（Chrome 拡張機能 / Firebase リアルタイム同期版）",
+  "scripts": {
+    "build": "rollup -c",
+    "build:dev": "DEV=1 rollup -c",
+    "verify": "node scripts/verify-no-remote-code.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "firebase": "^11.10.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.0",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^16.0.0",
+    "@rollup/plugin-replace": "^6.0.0",
+    "@rollup/plugin-terser": "^0.4.4",
+    "rollup": "^4.0.0"
+  }
+}

@@ -1,2 +1,5 @@
 key.pem
 *.pemfirebase/firebase-config.js
+# ビルド成果物・依存パッケージ
+dist/
+node_modules/

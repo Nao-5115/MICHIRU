@@ -65,3 +65,16 @@ tr.sel { background: #e6f4ea; }
 .counts { font-size: 12px; color: #3c4043; white-space: nowrap; }
 .list > li.sel { background: #e6f4ea; border-radius: 4px; padding-left: 6px; padding-right: 6px; }
 .bigl { display: inline-block; padding: 6px 10px; border-radius: 4px; background: #1a73e8; color: #fff; text-decoration: none; }
+
+/* 共有おすすめスポット */
+.spot-rating { display: inline-flex; align-items: center; gap: 2px; }
+.spot-rate-button { border: 0; background: transparent; padding: 0 2px; cursor: pointer; font-size: 24px; }
+.spot-stars { display: inline-flex; white-space: nowrap; }
+.spot-cat { display: inline-block; padding: 1px 7px; border: 1px solid #dadce0; border-radius: 10px; font-size: 10px; white-space: nowrap; }
+.spot-expand { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; border: 0; padding: 2px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.spot-expand b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spot-details[hidden] { display: none; }
+.spot-details { padding: 6px 8px 8px; background: #f8f9fa; border-radius: 4px; overflow-wrap: anywhere; }
+.spot-text, .spot-recommendation { margin: 5px 0; white-space: pre-wrap; }
+.spot-recommendation { color: #137333; }
+.spot-details a { color: #1a73e8; }

@@ -4,7 +4,7 @@
 // ・Firebase Auth は web-extension 用のエントリを使い、リモートコード（gapi / reCAPTCHA）を読み込まない。
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithCredential, signOut, onAuthStateChanged } from 'firebase/auth/web-extension';
-import { getDatabase, ref, onValue, update, get, push, remove, set, serverTimestamp } from 'firebase/database';
+import { getDatabase, ref, onValue, update, get, push, remove, set, serverTimestamp, query, orderByChild, limitToLast } from 'firebase/database';
 import config from '../firebase-config.json';
 import { emailKey, normalizeEmail, isValidEmail, shortName } from './lib.js';
 
@@ -13,7 +13,7 @@ const configured =
   config.databaseURL && !String(config.databaseURL).includes('YOUR_');
 
 let auth = null, db = null;
-let unsubTrips = null, unsubTrip = null;
+let unsubTrips = null, unsubTrip = null, unsubSpots = null;
 let wantTripId = null;
 const joinedMarked = new Set();
 
@@ -51,6 +51,22 @@ function startTripsWatch(u) {
       publish('fb:trips', { list, ts: Date.now() });
     },
     (err) => publish('fb:trips', { list: [], error: humanize(err), ts: Date.now() })
+  );
+}
+
+// 全利用者で共有するおすすめスポット一覧（最新100件）。
+function startSpotsWatch() {
+  if (unsubSpots) unsubSpots();
+  if (!auth || !auth.currentUser) { publish('fb:spots', { list: [], ts: Date.now() }); return; }
+  unsubSpots = onValue(
+    query(ref(db, 'spots'), orderByChild('registeredAt'), limitToLast(100)),
+    (snap) => {
+      const list = Object.entries(snap.val() || {})
+        .map(([id, value]) => ({ id, ...value }))
+        .sort((a, b) => (+b.registeredAt || 0) - (+a.registeredAt || 0));
+      publish('fb:spots', { list, ts: Date.now() });
+    },
+    (err) => publish('fb:spots', { list: [], error: humanize(err), ts: Date.now() })
   );
 }
 
@@ -102,6 +118,36 @@ const handlers = {
   },
   async signOut() { await signOut(auth); return {}; },
   async watchTrip({ tripId }) { wantTripId = tripId || null; watchTrip(); return {}; },
+
+  async addSpot({ spot }) {
+    const u = user();
+    spot = spot || {};
+    const categories = ['観光スポット', '飲食店', '穴場スポット', 'カフェ', 'ショッピング', '自然・景色', 'その他'];
+    const name = String(spot && spot.name || '').trim();
+    const category = String(spot && spot.category || '');
+    const lat = Number(spot && spot.lat), lng = Number(spot && spot.lng), rating = Number(spot && spot.rating);
+    need(name.length > 0 && name.length <= 60, 'スポット名を60文字以内で入力してください');
+    need(categories.includes(category), 'カテゴリを選択してください');
+    need(Number.isFinite(lat) && lat >= -90 && lat <= 90 && Number.isFinite(lng) && lng >= -180 && lng <= 180, '位置情報が正しくありません');
+    need(Number.isInteger(rating) && rating >= 1 && rating <= 5, '評価（星）を選択してください');
+    const record = {
+      name, lat, lng, category, rating,
+      description: String(spot.description || '').trim().slice(0, 500),
+      recommendation: String(spot.recommendation || '').trim().slice(0, 200),
+      registeredBy: String(spot.registeredBy || u.name).trim().slice(0, 40),
+      registeredByEmail: u.email,
+      registeredAt: serverTimestamp()
+    };
+    const r = push(ref(db, 'spots'));
+    await set(r, record);
+    return { id: r.key };
+  },
+  async deleteSpot({ spotId }) {
+    user();
+    need(typeof spotId === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(spotId), 'スポットIDが正しくありません');
+    await remove(ref(db, path('spots', spotId))); // 登録者本人のみルールで削除可能
+    return {};
+  },
 
   async createTrip({ name }) {
     const u = user();
@@ -222,14 +268,17 @@ async function init() {
     auth,
     (u) => {
       if (unsubTrips) { unsubTrips(); unsubTrips = null; }
+      if (unsubSpots) { unsubSpots(); unsubSpots = null; }
       if (!u) {
         publish('fb:auth', { state: 'signedOut' });
         publish('fb:trips', { list: [], ts: Date.now() });
+        publish('fb:spots', { list: [], ts: Date.now() });
         watchTrip();
         return;
       }
       publish('fb:auth', { state: 'signedIn', uid: u.uid, email: normalizeEmail(u.email), name: shortName(normalizeEmail(u.email), u.displayName).slice(0, 60) });
       startTripsWatch(u);
+      startSpotsWatch();
       watchTrip();
     },
     (e) => publish('fb:auth', { state: 'error', error: humanize(e) })

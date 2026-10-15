@@ -15,7 +15,7 @@ Google マップ上のサイドパネルで、旅行の日程調整、訪問候�
 
 ### クローンして Chrome に読み込む
 
-リポジトリをクローンし、PowerShell などで `trip-assist` フォルダに移動して実行します。
+リポジトリをクローンし、PowerShell などで `trip-assist` フォルダに移動して実行します。`npm ci` は初回セットアップ時に一度実行します。
 
 ```powershell
 npm ci
@@ -29,7 +29,15 @@ npm run verify
 2. 「パッケージ化されていない拡張機能を読み込む」を押す
 3. リポジトリ内の **`trip-assist/dist`** フォルダを選ぶ
 
-`trip-assist` のルートや `src`、`static` ではなく、ビルド後の `dist` を選んでください。ソースを更新したときは `npm run build` を実行し、拡張機能管理画面で再読み込みします。
+`trip-assist` のルートや `src`、`static` ではなく、ビルド後の `dist` を選んでください。
+
+ソースを更新したときは、次の手順で変更を反映します。
+
+1. `trip-assist` フォルダで `npm run build` を実行する
+2. `chrome://extensions` で拡張機能の再読み込みボタンを押す
+3. Google マップのタブも再読み込みする
+
+`dist/` は `.gitignore` で Git の追跡対象外にしていても、ビルド時にローカルへ生成されます。Chromeには引き続き `trip-assist/dist` を読み込ませてください。`dist/` を手作業で編集しても、次のビルドで上書きされます。
 
 ### 編集しなくてよいファイル
 

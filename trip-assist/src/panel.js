@@ -56,6 +56,8 @@ function main() {
     delResults: null,
     regResults: null,
     regBusy: false,
+    geo: null,
+    ghost: true,
   };
   const L = () => S.local;
   const SPOT_CATEGORIES = [
@@ -108,6 +110,68 @@ function main() {
   const btn = (label, onclick, cls = "") =>
     h("button", { class: "btn " + cls, type: "button", onclick }, label);
 
+  // ---------- パネル位置・サイズ・半透明 ----------
+  const MIN_W = 300, MIN_H = 240;
+  const defaultGeo = () => {
+    const w = Math.min(380, innerWidth);
+    return { x: innerWidth - w - 12, y: 12, w, h: innerHeight - 24 };
+  };
+  function clampGeo(g) {
+    const w = Math.min(Math.max(g.w, MIN_W), innerWidth),
+          h = Math.min(Math.max(g.h, MIN_H), innerHeight);
+    return { w, h, x: Math.min(Math.max(g.x, 0), innerWidth - w), y: Math.min(Math.max(g.y, 0), innerHeight - h) };
+  }
+  function applyGeo() {
+    const g = (S.geo = clampGeo(S.geo || defaultGeo()));
+    Object.assign(panel.style, { left: g.x + "px", top: g.y + "px", width: g.w + "px", height: g.h + "px", right: "auto" });
+  }
+  async function saveUi() {
+    try { await chrome.storage.local.set({ ui: { geo: S.geo, ghost: S.ghost } }); } catch (_) {}
+  }
+  async function loadUi() {
+    try {
+      const { ui } = await chrome.storage.local.get("ui");
+      if (ui) { S.geo = ui.geo || null; S.ghost = ui.ghost !== false; }
+    } catch (_) {}
+  }
+  function applyGhost() {
+    panel.classList.toggle("ghost", S.ghost);
+    ghostBtn.style.opacity = S.ghost ? 1 : 0.5;
+  }
+  function startDrag(e) {
+    if (e.button !== 0 || e.target.closest("button")) return;
+    e.preventDefault();
+    const el = e.currentTarget, sx = e.clientX, sy = e.clientY, g0 = { ...S.geo };
+    el.setPointerCapture(e.pointerId);
+    const move = (ev) => { S.geo = { ...g0, x: g0.x + ev.clientX - sx, y: g0.y + ev.clientY - sy }; applyGeo(); };
+    const up = () => { el.removeEventListener("pointermove", move); saveUi(); };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up, { once: true });
+    el.addEventListener("pointercancel", up, { once: true });
+  }
+  function startResize(e, dir) {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    const el = e.currentTarget, sx = e.clientX, sy = e.clientY, g0 = { ...S.geo };
+    el.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      let { x, y, w, h } = g0;
+      if (dir.includes("e")) w = g0.w + dx;
+      if (dir.includes("s")) h = g0.h + dy;
+      if (dir.includes("w")) { w = g0.w - dx; x = g0.x + dx; }
+      if (dir.includes("n")) { h = g0.h - dy; y = g0.y + dy; }
+      if (w < MIN_W) { if (dir.includes("w")) x -= MIN_W - w; w = MIN_W; }
+      if (h < MIN_H) { if (dir.includes("n")) y -= MIN_H - h; h = MIN_H; }
+      S.geo = { x, y, w, h }; applyGeo();
+    };
+    const up = () => { el.removeEventListener("pointermove", move); saveUi(); };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up, { once: true });
+    el.addEventListener("pointercancel", up, { once: true });
+  }
+  window.addEventListener("resize", () => { if (S.open) applyGeo(); });
+
   const host = h("div", { id: "tripassist-host" });
   const root = host.attachShadow({ mode: "open" });
   const statusEl = h("div", { class: "status", hidden: true });
@@ -115,12 +179,15 @@ function main() {
   const tabsEl = h("div", { class: "tabs" });
   const navBar = h("div", { class: "navbar", hidden: true });
   const subEl = h("span", { class: "sub" });
+  const ghostBtn = btn("👻", () => { S.ghost = !S.ghost; applyGhost(); saveUi(); }, "icon");
+  ghostBtn.title = "離れたら半透明（オン/オフ）";
+  ghostBtn.setAttribute("aria-label", "半透明モードの切り替え");
   const panel = h(
     "div",
     { class: "panel", hidden: true },
     h(
       "div",
-      { class: "head" },
+      { class: "head", onpointerdown: startDrag },
       h("div", { class: "head-left" },
         h("img", {
           src: chrome.runtime.getURL("michiru-logo.png"),
@@ -129,12 +196,15 @@ function main() {
         }),
         subEl,
       ),
-      btn("×", () => toggle(false), "icon"),
+      h("span", {}, ghostBtn, btn("×", () => toggle(false), "icon")),
     ),
     navBar,
     tabsEl,
     statusEl,
     body,
+    ...["n","s","e","w","ne","nw","se","sw"].map((d) =>
+      h("div", { class: "grip " + d, onpointerdown: (e) => startResize(e, d) })
+    ),
   );
   const fab = h(
     "button",
@@ -151,14 +221,6 @@ function main() {
 panel,
     fab,
   );
-  // Material Symbols フォントをページ（document.head）に挿入
-  if (!document.getElementById("michiru-material-font")) {
-    const fontLink = document.createElement("link");
-    fontLink.id = "michiru-material-font";
-    fontLink.rel = "stylesheet";
-    fontLink.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200";
-    document.head.append(fontLink);
-  }
   document.documentElement.append(host);
 
   let flashTimer;
@@ -173,7 +235,7 @@ panel,
     S.open = open;
     panel.hidden = !open;
     fab.hidden = open;
-    if (open) render();
+    if (open) { applyGeo(); applyGhost(); render(); }
   }
 
   // ---------- 再描画（他のメンバーの更新で入力中の欄を壊さない） ----------

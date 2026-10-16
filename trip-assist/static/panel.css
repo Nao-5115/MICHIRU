@@ -18,26 +18,6 @@
   --r-card: 16px;
   --r-input: 10px;
 }
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bg: #1f1f22;
-    --card: #2a2a2e;
-    --fg: #ececee;
-    --muted: #a0a0a8;
-    --line: #3b3b40;
-    --accent: #8ab4f8;
-    --accent-strong: #a6c6fa;
-    --accent-soft: #2b3a52;
-    --on-accent: #12213a;
-    --ok-bg: #213a2a;
-    --ok-fg: #9fdcb3;
-    --warn-bg: #443820;
-    --warn-fg: #f3cf8b;
-    --danger: #f19b97;
-    --shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
-    --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.5);
-  }
-}
 
 :host,
 * {

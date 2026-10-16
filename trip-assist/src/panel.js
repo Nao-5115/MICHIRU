@@ -237,7 +237,6 @@ function main() {
   );
   root.append(
     h("link", { rel: "stylesheet", href: chrome.runtime.getURL("panel.css") }),
-    h("link", { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" }),
 panel,
     fab,
   );
@@ -892,12 +891,12 @@ panel,
 
   // ======================= 投票タブ（訪問地点の投票） =======================
   const TRANSPORT_OPTIONS = [
-    { label: "電車", icon: "train" },
-    { label: "バス", icon: "directions_bus" },
-    { label: "車", icon: "directions_car" },
-    { label: "飛行機", icon: "flight" },
-    { label: "自転車", icon: "directions_bike" },
-    { label: "徒歩", icon: "directions_walk" },
+    { label: "電車",   svg: '<path d="M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h2.23l2-2H14l2 2h2v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zm0 2c3.51 0 5.44.48 5.93 1H6.07C6.56 4.48 8.49 4 12 4zM6 7h5v3H6V7zm12 0v3h-5V7h5zM7.5 17C6.67 17 6 16.33 6 15.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>' },
+    { label: "バス",   svg: '<path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z"/>' },
+    { label: "車",     svg: '<path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>' },
+    { label: "飛行機", svg: '<path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>' },
+    { label: "自転車", svg: '<path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/>' },
+    { label: "徒歩",   svg: '<path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L9 8.3C9.2 8.5 9.5 8.9 9.8 8.9z"/>' },
   ];
   const BUDGET_OPTIONS = [
     { label: "〜5,000円", value: 5000 },
@@ -943,7 +942,7 @@ panel,
       })
     );
     const transportRow = h("div", { class: "toggle-group" },
-      ...TRANSPORT_OPTIONS.map(({ label, icon }) => {
+      ...TRANSPORT_OPTIONS.map(({ label, svg }) => {
         const btn2 = h("button", {
           class: "toggle-btn toggle-btn--icon" + (_transport.has(label) ? " selected" : ""),
           title: label,
@@ -953,7 +952,7 @@ panel,
             transportBtns[label].classList.toggle("selected", _transport.has(label));
           },
         },
-          h("span", { class: "material-symbols-rounded transport-icon" }, icon),
+          makeSvgIcon(svg),
           h("span", { class: "transport-label" }, label)
         );
         transportBtns[label] = btn2;
@@ -994,7 +993,7 @@ panel,
             ? p.transport.map((t) => {
                 const opt = TRANSPORT_OPTIONS.find((o) => o.label === t);
                 return opt
-                  ? `<span class="material-symbols-rounded transport-icon-sm" title="${t}">${opt.icon}</span>`
+                  ? `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" style="vertical-align:middle;margin:0 1px" title="${t}">${opt.svg}</svg>`
                   : t;
               }).join("")
             : "—";
@@ -1059,11 +1058,6 @@ panel,
       "section",
       {},
       h("h3", {}, "行きたい場所を候補に追加（メンバー全員）"),
-      h(
-        "p",
-        { class: "muted" },
-        "Google マップで場所を開いてから追加してください。日程の出欠とは別の投票です。",
-      ),
       nameIn,
       btn(
         "現在のページの地点を候補に追加",

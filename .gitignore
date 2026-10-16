@@ -1,2 +1,6 @@
-key.pem
-*.pemfirebase/firebase-config.js
+# Build output and installed dependencies (at any directory depth)
+dist/
+node_modules/
+
+# Private keys
+*.pem

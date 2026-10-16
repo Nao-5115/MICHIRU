@@ -474,22 +474,52 @@ tr.sel {
 }
 
 /* スポット一覧：アコーディオン */
-.spot-header:hover {
+.spot-expand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.spot-expand:hover {
   background: #f5f5f5;
   border-radius: 4px;
 }
-.spot-detail {
+.spot-details {
   padding: 0 4px 4px 24px;
 }
-.spot-desc {
+.spot-text {
   margin: 3px 0;
 }
-.spot-rec {
+.spot-recommendation {
   color: #1e6b3c;
   background: #e6f4ea;
   padding: 3px 7px;
   border-radius: 4px;
   margin: 3px 0;
+}
+
+/* スポット評価ボタン */
+.spot-rating {
+  display: flex;
+  gap: 4px;
+  margin: 4px 0;
+}
+.spot-rate-button {
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+.spot-rate-button:hover {
+  transform: scale(1.2);
 }
 
 /* 登録済みスポット アコーディオン見出し */

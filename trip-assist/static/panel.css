@@ -634,3 +634,18 @@ tr.sel { background: var(--ok-bg); }
 .toggle-btn { padding: 5px 12px; border-radius: 16px; border: 1.5px solid var(--line); background: var(--bg); color: var(--fg); font: 13px inherit; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; }
 .toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
 .toggle-btn.selected { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* 交通手段アイコン付きトグル */
+.toggle-btn--icon { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 14px; border-radius: 12px; min-width: 60px; }
+.transport-icon { font-size: 24px; font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; line-height: 1; }
+.toggle-btn.selected .transport-icon { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+.transport-label { font-size: 11px; line-height: 1; }
+
+/* まとめ表示の小アイコン */
+.transport-icon-sm { font-size: 16px; vertical-align: middle; font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20; line-height: 1; margin: 0 1px; }
+.pref-summary-detail { display: inline; }
+
+/* メンバーの希望トグル */
+.member-prefs-toggle { display: block; width: 100%; margin-top: 12px; padding: 8px 12px; background: var(--bg); border: 1.5px solid var(--line); border-radius: 10px; color: var(--accent); font: 13px inherit; font-weight: bold; cursor: pointer; text-align: left; transition: background 0.15s; }
+.member-prefs-toggle:hover { background: var(--accent-soft); }
+.member-prefs-body { margin-top: 8px; }

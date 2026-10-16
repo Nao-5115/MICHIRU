@@ -480,6 +480,28 @@ tr.sel {
   margin: 2px 0;
 }
 
+
+/* 近くのレビュー：アコーディオン見出し */
+.nearby-toggle::before { content: "▶ "; }
+.nearby-toggle.open::before { content: "▼ "; }
+.nearby-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: bold;
+  color: #1a73e8;
+  padding: 8px 2px;
+  user-select: none;
+  border-top: 1px solid #e0e0e0;
+  margin-top: 8px;
+}
+.nearby-toggle:hover {
+  color: #1557b0;
+}
+
+
 /* スポット一覧：カテゴリバッジ */
 .spot-cat {
   display: inline-block;

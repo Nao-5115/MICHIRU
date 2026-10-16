@@ -1267,13 +1267,18 @@ function main() {
         ? h("ul", { class: "list" }, ...rows(spots))
         : h("p", { class: "muted" }, "共有スポットはまだありません。"),
     );
+    let nearbyOpen = false;
+    const nearbyList = h("ul", { class: "list", hidden: true }, ...rows(nearby));
+    const nearbyToggle = h("h3", {
+      class: "nearby-toggle",
+      onclick: () => {
+        nearbyOpen = !nearbyOpen;
+        nearbyList.hidden = !nearbyOpen;
+        nearbyToggle.classList.toggle("open", nearbyOpen);
+      },
+    }, `この場所の近くのレビュー（${nearby.length}件）`);
     const nearbySection = nearby.length
-      ? h(
-          "section",
-          {},
-          h("h3", {}, `この場所の近くのレビュー（${nearby.length}件）`),
-          h("ul", { class: "list" }, ...rows(nearby)),
-        )
+      ? h("section", {}, nearbyToggle, nearbyList)
       : null;
     return [form, nearbySection, list];
   }

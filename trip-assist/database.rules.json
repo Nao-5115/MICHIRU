@@ -1,0 +1,168 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "spots": {
+      ".read": "auth != null && auth.token.email_verified === true",
+      ".indexOn": ["registeredAt"],
+      "$spotId": {
+        ".write": "auth != null && auth.token.email_verified === true && ((!data.exists() && newData.child('registeredByEmail').val() === auth.token.email.toLowerCase()) || (data.exists() && !newData.exists() && data.child('registeredByEmail').val() === auth.token.email.toLowerCase()))",
+        ".validate": "newData.hasChildren(['name', 'lat', 'lng', 'category', 'rating', 'description', 'recommendation', 'registeredBy', 'registeredByEmail', 'registeredAt'])",
+        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
+        "lat": { ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90" },
+        "lng": { ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180" },
+        "category": { ".validate": "newData.val() === '観光スポット' || newData.val() === '飲食店' || newData.val() === '穴場スポット' || newData.val() === 'カフェ' || newData.val() === 'ショッピング' || newData.val() === '自然・景色' || newData.val() === 'その他'" },
+        "rating": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 5 && newData.val() % 1 === 0" },
+        "description": { ".validate": "newData.isString() && newData.val().length <= 500" },
+        "recommendation": { ".validate": "newData.isString() && newData.val().length <= 200" },
+        "registeredBy": { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "registeredByEmail": { ".validate": "newData.isString() && newData.val() === auth.token.email.toLowerCase()" },
+        "registeredAt": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
+      }
+    },
+    "userTrips": {
+      "$emailKey": {
+        ".read": "auth != null && auth.token.email_verified === true && $emailKey === auth.token.email.toLowerCase().replace('.', ',')",
+        "$tripId": {
+          ".write": "auth != null && auth.token.email_verified === true && (root.child('trips').child($tripId).child('meta').child('ownerUid').val() === auth.uid || (!root.child('trips').child($tripId).child('meta').exists() && $emailKey === auth.token.email.toLowerCase().replace('.', ',')))",
+          ".validate": "newData.hasChildren(['name', 'ownerEmail', 'invitedAt'])",
+          "name": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+          },
+          "ownerEmail": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 254"
+          },
+          "invitedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "trips": {
+      "$tripId": {
+        ".read": "auth != null && auth.token.email_verified === true && root.child('trips').child($tripId).child('members').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
+        ".write": "auth != null && auth.token.email_verified === true && !newData.exists() && data.child('meta').child('ownerUid').val() === auth.uid",
+        "meta": {
+          ".write": "auth != null && auth.token.email_verified === true && ((!data.exists() && newData.child('ownerUid').val() === auth.uid) || (data.exists() && data.child('ownerUid').val() === auth.uid))",
+          ".validate": "newData.hasChildren(['name', 'ownerUid', 'ownerEmail', 'createdAt'])",
+          "name": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+          },
+          "ownerUid": {
+            ".validate": "newData.val() === (data.exists() ? data.val() : auth.uid)"
+          },
+          "ownerEmail": {
+            ".validate": "newData.isString() && newData.val() === auth.token.email.toLowerCase()"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "members": {
+          "$emailKey": {
+            ".write": "auth != null && auth.token.email_verified === true && (root.child('trips').child($tripId).child('meta').child('ownerUid').val() === auth.uid || (!root.child('trips').child($tripId).child('meta').exists() && $emailKey === auth.token.email.toLowerCase().replace('.', ',')))",
+            ".validate": "newData.hasChildren(['email', 'role', 'invitedAt'])",
+            "email": {
+              ".validate": "newData.isString() && newData.val().toLowerCase().replace('.', ',') === $emailKey"
+            },
+            "role": {
+              ".validate": "newData.val() === 'owner' || newData.val() === 'member'"
+            },
+            "invitedAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "joinedAt": {
+              ".write": "auth != null && auth.token.email_verified === true && $emailKey === auth.token.email.toLowerCase().replace('.', ',') && data.parent().exists() && !data.exists()",
+              ".validate": "newData.isNumber()"
+            },
+            "uid": {
+              ".write": "auth != null && auth.token.email_verified === true && $emailKey === auth.token.email.toLowerCase().replace('.', ',') && data.parent().exists() && !data.exists()",
+              ".validate": "newData.val() === auth.uid"
+            },
+            "displayName": {
+              ".write": "auth != null && auth.token.email_verified === true && $emailKey === auth.token.email.toLowerCase().replace('.', ',') && data.parent().exists()",
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "dates": {
+          "$dateId": {
+            ".write": "auth != null && auth.token.email_verified === true && root.child('trips').child($tripId).child('meta').child('ownerUid').val() === auth.uid",
+            ".validate": "newData.hasChildren(['s', 'e', 'createdAt'])",
+            "s": {
+              ".validate": "newData.isString() && newData.val().matches(/^\\d{4}-\\d{2}-\\d{2}$/)"
+            },
+            "e": {
+              ".validate": "newData.isString() && newData.val().matches(/^\\d{4}-\\d{2}-\\d{2}$/) && newData.val() >= newData.parent().child('s').val()"
+            },
+            "createdAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "answers": {
+          "$emailKey": {
+            ".write": "auth != null && auth.token.email_verified === true && $emailKey === auth.token.email.toLowerCase().replace('.', ',') && root.child('trips').child($tripId).child('members').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
+            "$dateId": {
+              ".validate": "newData.val() === 0 || newData.val() === 1 || newData.val() === 2"
+            }
+          }
+        },
+        "places": {
+          "$placeId": {
+            ".write": "auth != null && auth.token.email_verified === true && root.child('trips').child($tripId).child('members').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && ((!data.exists() && newData.child('addedBy').val() === auth.token.email.toLowerCase().replace('.', ',')) || (data.exists() && !newData.exists() && (data.child('addedBy').val() === auth.token.email.toLowerCase().replace('.', ',') || root.child('trips').child($tripId).child('meta').child('ownerUid').val() === auth.uid)))",
+            ".validate": "newData.hasChildren(['name', 'lat', 'lng', 'addedBy', 'addedByName', 'addedAt'])",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+            },
+            "lat": {
+              ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
+            },
+            "lng": {
+              ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180"
+            },
+            "addedBy": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 254"
+            },
+            "addedByName": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+            },
+            "addedAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "votes": {
+          "$emailKey": {
+            ".write": "auth != null && auth.token.email_verified === true && $emailKey === auth.token.email.toLowerCase().replace('.', ',') && root.child('trips').child($tripId).child('members').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
+            "$placeId": {
+              ".validate": "newData.val() === true"
+            }
+          }
+        },
+        "adopted": {
+          "$placeId": {
+            ".write": "auth != null && auth.token.email_verified === true && root.child('trips').child($tripId).child('meta').child('ownerUid').val() === auth.uid",
+            ".validate": "newData.val() === true"
+          }
+        }
+      }
+    }
+  }
+}

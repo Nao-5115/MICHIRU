@@ -1080,7 +1080,6 @@ function main() {
       value: S.auth.name || "",
     });
     let rating = 0;
-    const ratingLabel = h("span", { class: "muted" }, "評価を選択してください");
     const ratingButtons = h("div", { class: "spot-rating" });
     function paintRating() {
       ratingButtons.replaceChildren(
@@ -1105,9 +1104,6 @@ function main() {
           ),
         ),
       );
-      ratingLabel.textContent = rating
-        ? `${rating} / 5`
-        : "評価を選択してください";
     }
     paintRating();
     const current = T.extractLatLng(location.href);
@@ -1131,7 +1127,7 @@ function main() {
         "label",
         {},
         "評価（必須）",
-        h("div", { class: "row" }, ratingButtons, ratingLabel),
+        h("div", { class: "row" }, ratingButtons),
       ),
       h("label", {}, "表示名", author),
       btn(

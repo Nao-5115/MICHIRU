@@ -1070,8 +1070,8 @@ function main() {
     });
     const recommendation = h("textarea", {
       rows: 2,
-      maxlength: 200,
-      placeholder: "おすすめポイント（任意、200文字以内）",
+      maxlength: 50,
+      placeholder: "一言コメント（任意、50文字以内）",
     });
     const author = h("input", {
       type: "text",
@@ -1126,7 +1126,7 @@ function main() {
         catGrid,
       ),
       h("label", {}, "レビュー", description),
-      h("label", {}, "おすすめポイント", recommendation),
+      h("label", {}, "一言コメント", recommendation),
       h(
         "label",
         {},
@@ -1199,7 +1199,7 @@ function main() {
             ? h(
                 "p",
                 { class: "spot-recommendation" },
-                "おすすめ: " + spot.recommendation,
+                "💬 " + spot.recommendation,
               )
             : null,
           h(
@@ -1379,7 +1379,7 @@ function main() {
       ),
       spot.description ? h("p", {}, spot.description) : null,
       spot.recommendation
-        ? h("p", {}, `おすすめ: ${spot.recommendation}`)
+        ? h("p", {}, `💬 ${spot.recommendation}`)
         : null,
       h("p", {}, `${spot.registeredBy || "匿名"}${date ? ` ・ ${date}` : ""}`),
       h(

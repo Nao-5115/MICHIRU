@@ -421,8 +421,10 @@ tr.sel {
     background 0.15s,
     color 0.15s;
 }
-.cat-btn .material-symbols-outlined {
-  font-size: 22px;
+.cat-btn svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
 }
 .cat-btn .cat-label {
   font-size: 10px;

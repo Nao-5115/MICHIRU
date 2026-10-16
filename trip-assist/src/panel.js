@@ -5,7 +5,7 @@
 //  ・chrome.storage.local（幹事のローカルのみ）: 訪問地点・しおり設定・区間ごとの移動手段・確定日程・登録済みカレンダー予定 → local:<旅行ID>
 import * as T from './lib.js';
 
-const K = { cur: 'app:currentTripId', nav: 'app:nav', auth: 'fb:auth', trips: 'fb:trips', trip: 'fb:trip' };
+const K = { cur: 'app:currentTripId', nav: 'app:nav', auth: 'fb:auth', trips: 'fb:trips', trip: 'fb:trip', spots: 'fb:spots' };
 const lk = (id) => 'local:' + id;
 const rid = () => Math.random().toString(36).slice(2, 10);
 
@@ -23,9 +23,15 @@ function main() {
   const S = {
     tab: 'trip', open: false,
     auth: { state: 'unknown' }, trips: [], trip: null, tripId: null, local: null, nav: null,
+    spots: null, spotsError: '',
     events: null, dragId: null, pendingScroll: null, selDel: new Set(), delResults: null, regResults: null, regBusy: false
   };
   const L = () => S.local;
+  const SPOT_CATEGORIES = ['観光スポット', '飲食店', '穴場スポット', 'カフェ', 'ショッピング', '自然・景色', 'その他'];
+  const SPOT_COLORS = {
+    '観光スポット': '#1a73e8', '飲食店': '#e53935', '穴場スポット': '#7b1fa2',
+    'カフェ': '#f57c00', 'ショッピング': '#0097a7', '自然・景色': '#388e3c', 'その他': '#616161'
+  };
 
   // ---------- 旅行データ（Firebase 由来）の取り出し ----------
   const tripData = () => (S.trip && S.trip.id === S.tripId ? S.trip.data : null);
@@ -146,6 +152,12 @@ function main() {
     if (ch[K.auth]) S.auth = ch[K.auth].newValue || { state: 'signedOut' };
     if (ch[K.trips]) S.trips = (ch[K.trips].newValue || {}).list || [];
     if (ch[K.trip]) S.trip = ch[K.trip].newValue || null;
+    if (ch[K.spots]) {
+      const value = ch[K.spots].newValue || {};
+      S.spots = value.list || [];
+      S.spotsError = value.error || '';
+      updateOverlay();
+    }
     if (ch[K.cur]) {
       const id = ch[K.cur].newValue || null;
       if (id !== S.tripId) { // 別のタブで旅行が切り替えられた
@@ -372,6 +384,185 @@ function main() {
         : h('p', { class: 'muted' }, '採用する地点は幹事が選びます。'));
     return [secAdd, secList];
   }
+
+  // ======================= 全体共有スポットカタログ =======================
+  const spotDistance = (a, b) => {
+    const r = 6371000, rad = Math.PI / 180;
+    const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+    const q = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+    return 2 * r * Math.asin(Math.sqrt(q));
+  };
+  function spotStars(rating, size = 14) {
+    return h('span', { class: 'spot-stars', 'aria-label': `${rating} / 5` },
+      ...Array.from({ length: 5 }, (_, i) => h('span', { style: `font-size:${size}px;color:${i < rating ? '#fbbc04' : '#dadce0'}` }, '★')));
+  }
+  function viewSpots() {
+    if (S.auth.state !== 'signedIn') return [signinCard()];
+    if (S.spots === null && !S.spotsError) return [h('p', { class: 'muted' }, 'おすすめスポットを読み込んでいます…')];
+    const spots = S.spots || [];
+    const autoName = T.extractPlaceName(location.href) || '';
+    const nameIn = h('input', { type: 'text', maxlength: 60, placeholder: autoName ? '地図から取得済み。変更できます' : 'スポット名を入力', value: autoName });
+    const category = h('select', {}, h('option', { value: '' }, 'カテゴリを選択'), ...SPOT_CATEGORIES.map((x) => h('option', { value: x }, x)));
+    const description = h('textarea', { rows: 3, maxlength: 500, placeholder: 'レビュー（任意、500文字以内）' });
+    const recommendation = h('textarea', { rows: 2, maxlength: 200, placeholder: 'おすすめポイント（任意、200文字以内）' });
+    const author = h('input', { type: 'text', maxlength: 40, placeholder: '表示名（任意）', value: S.auth.name || '' });
+    let rating = 0;
+    const ratingLabel = h('span', { class: 'muted' }, '評価を選択してください');
+    const ratingButtons = h('div', { class: 'spot-rating' });
+    function paintRating() {
+      ratingButtons.replaceChildren(...Array.from({ length: 5 }, (_, i) => h('button', {
+        type: 'button', class: 'spot-rate-button', title: `${i + 1}つ星`, 'aria-pressed': rating === i + 1,
+        onclick: () => { rating = rating === i + 1 ? 0 : i + 1; paintRating(); }
+      }, h('span', { style: `color:${i < rating ? '#fbbc04' : '#dadce0'}` }, '★'))));
+      ratingLabel.textContent = rating ? `${rating} / 5` : '評価を選択してください';
+    }
+    paintRating();
+    const current = T.extractLatLng(location.href);
+    const nearby = current ? spots.filter((s) => spotDistance(current, s) < 100) : [];
+    const form = h('section', {},
+      h('h3', {}, 'おすすめスポットを共有'),
+      h('p', { class: 'muted' }, 'この一覧は旅行をまたいで共有され、最新100件を表示します。場所を開いてから登録してください。'),
+      S.spotsError ? h('p', { class: 'warn' }, S.spotsError) : null,
+      h('label', {}, 'スポット名', nameIn),
+      h('label', {}, 'カテゴリ', category),
+      h('label', {}, 'レビュー', description),
+      h('label', {}, 'おすすめポイント', recommendation),
+      h('label', {}, '評価（必須）', h('div', { class: 'row' }, ratingButtons, ratingLabel)),
+      h('label', {}, '表示名', author),
+      btn('現在の場所を登録', async () => {
+        const point = T.extractLatLng(location.href);
+        if (!point) return flash('Google マップで場所を選択してから登録してください。', 'err');
+        const name = nameIn.value.trim() || autoName;
+        if (!name || name.length > 60) return flash('スポット名を60文字以内で入力してください。', 'err');
+        if (!SPOT_CATEGORIES.includes(category.value)) return flash('カテゴリを選択してください。', 'err');
+        if (!rating) return flash('評価（星）を選択してください。', 'err');
+        if (spots.some((s) => spotDistance(point, s) < 50)) return flash('50m以内に登録済みのスポットがあります。', 'err');
+        const result = await fb('addSpot', { spot: {
+          name, ...point, category: category.value, description: description.value.trim(),
+          recommendation: recommendation.value.trim(), rating, registeredBy: author.value.trim()
+        } });
+        if (!result.ok) return flash('スポットを登録できませんでした: ' + result.error, 'err');
+        flash(`「${name}」を共有スポットに登録しました`);
+        nameIn.value = ''; description.value = ''; recommendation.value = ''; rating = 0; paintRating();
+        render();
+      }, 'primary'));
+
+    const myEmail = me() && me().email;
+    const rows = (items) => items.map((spot) => {
+      const color = SPOT_COLORS[spot.category] || SPOT_COLORS['その他'];
+      const canDelete = spot.registeredByEmail === myEmail;
+      const details = h('div', { class: 'spot-details' },
+        h('div', { class: 'muted' }, `${(+spot.lat).toFixed(5)}, ${(+spot.lng).toFixed(5)}　${spot.registeredBy || '匿名'}　${spot.registeredAt ? new Date(+spot.registeredAt).toLocaleDateString('ja-JP') : ''}`),
+        spot.description ? h('p', { class: 'spot-text' }, spot.description) : null,
+        spot.recommendation ? h('p', { class: 'spot-recommendation' }, 'おすすめ: ' + spot.recommendation) : null,
+        h('a', { href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.lat},${spot.lng}`)}`, target: '_blank', rel: 'noopener noreferrer' }, 'Google マップで開く'));
+      return h('li', {},
+        h('div', { class: 'line' },
+          h('button', { type: 'button', class: 'spot-expand', onclick: () => { details.hidden = !details.hidden; } },
+            h('b', {}, spot.name), h('span', { class: 'spot-cat', style: `color:${color};border-color:${color}66;background:${color}18` }, spot.category), spotStars(+spot.rating)),
+          canDelete ? btn('削除', async () => {
+            if (!confirm(`「${spot.name}」を共有スポットから削除しますか？`)) return;
+            const result = await fb('deleteSpot', { spotId: spot.id });
+            if (!result.ok) return flash('削除できませんでした: ' + result.error, 'err');
+            flash(`「${spot.name}」を削除しました`);
+          }, 'small danger') : null), details);
+    });
+    const list = h('section', {}, h('h3', {}, `共有スポット（最新${spots.length}件を表示）`),
+      spots.length ? h('ul', { class: 'list' }, ...rows(spots)) : h('p', { class: 'muted' }, '共有スポットはまだありません。'));
+    const nearbySection = nearby.length ? h('section', {}, h('h3', {}, `この場所の近くのレビュー（${nearby.length}件）`), h('ul', { class: 'list' }, ...rows(nearby))) : null;
+    return [form, nearbySection, list];
+  }
+
+  // ---------- Google マップ上の共有スポットマーカー ----------
+  const spotLayer = (() => {
+    let el = document.getElementById('tripassist-spot-layer');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'tripassist-spot-layer';
+      document.documentElement.append(el);
+    }
+    if (!document.getElementById('tripassist-spot-style')) {
+      const style = document.createElement('style');
+      style.id = 'tripassist-spot-style';
+      style.textContent = `
+        #tripassist-spot-layer{position:fixed;inset:0;pointer-events:none;z-index:2147483646;overflow:hidden}
+        .tripassist-spot-marker{position:absolute;pointer-events:auto;cursor:pointer;transform:translate(-12px,-28px)}
+        .tripassist-spot-pin{width:24px;height:24px;border:2px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px #0006}
+        .tripassist-spot-dot{position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;background:white;transform:translate(-50%,-50%) rotate(45deg)}
+        .tripassist-spot-label{position:absolute;left:28px;top:-4px;padding:3px 8px;border-radius:4px;background:#202124e8;color:white;font:bold 11px Arial,sans-serif;white-space:nowrap;opacity:0;pointer-events:none}
+        .tripassist-spot-marker:hover .tripassist-spot-label{opacity:1}
+        .tripassist-spot-popup{position:absolute;width:260px;max-height:45vh;overflow:auto;padding:12px 14px;border-radius:10px;background:white;color:#202124;box-shadow:0 4px 16px #0005;pointer-events:auto;z-index:2;font:13px/1.5 Arial,sans-serif}
+        .tripassist-spot-popup h4{margin:0 0 6px;font-size:14px}.tripassist-spot-popup p{margin:5px 0;color:#5f6368}
+        .tripassist-spot-popup a{color:#1a73e8}.tripassist-spot-close{float:right;border:0;background:none;font-size:20px;cursor:pointer}
+      `;
+      document.head.append(style);
+    }
+    return el;
+  })();
+  let activeSpotPopup = null;
+  function closeSpotPopup() { spotLayer.querySelectorAll('.tripassist-spot-popup').forEach((el) => el.remove()); activeSpotPopup = null; }
+  function mercatorY(lat) {
+    const sin = Math.sin(Math.max(-85.0511, Math.min(85.0511, lat)) * Math.PI / 180);
+    return Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI);
+  }
+  function mapViewFromUrl() {
+    const m = location.href.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(\d+(?:\.\d+)?)z/);
+    return m ? { lat: +m[1], lng: +m[2], zoom: +m[3] } : null;
+  }
+  function spotScreenPoint(spot, view) {
+    const scale = 256 * 2 ** view.zoom;
+    const dx = (spot.lng - view.lng) / 360 * scale;
+    const dy = (mercatorY(view.lat) - mercatorY(spot.lat)) * scale;
+    return { x: window.innerWidth / 2 + dx, y: window.innerHeight / 2 + dy };
+  }
+  function showSpotPopup(spot, x, y) {
+    if (activeSpotPopup === spot.id) { closeSpotPopup(); return; }
+    closeSpotPopup(); activeSpotPopup = spot.id;
+    const popup = h('div', { class: 'tripassist-spot-popup' });
+    const date = spot.registeredAt ? new Date(spot.registeredAt).toLocaleDateString('ja-JP') : '';
+    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.lat},${spot.lng}`)}`;
+    const left = Math.max(8, Math.min(x + 18, window.innerWidth - (S.open ? 390 : 280)));
+    popup.style.left = `${left}px`; popup.style.top = `${Math.max(8, Math.min(y - 36, window.innerHeight - 260))}px`;
+    popup.append(h('button', { type: 'button', class: 'tripassist-spot-close', title: '閉じる', onclick: closeSpotPopup }, '×'),
+      h('h4', {}, spot.name),
+      h('div', {}, h('span', { class: 'spot-cat', style: `color:${SPOT_COLORS[spot.category] || '#616161'}` }, spot.category), ' ', spotStars(+spot.rating)),
+      spot.description ? h('p', {}, spot.description) : null,
+      spot.recommendation ? h('p', {}, `おすすめ: ${spot.recommendation}`) : null,
+      h('p', {}, `${spot.registeredBy || '匿名'}${date ? ` ・ ${date}` : ''}`),
+      h('a', { href: mapUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Google マップで開く'));
+    spotLayer.append(popup);
+  }
+  function updateOverlay() {
+    spotLayer.querySelectorAll('.tripassist-spot-marker').forEach((el) => el.remove());
+    const view = mapViewFromUrl();
+    if (!view || view.zoom < 14 || !S.spots) { closeSpotPopup(); return; }
+    for (const spot of S.spots) {
+      if (!Number.isFinite(+spot.lat) || !Number.isFinite(+spot.lng)) continue;
+      const { x, y } = spotScreenPoint(spot, view);
+      if (x < -50 || x > window.innerWidth + 50 || y < -50 || y > window.innerHeight + 50) continue;
+      const marker = h('div', { class: 'tripassist-spot-marker', title: spot.name, onclick: (e) => { e.stopPropagation(); showSpotPopup(spot, x, y); } });
+      marker.style.left = `${x}px`; marker.style.top = `${y}px`;
+      const color = SPOT_COLORS[spot.category] || '#616161';
+      marker.append(h('div', { class: 'tripassist-spot-pin', style: `background:${color}` }, h('div', { class: 'tripassist-spot-dot' })),
+        h('span', { class: 'tripassist-spot-label' }, spot.name));
+      spotLayer.append(marker);
+    }
+  }
+  let overlayHref = location.href;
+  setInterval(() => {
+    if (location.href !== overlayHref) { overlayHref = location.href; closeSpotPopup(); updateOverlay(); }
+  }, 350);
+  window.addEventListener('resize', () => { closeSpotPopup(); updateOverlay(); });
+  let mapDrag = null;
+  document.addEventListener('mousedown', (e) => { if (mapViewFromUrl() && S.spots && e.target.closest('#tripassist-host') === null) mapDrag = { x: e.clientX, y: e.clientY }; }, true);
+  document.addEventListener('mousemove', (e) => {
+    if (!mapDrag) return;
+    const dx = e.clientX - mapDrag.x, dy = e.clientY - mapDrag.y;
+    spotLayer.querySelectorAll('.tripassist-spot-marker').forEach((el) => {
+      el.style.left = `${parseFloat(el.style.left) + dx}px`; el.style.top = `${parseFloat(el.style.top) + dy}px`;
+    });
+  }, true);
+  document.addEventListener('mouseup', () => { if (mapDrag) { mapDrag = null; closeSpotPopup(); updateOverlay(); } }, true);
 
   async function importAdopted() {
     const d = tripData(), adopted = d.adopted || {};
@@ -712,7 +903,7 @@ function main() {
   }
 
   // ======================= 描画・起動 =======================
-  const TABS = [['trip', '旅行', viewTrip], ['schedule', '日程', viewSchedule], ['vote', '投票', viewVote], ['route', 'ルート', viewRoute], ['register', '登録', viewRegister]];
+  const TABS = [['trip', '旅行', viewTrip], ['schedule', '日程', viewSchedule], ['vote', '投票', viewVote], ['route', 'ルート', viewRoute], ['register', '登録', viewRegister], ['spots', 'スポット', viewSpots]];
   function render() {
     if (!S.open) return;
     dirty = false;
@@ -735,10 +926,13 @@ function main() {
   // 起動: 保存済みの状態を読み込み、offscreen（Firebase 接続）を確実に起動する。
   // ルート案内への遷移後（または元の画面への復帰後）はパネルを自動で再表示して状態を復元する
   async function boot() {
-    const d = await chrome.storage.local.get([K.cur, K.nav, K.auth, K.trips, K.trip]);
+    const d = await chrome.storage.local.get([K.cur, K.nav, K.auth, K.trips, K.trip, K.spots]);
     S.auth = d[K.auth] || { state: 'unknown' };
     S.trips = (d[K.trips] && d[K.trips].list) || [];
     S.trip = d[K.trip] || null;
+    const spotState = d[K.spots];
+    S.spots = spotState ? (spotState.list || []) : null;
+    S.spotsError = (spotState && spotState.error) || '';
     S.tripId = d[K.cur] || null;
     S.nav = d[K.nav] || null;
     let reopen = false;
@@ -746,7 +940,7 @@ function main() {
       if (!S.nav.ts || Date.now() - S.nav.ts > 12 * 3600 * 1000) await clearNav(); // 古い遷移記録は破棄
       else {
         if (S.nav.tripId) { S.tripId = S.nav.tripId; await chrome.storage.local.set({ [K.cur]: S.tripId }); }
-        S.tab = ['trip', 'schedule', 'vote', 'route', 'register'].includes(S.nav.tab) ? S.nav.tab : 'route';
+        S.tab = ['trip', 'schedule', 'vote', 'route', 'register', 'spots'].includes(S.nav.tab) ? S.nav.tab : 'route';
         S.pendingScroll = S.nav.scroll || 0;
         if (S.nav.back || !isDirPage()) await clearNav(); // 元の画面に戻った → 復元して終了
         reopen = true;
@@ -756,6 +950,7 @@ function main() {
     if (reopen) toggle(true);
     await send({ type: 'app:ensure' });
     fb('watchTrip', { tripId: S.tripId });
+    updateOverlay();
   }
   boot().catch((e) => flash('起動に失敗しました: ' + e.message, 'err'));
 }

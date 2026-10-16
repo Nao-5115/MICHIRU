@@ -1022,12 +1022,40 @@ function main() {
         : "スポット名を入力",
       value: autoName,
     });
-    const category = h(
-      "select",
-      {},
-      h("option", { value: "" }, "カテゴリを選択"),
-      ...SPOT_CATEGORIES.map((x) => h("option", { value: x }, x)),
+    // カテゴリアイコングリッド
+    const SPOT_ICONS = {
+      "観光スポット": { icon: "tour",          label: "観光" },
+      "飲食店":       { icon: "restaurant",    label: "飲食" },
+      "穴場スポット": { icon: "explore",        label: "穴場" },
+      "カフェ":       { icon: "coffee",         label: "カフェ" },
+      "ショッピング": { icon: "shopping_bag",   label: "ショッピング" },
+      "自然・景色":   { icon: "forest",         label: "自然" },
+      "その他":       { icon: "more_horiz",     label: "その他" },
+    };
+    let _categoryValue = "";
+    const catBtns = {};
+    const catGrid = h("div", { class: "cat-grid" },
+      ...SPOT_CATEGORIES.map((cat) => {
+        const { icon, label } = SPOT_ICONS[cat];
+        const btn_ = h("button", {
+          type: "button",
+          class: "cat-btn",
+          title: cat,
+          onclick: () => {
+            _categoryValue = _categoryValue === cat ? "" : cat;
+            SPOT_CATEGORIES.forEach((c) => {
+              catBtns[c].classList.toggle("selected", c === _categoryValue);
+            });
+          },
+        },
+          h("span", { class: "material-symbols-outlined" }, icon),
+          h("span", { class: "cat-label" }, label),
+        );
+        catBtns[cat] = btn_;
+        return btn_;
+      }),
     );
+    const category = { get value() { return _categoryValue; } };
     const description = h("textarea", {
       rows: 3,
       maxlength: 500,
@@ -1090,7 +1118,10 @@ function main() {
       ),
       S.spotsError ? h("p", { class: "warn" }, S.spotsError) : null,
       h("label", {}, "スポット名", nameIn),
-      h("label", {}, "カテゴリ", category),
+      h("div", {},
+        h("div", { class: "form-label" }, "カテゴリ"),
+        catGrid,
+      ),
       h("label", {}, "レビュー", description),
       h("label", {}, "おすすめポイント", recommendation),
       h(

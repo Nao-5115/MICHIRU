@@ -51,6 +51,17 @@
   background: #e8f0fe;
   color: #1a73e8;
 }
+
+.head-left {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.head-logo {
+  height: 28px;
+  width: auto;
+  display: block;
+}
 .tabs {
   display: flex;
   border-bottom: 1px solid #dadce0;

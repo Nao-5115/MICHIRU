@@ -5,7 +5,11 @@
   "description": "Google マップ上で、友達との旅行の日程調整・訪問地点の投票・ルート決定をリアルタイム共有でアシストします。",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoisGgjxCRSlDxkZ7CFEzUnW3hordou4GKulSELGZ6U5jO5AxlLqP68+OI/as+SWjliilTY0ErD/R2dXzihnJy2aKmUSX3chzZZaUx2dvjQ/j9sCf0pMMmooZ9LsOy/oGtbPWkeZyv4HjMa/wsX/EH1CFVRckHXaYB5ylxcqKi1CoVK9xSMO+m5L+ff7bneLHRe1zqGovjKp2FYwMm0C08o3Od56VQPbR1gYa2xFhCaCg/p1GQ18qQL+BXZm6wR9k+axLj8wnqxg3ymC9d6tQFMQuabfGr5PXfQqXqWZjWOQpp9fxm2he+2GRSOn068Rmkw4kDo1ZHVXP0+d4ZHv5dQIDAQAB",
   "minimum_chrome_version": "116",
-  "permissions": ["identity", "storage", "offscreen"],
+  "permissions": [
+    "identity",
+    "storage",
+    "offscreen"
+  ],
   "host_permissions": [
     "https://www.googleapis.com/*",
     "https://identitytoolkit.googleapis.com/*",
@@ -32,13 +36,18 @@
         "https://www.google.co.jp/maps/*",
         "https://maps.google.com/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["panel.css"],
+      "resources": [
+        "panel.css",
+        "michiru-logo.png"
+      ],
       "matches": [
         "https://www.google.com/*",
         "https://www.google.co.jp/*",

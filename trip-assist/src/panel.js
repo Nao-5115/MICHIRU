@@ -121,7 +121,14 @@ function main() {
     h(
       "div",
       { class: "head" },
-      h("div", {}, h("strong", {}, "旅行アシスト"), " ", subEl),
+      h("div", { class: "head-left" },
+        h("img", {
+          src: chrome.runtime.getURL("michiru-logo.png"),
+          class: "head-logo",
+          alt: "MICHIRU",
+        }),
+        subEl,
+      ),
       btn("×", () => toggle(false), "icon"),
     ),
     navBar,
@@ -1111,11 +1118,7 @@ function main() {
       "section",
       {},
       h("h3", {}, "おすすめスポットを共有"),
-      h(
-        "p",
-        { class: "muted" },
-        "この一覧は旅行をまたいで共有され、最新100件を表示します。場所を開いてから登録してください。",
-      ),
+
       S.spotsError ? h("p", { class: "warn" }, S.spotsError) : null,
       h("label", {}, "スポット名", nameIn),
       h("div", {},

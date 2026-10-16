@@ -1336,11 +1336,29 @@ panel,
       style.id = "tripassist-spot-style";
       style.textContent = `
         #tripassist-spot-layer{position:fixed;inset:0;pointer-events:none;z-index:2147483646;overflow:hidden}
-        .tripassist-spot-marker{position:absolute;pointer-events:auto;cursor:pointer;transform:translate(-12px,-28px)}
-        .tripassist-spot-pin{width:24px;height:24px;border:2px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px #0006}
-        .tripassist-spot-dot{position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;background:white;transform:translate(-50%,-50%) rotate(45deg)}
-        .tripassist-spot-label{position:absolute;left:28px;top:-4px;padding:3px 8px;border-radius:4px;background:#202124e8;color:white;font:bold 11px Arial,sans-serif;white-space:nowrap;opacity:0;pointer-events:none}
-        .tripassist-spot-marker:hover .tripassist-spot-label{opacity:1}
+        .tripassist-spot-marker{position:absolute;pointer-events:auto;cursor:pointer;transform:translate(-50%,-100%)}
+        .tripassist-spot-callout{
+          display:flex;align-items:center;gap:4px;
+          padding:4px 8px;border-radius:8px;
+          background:white;box-shadow:0 2px 8px #0004;
+          font:bold 11px/1.4 Arial,sans-serif;white-space:nowrap;
+          border:2px solid var(--sc,#1a73e8);color:#202124;
+          max-width:160px;overflow:hidden;text-overflow:ellipsis;
+          position:relative;
+        }
+        .tripassist-spot-callout::after{
+          content:"";position:absolute;bottom:-8px;left:50%;
+          transform:translateX(-50%);
+          border:4px solid transparent;
+          border-top:5px solid var(--sc,#1a73e8);
+        }
+        .tripassist-spot-marker:hover .tripassist-spot-callout{
+          background:var(--sc,#1a73e8);color:white;
+        }
+        .tripassist-spot-marker:hover .tripassist-spot-callout::after{
+          border-top-color:var(--sc,#1a73e8);
+        }
+        .tripassist-spot-stars{font-size:10px;color:#fbbc04;flex-shrink:0}
         .tripassist-spot-popup{position:absolute;width:260px;max-height:45vh;overflow:auto;padding:12px 14px;border-radius:10px;background:white;color:#202124;box-shadow:0 4px 16px #0005;pointer-events:auto;z-index:2;font:13px/1.5 Arial,sans-serif}
         .tripassist-spot-popup h4{margin:0 0 6px;font-size:14px}.tripassist-spot-popup p{margin:5px 0;color:#5f6368}
         .tripassist-spot-popup a{color:#1a73e8}.tripassist-spot-close{float:right;border:0;background:none;font-size:20px;cursor:pointer}
@@ -1450,9 +1468,11 @@ panel,
         y > window.innerHeight + 50
       )
         continue;
+      const color = SPOT_COLORS[spot.category] || "#616161";
+      const stars = "★".repeat(Math.max(0, Math.min(5, Math.round(+spot.rating))));
       const marker = h("div", {
         class: "tripassist-spot-marker",
-        title: spot.name,
+        title: `${spot.name}\n${spot.category}　${stars}`,
         onclick: (e) => {
           e.stopPropagation();
           showSpotPopup(spot, x, y);
@@ -1460,15 +1480,17 @@ panel,
       });
       marker.style.left = `${x}px`;
       marker.style.top = `${y}px`;
-      const color = SPOT_COLORS[spot.category] || "#616161";
-      marker.append(
-        h(
-          "div",
-          { class: "tripassist-spot-pin", style: `background:${color}` },
-          h("div", { class: "tripassist-spot-dot" }),
-        ),
-        h("span", { class: "tripassist-spot-label" }, spot.name),
+      const callout = h("div", { class: "tripassist-spot-callout" },
+        h("span", {
+          style: `display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0`,
+        }),
+        h("span", {
+          style: `overflow:hidden;text-overflow:ellipsis;max-width:110px`,
+        }, spot.name),
+        stars ? h("span", { class: "tripassist-spot-stars" }, stars) : null,
       );
+      callout.style.setProperty("--sc", color);
+      marker.append(callout);
       spotLayer.append(marker);
     }
   }

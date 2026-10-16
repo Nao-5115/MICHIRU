@@ -4,7 +4,9 @@
     ".write": false,
     "spots": {
       ".read": "auth != null && auth.token.email_verified === true",
-      ".indexOn": ["registeredAt"],
+      ".indexOn": [
+        "registeredAt"
+      ],
       "$spotId": {
         ".write": "auth != null && auth.token.email_verified === true && ((!data.exists() && newData.child('registeredByEmail').val() === auth.token.email.toLowerCase()) || (data.exists() && !newData.exists() && data.child('registeredByEmail').val() === auth.token.email.toLowerCase()))",
         ".validate": "newData.hasChildren(['name', 'lat', 'lng', 'category', 'rating', 'description', 'recommendation', 'registeredBy', 'registeredByEmail', 'registeredAt'])",
@@ -35,8 +37,12 @@
         "registeredByEmail": {
           ".validate": "newData.isString() && newData.val() === auth.token.email.toLowerCase()"
         },
-        "registeredAt": { ".validate": "newData.isNumber()" },
-        "$other": { ".validate": false }
+        "registeredAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "$other": {
+          ".validate": false
+        }
       }
     },
     "userTrips": {
@@ -178,6 +184,30 @@
           "$placeId": {
             ".write": "auth != null && auth.token.email_verified === true && root.child('trips').child($tripId).child('meta').child('ownerUid').val() === auth.uid",
             ".validate": "newData.val() === true"
+          }
+        },
+        "preferences": {
+          "$emailKey": {
+            ".write": "auth != null && auth.token.email_verified === true && $emailKey === auth.token.email.toLowerCase().replace('.', ',') && root.child('trips').child($tripId).child('members').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
+            "budget": {
+              ".validate": "newData.isNumber() || newData.val() === null"
+            },
+            "transport": {
+              "$i": {
+                ".validate": "newData.isString() && newData.val().length <= 20"
+              }
+            },
+            "categories": {
+              "$i": {
+                ".validate": "newData.isString() && newData.val().length <= 20"
+              }
+            },
+            "updatedAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": "false"
+            }
           }
         }
       }

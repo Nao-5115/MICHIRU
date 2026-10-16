@@ -628,3 +628,9 @@ tr.sel { background: var(--ok-bg); }
 
 /* 一覧の星表示 */
 .spot-stars-sm { display: flex; align-items: center; gap: 0; }
+
+/* 希望登録トグルボタン */
+.toggle-group { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 12px; }
+.toggle-btn { padding: 5px 12px; border-radius: 16px; border: 1.5px solid var(--line); background: var(--bg); color: var(--fg); font: 13px inherit; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; }
+.toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+.toggle-btn.selected { background: var(--accent); border-color: var(--accent); color: #fff; }

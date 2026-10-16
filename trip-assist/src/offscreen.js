@@ -406,6 +406,17 @@ const handlers = {
     else await remove(r);
     return {};
   },
+  async setPreferences({ tripId, prefs }) {
+    const u = user();
+    const r = ref(db, path("trips", tripId, "preferences", u.key));
+    await set(r, {
+      budget: prefs.budget !== undefined ? prefs.budget : null,
+      transport: Array.isArray(prefs.transport) ? prefs.transport : [],
+      categories: Array.isArray(prefs.categories) ? prefs.categories : [],
+      updatedAt: Date.now(),
+    });
+    return {};
+  },
 };
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {

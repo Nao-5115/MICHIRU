@@ -871,6 +871,14 @@ panel,
   }
 
   // ======================= 投票タブ（訪問地点の投票） =======================
+  const TRANSPORT_OPTIONS = ["電車", "バス", "車", "飛行機", "自転車", "徒歩"];
+  const BUDGET_OPTIONS = [
+    { label: "〜5,000円", value: 5000 },
+    { label: "〜10,000円", value: 10000 },
+    { label: "〜20,000円", value: 20000 },
+    { label: "〜30,000円", value: 30000 },
+    { label: "30,000円〜", value: 99999 },
+  ];
   function viewVote() {
     const g = gate();
     if (g) return g;
@@ -882,6 +890,107 @@ panel,
       votes = d.votes || {},
       adopted = d.adopted || {};
     const ranked = T.rankPlaces(places, ms, votes);
+    const myPrefs = (d.preferences && d.preferences[m.key]) || {};
+    let _budget = myPrefs.budget || null;
+    let _transport = new Set(myPrefs.transport || []);
+    let _prefCategories = new Set(myPrefs.categories || []);
+
+    // ---- 希望登録セクション ----
+    const budgetBtns = {};
+    const transportBtns = {};
+    const catPrefBtns = {};
+
+    const budgetRow = h("div", { class: "toggle-group" },
+      ...BUDGET_OPTIONS.map(({ label, value }) => {
+        const btn2 = h("button", {
+          class: "toggle-btn" + (_budget === value ? " selected" : ""),
+          onclick: () => {
+            _budget = _budget === value ? null : value;
+            BUDGET_OPTIONS.forEach(({ value: v }) => {
+              budgetBtns[v].classList.toggle("selected", _budget === v);
+            });
+          },
+        }, label);
+        budgetBtns[value] = btn2;
+        return btn2;
+      })
+    );
+    const transportRow = h("div", { class: "toggle-group" },
+      ...TRANSPORT_OPTIONS.map((t) => {
+        const btn2 = h("button", {
+          class: "toggle-btn" + (_transport.has(t) ? " selected" : ""),
+          onclick: () => {
+            if (_transport.has(t)) _transport.delete(t);
+            else _transport.add(t);
+            transportBtns[t].classList.toggle("selected", _transport.has(t));
+          },
+        }, t);
+        transportBtns[t] = btn2;
+        return btn2;
+      })
+    );
+    const catPrefRow = h("div", { class: "toggle-group" },
+      ...SPOT_CATEGORIES.map((cat) => {
+        const btn2 = h("button", {
+          class: "toggle-btn" + (_prefCategories.has(cat) ? " selected" : ""),
+          onclick: () => {
+            if (_prefCategories.has(cat)) _prefCategories.delete(cat);
+            else _prefCategories.add(cat);
+            catPrefBtns[cat].classList.toggle("selected", _prefCategories.has(cat));
+          },
+        }, cat);
+        catPrefBtns[cat] = btn2;
+        return btn2;
+      })
+    );
+
+    // 他メンバーの希望まとめ表示
+    const prefSummary = (() => {
+      const prefs = d.preferences || {};
+      const rows = ms
+        .filter((x) => prefs[x.key])
+        .map((x) => {
+          const p = prefs[x.key];
+          const budgetLabel = p.budget
+            ? (BUDGET_OPTIONS.find((o) => o.value === p.budget) || {}).label || "`¥`" + p.budget
+            : "—";
+          const transLabel = (p.transport && p.transport.length) ? p.transport.join("・") : "—";
+          const catLabel = (p.categories && p.categories.length) ? p.categories.join("・") : "—";
+          return h("li", {},
+            h("b", {}, x.name),
+            h("span", { class: "muted" },
+              `　予算: ${budgetLabel}　交通: ${transLabel}　カテゴリ: ${catLabel}`
+            )
+          );
+        });
+      return rows.length
+        ? h("ul", { class: "list" }, ...rows)
+        : h("p", { class: "muted" }, "まだ誰も希望を登録していません。");
+    })();
+
+    const secPrefs = h("section", {},
+      h("h3", {}, "旅行の希望を登録（メンバー全員）"),
+      h("p", { class: "muted" }, "予算・交通手段・希望カテゴリを選んで保存してください。複数選択可。"),
+      h("div", { class: "form-label" }, "予算（一人あたり目安）"),
+      budgetRow,
+      h("div", { class: "form-label" }, "希望の交通手段"),
+      transportRow,
+      h("div", { class: "form-label" }, "希望カテゴリ"),
+      catPrefRow,
+      btn("希望を保存", async () => {
+        await act("setPreferences", {
+          tripId: S.tripId,
+          prefs: {
+            budget: _budget,
+            transport: [..._transport],
+            categories: [..._prefCategories],
+          },
+        }, "希望を保存しました");
+      }, "primary"),
+      h("h3", {}, "メンバーの希望"),
+      prefSummary
+    );
+
     const nameIn = h("input", {
       type: "text",
       placeholder: "地点名（空欄なら URL から自動取得）",
@@ -1054,7 +1163,7 @@ panel,
           )
         : h("p", { class: "muted" }, "採用する地点は幹事が選びます。"),
     );
-    return [secAdd, secList];
+    return [secPrefs, secAdd, secList];
   }
 
   // ======================= 全体共有スポットカタログ =======================

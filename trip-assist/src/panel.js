@@ -1221,7 +1221,7 @@ panel,
         const canDelete = spot.registeredByEmail === myEmail;
         const details = h(
           "div",
-          { class: "spot-details" },
+          { class: "spot-details", hidden: true },
           h(
             "div",
             { class: "muted" },
@@ -1258,8 +1258,9 @@ panel,
               {
                 type: "button",
                 class: "spot-expand",
-                onclick: () => {
+                onclick: (e) => {
                   details.hidden = !details.hidden;
+                  e.currentTarget.classList.toggle("open", !details.hidden);
                 },
               },
               h("b", {}, spot.name),

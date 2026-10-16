@@ -636,8 +636,12 @@ tr.sel { background: var(--ok-bg); }
 .toggle-btn.selected { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* 交通手段アイコン付きトグル */
-.toggle-btn--icon { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 14px; border-radius: 12px; min-width: 60px; }
+.toggle-btn--icon { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 10px; border-radius: 12px; flex: 1; min-width: 0; box-sizing: border-box; }
 .toggle-btn--icon svg { width: 22px; height: 22px; flex-shrink: 0; }
+/* 交通手段：3列グリッド（6個 → 2行×3列） */
+.transport-group { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 6px 0 12px; }
+/* カテゴリ：4列グリッド（7個 → 2行×4列） */
+.cat-pref-group { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 6px 0 12px; }
 .transport-icon { font-size: 24px; font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; line-height: 1; }
 .toggle-btn.selected .transport-icon { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
 .transport-label { font-size: 11px; line-height: 1; }

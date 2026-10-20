@@ -4,8 +4,8 @@
   --fg: #3a3a3c;
   --muted: #7b7b80;
   --line: #ece5dc;
-  --accent: #1a73e8;
-  --accent-strong: #1557b0;
+  --accent: #4a90f5;
+  --accent-strong: #2878d0;
   --accent-soft: #e8f1fd;
   --on-accent: #ffffff;
   --ok-bg: #e7f6ec;
@@ -102,13 +102,23 @@
 }
 .head-left {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
 }
 .head-logo {
-  height: 28px;
+  height: 34px;
   width: auto;
   display: block;
+  flex: 0 0 auto;
+}
+.head-left .sub {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---------- ルート案内中のバー ---------- */

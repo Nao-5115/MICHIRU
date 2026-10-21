@@ -1326,7 +1326,7 @@ panel,
       const transportOpt = TRANSPORT_OPTIONS.find((o) => o.label === transportLabel);
       const catIcon = SPOT_ICONS[categoryLabel];
 
-      const locationOnIcon = () => makeMsIcon('M480-480q33 0 56.5-23.5T560-560q0-33-23.5-56.5T480-640q-33 0-56.5 23.5T400-560q0 33 23.5 56.5T480-480Zm0 294q122-112 181-203.5T720-560q0-117-77.5-194.5T480-832q-85 0-162.5 77.5T240-560q0 71 59 162.5T480-186Z', 16);
+      const locationOnIcon = () => makeMsIcon('<path d="M480-480q33 0 56.5-23.5T560-560q0-33-23.5-56.5T480-640q-33 0-56.5 23.5T400-560q0 33 23.5 56.5T480-480Zm0 294q122-112 181-203.5T720-560q0-117-77.5-194.5T480-832q-85 0-162.5 77.5T240-560q0 71 59 162.5T480-186Z"/>', 16);
       const placeViewRows = myPlaces.length > 0
         ? myPlaces.map((p) =>
             h("div", { class: "pref-view-row" },

@@ -132,7 +132,7 @@ const MAPS_API_KEY   = __MAPS_KEY__;
 
 // ---------- Gemini AI スポット提案 ----------
 async function callGeminiAPI(prompt) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -191,12 +191,19 @@ ${prefSummary}
 - JSONのみ返す（余分なテキスト不要）`;
 
   const text = await callGeminiAPI(prompt);
+  console.log("[MICHIRU] Gemini raw response:", text);
 
   let spots = [];
   try {
-    const match = text.match(/\[\s\S]*\]/);
+    // ```json ... ``` のマークダウンブロックを除去してから抽出
+    const stripped = text.replace(/```[a-z]*\n?/gi, "").replace(/```/g, "");
+    console.log("[MICHIRU] stripped:", stripped);
+    const match = stripped.match(/\[[\s\S]*\]/);
+    console.log("[MICHIRU] match:", match ? match[0].slice(0, 200) : null);
     spots = match ? JSON.parse(match[0]) : [];
-  } catch (_) {
+    console.log("[MICHIRU] parsed spots:", spots);
+  } catch (e) {
+    console.error("[MICHIRU] parse error:", e);
     throw new Error("Gemini の回答をパースできませんでした。もう一度お試しください。");
   }
 

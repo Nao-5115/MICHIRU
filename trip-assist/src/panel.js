@@ -1334,8 +1334,7 @@ panel,
               const mapsUrl = (p.lat != null && p.lng != null)
                 ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}&center=${p.lat},${p.lng}`
                 : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}`;
-              const openInCurrentTab = (url) =>
-                chrome.runtime.sendMessage({ type: "app:navigateTab", url });
+              const openInCurrentTab = (url) => { location.href = url; };
               return h(
                 "div",
                 { class: "place-card" + (adopted[p.id] ? " adopted" : "") },

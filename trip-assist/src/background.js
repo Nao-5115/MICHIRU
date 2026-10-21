@@ -183,8 +183,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         );
         sendResponse({ ok: true });
       } else if (t === "app:navigateTab") {
+        // 拡張機能以外のアクティブタブを探してナビゲート。なければ新規タブを作成
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (tabs[0]) await chrome.tabs.update(tabs[0].id, { url: msg.url });
+        const target = tabs.find((tb) => !tb.url?.startsWith("chrome-extension://"));
+        if (target) {
+          await chrome.tabs.update(target.id, { url: msg.url });
+        } else {
+          await chrome.tabs.create({ url: msg.url, active: true });
+        }
         sendResponse({ ok: true });
       } else {
         sendResponse({ ok: false, error: "不明なリクエストです" });

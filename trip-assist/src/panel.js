@@ -1224,8 +1224,36 @@ panel,
 
     // ---- 行きたい場所：最大3件の入力リスト ----
     const MAX_WISH_PLACES = 3;
-    const placeInputs = []; // { row, input, removeBtn }
+    // 自分が登録済みの候補地点
+    const myPlaces = places.filter((p) => p.addedBy === m.key);
+    const placeInputs = []; // { row, input, removeBtn } ← 新規追加用
     const placeList = h("div", { class: "wish-place-list" });
+
+    // 既存地点の表示（編集フォーム内）
+    const existingPlaceList = h("div", { class: "wish-place-list" });
+    function buildExistingPlaceRows() {
+      existingPlaceList.innerHTML = "";
+      myPlaces.forEach((p) => {
+        const row = h("div", { class: "wish-place-row wish-place-existing" },
+          h("span", { class: "wish-place-name" }, p.name),
+          h("button", {
+            type: "button",
+            class: "wish-place-remove",
+            title: "削除",
+            onclick: async () => {
+              if (!confirm(`「${p.name}」を候補地点から削除します。よろしいですか？`)) return;
+              await act("removePlace", { tripId: S.tripId, placeId: p.id }, "候補地点を削除しました");
+              const idx = myPlaces.findIndex((x) => x.id === p.id);
+              if (idx !== -1) myPlaces.splice(idx, 1);
+              buildExistingPlaceRows();
+              updateAddBtn();
+            },
+          }, "×"),
+        );
+        existingPlaceList.appendChild(row);
+      });
+    }
+    buildExistingPlaceRows();
 
     function makePlaceInput(autoName) {
       const inp = h("input", {
@@ -1257,7 +1285,8 @@ panel,
       type: "button",
       class: "wish-place-add",
       onclick: () => {
-        if (placeInputs.length < MAX_WISH_PLACES) {
+        const total = myPlaces.length + placeInputs.length;
+        if (total < MAX_WISH_PLACES) {
           makePlaceInput("");
           updateAddBtn();
         }
@@ -1268,15 +1297,18 @@ panel,
     );
 
     function updateAddBtn() {
-      addPlaceBtn.style.display = placeInputs.length >= MAX_WISH_PLACES ? "none" : "";
-      // 1件のときは×ボタンを隠す
-      placeInputs.forEach(({ removeBtn }, i) => {
-        removeBtn.style.display = placeInputs.length <= 1 ? "none" : "";
+      const total = myPlaces.length + placeInputs.length;
+      addPlaceBtn.style.display = total >= MAX_WISH_PLACES ? "none" : "";
+      placeInputs.forEach(({ removeBtn }) => {
+        removeBtn.style.display = placeInputs.length <= 1 && myPlaces.length === 0 ? "none" : "";
       });
     }
 
-    // 初期: 1件作成（現在URLから自動取得）
-    makePlaceInput(T.extractPlaceName(location.href) || "");
+    // 初期: 既存がなければ1件作成
+    if (myPlaces.length === 0) {
+      makePlaceInput(T.extractPlaceName(location.href) || "");
+    }
+    updateAddBtn();
 
     // ---- 登録済み希望の表示ビュー ----
     const hasMyPrefs = !!(myPrefs.budget || (myPrefs.transport && myPrefs.transport.length) || (myPrefs.categories && myPrefs.categories.length));

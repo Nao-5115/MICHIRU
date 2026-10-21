@@ -125,10 +125,14 @@ async function isOurEvent(id) {
 const SEND_UPDATES = new Set(["all", "none", "externalOnly"]);
 const LEGACY_TYPES = new Set(["listEvents", "createEvent", "deleteEvent"]);
 
+// ビルド時に rollup の replace プラグインが実際のキーに置き換える
+const GEMINI_API_KEY = __GEMINI_KEY__;
+const MAPS_API_KEY   = __MAPS_KEY__;
+
 
 // ---------- Gemini AI スポット提案 ----------
-async function callGeminiAPI(apiKey, prompt) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+async function callGeminiAPI(prompt) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -145,8 +149,8 @@ async function callGeminiAPI(apiKey, prompt) {
   return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
-async function geocodePlace(name, mapsApiKey) {
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(name)}&language=ja&region=jp&key=${mapsApiKey}`;
+async function geocodePlace(name) {
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(name)}&language=ja&region=jp&key=${MAPS_API_KEY}`;
   const res = await fetch(url);
   if (!res.ok) return null;
   const data = await res.json();
@@ -155,7 +159,7 @@ async function geocodePlace(name, mapsApiKey) {
   return { lat: loc.lat, lng: loc.lng };
 }
 
-async function suggestSpotsWithGemini({ preferences, tripName, geminiApiKey, mapsApiKey }) {
+async function suggestSpotsWithGemini({ preferences, tripName }) {
   const budgetLabels = { 5000: "〜5,000円", 10000: "〜10,000円", 20000: "〜20,000円", 30000: "〜30,000円", 99999: "30,000円〜" };
   const prefEntries = Object.entries(preferences || {});
   const prefSummary = prefEntries.length === 0
@@ -186,7 +190,7 @@ ${prefSummary}
 - 5件すべて異なるエリアから選ぶ
 - JSONのみ返す（余分なテキスト不要）`;
 
-  const text = await callGeminiAPI(geminiApiKey, prompt);
+  const text = await callGeminiAPI(prompt);
 
   let spots = [];
   try {
@@ -200,9 +204,9 @@ ${prefSummary}
   for (const spot of spots.slice(0, 5)) {
     if (!spot || !spot.name) continue;
     let lat = null, lng = null;
-    if (mapsApiKey) {
+    if (MAPS_API_KEY) {
       try {
-        const geo = await geocodePlace(`${spot.name} ${spot.area || ""}`, mapsApiKey);
+        const geo = await geocodePlace(`${spot.name} ${spot.area || ""}`);
         if (geo) { lat = geo.lat; lng = geo.lng; }
       } catch (_) {}
     }

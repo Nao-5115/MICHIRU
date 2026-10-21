@@ -1150,11 +1150,11 @@ panel,
         return btn2;
       })
     );
-    const catPrefRow = h("div", { class: "toggle-group cat-pref-group" },
+    const catPrefRow = h("div", { class: "cat-grid" },
       ...SPOT_CATEGORIES.map((cat) => {
         const { label, svg } = SPOT_ICONS[cat];
         const btn2 = h("button", {
-          class: "toggle-btn toggle-btn--icon" + (_prefCategories.has(cat) ? " selected" : ""),
+          class: "cat-btn" + (_prefCategories.has(cat) ? " selected" : ""),
           title: cat,
           onclick: () => {
             if (_prefCategories.has(cat)) _prefCategories.delete(cat);
@@ -1163,7 +1163,7 @@ panel,
           },
         },
           makeSvgIcon(svg),
-          h("span", { class: "transport-label" }, label),
+          h("span", { class: "cat-label" }, label),
         );
         catPrefBtns[cat] = btn2;
         return btn2;
@@ -1279,41 +1279,49 @@ panel,
       h("h3", {}, "候補地点（得票数の多い順）"),
       ranked.length
         ? h(
-            "ul",
-            { class: "list" },
+            "div",
+            { class: "place-card-list" },
             ranked.map(({ place: p, voters }) => {
               const mine = !!(votes[m.key] && votes[m.key][p.id]);
+              const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}&query_place_id=&center=${p.lat},${p.lng}`;
               return h(
-                "li",
-                { class: adopted[p.id] ? "sel" : "" },
+                "div",
+                { class: "place-card" + (adopted[p.id] ? " adopted" : "") },
                 h(
                   "div",
-                  { class: "line" },
+                  {
+                    class: "place-card__header",
+                    onclick: () => window.open(mapsUrl, "_blank"),
+                    title: "Google マップで開く",
+                  },
                   h(
                     "div",
-                    {},
-                    h("b", {}, p.name),
+                    { class: "place-card__title-row" },
+                    h("span", { class: "place-card__name" }, p.name),
                     adopted[p.id]
                       ? h("span", { class: "badge ok" }, "採用")
                       : null,
                     h(
-                      "div",
-                      { class: "muted" },
-                      `追加: ${p.addedByName || "—"}`,
+                      "span",
+                      { class: "place-card__map-icon" },
+                      h("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "currentColor" },
+                        h("path", { d: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" }),
+                      ),
                     ),
                   ),
-                  h("span", { class: "counts" }, `${voters.length} 票`),
-                ),
-                h(
-                  "div",
-                  { class: "muted" },
+                  h(
+                    "div",
+                    { class: "place-card__meta" },
+                    h("span", { class: "muted" }, `追加: ${p.addedByName || "—"}`),
+                    h("span", { class: "place-card__votes" }, `${voters.length} 票`),
+                  ),
                   voters.length
-                    ? "投票: " + voters.join("、")
-                    : "投票: まだありません",
+                    ? h("div", { class: "place-card__voters muted" }, "投票: " + voters.join("、"))
+                    : h("div", { class: "place-card__voters muted" }, "投票: まだありません"),
                 ),
                 h(
                   "div",
-                  { class: "row" },
+                  { class: "place-card__actions" },
                   h(
                     "label",
                     { class: "inline" },

@@ -678,3 +678,71 @@ tr.sel { background: var(--ok-bg); }
 .btn.place-add:hover {
   filter: brightness(0.95);
 }
+
+/* ===== 候補地点カード（投票タブ）===== */
+.place-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0;
+}
+.place-card {
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card);
+  transition: box-shadow 0.15s;
+}
+.place-card.adopted {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.place-card__header {
+  padding: 10px 12px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.place-card__header:hover {
+  background: var(--hover, rgba(0,0,0,0.04));
+}
+.place-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.place-card__name {
+  font-weight: 600;
+  font-size: 14px;
+  flex: 1;
+}
+.place-card__map-icon {
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  opacity: 0.7;
+}
+.place-card__header:hover .place-card__map-icon {
+  opacity: 1;
+}
+.place-card__meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.place-card__votes {
+  font-weight: 600;
+  color: var(--accent);
+}
+.place-card__voters {
+  font-size: 11px;
+}
+.place-card__actions {
+  padding: 6px 12px 8px;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}

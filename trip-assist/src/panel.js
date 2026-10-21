@@ -1220,8 +1220,8 @@ panel,
       placeholder: "地点名（空欄なら URL から自動取得）",
       maxlength: 60,
     });
-    const prefBox = h("div", { class: "pref-box" },
-      h("h3", { style: "margin-top:0;" }, "旅行の希望を登録"),
+    const secPrefs = h("section", {},
+      h("h3", {}, "旅行の希望を登録"),
       h("div", { class: "form-label" }, "行きたい場所"),
       nameIn,
       btn(
@@ -1257,10 +1257,10 @@ panel,
       ),
       h("div", { class: "form-label" }, "予算（一人あたり目安）"),
       budgetRow,
-      h("div", { class: "form-label" }, "希望の交通手段"),
-      transportRow,
       h("div", { class: "form-label" }, "希望カテゴリ"),
       catPrefRow,
+      h("div", { class: "form-label" }, "希望の交通手段"),
+      transportRow,
       btn("希望を保存", async () => {
         await act("setPreferences", {
           tripId: S.tripId,
@@ -1271,9 +1271,6 @@ panel,
           },
         }, "希望を保存しました");
       }, "primary"),
-    );
-    const secPrefs = h("section", { style: "border-bottom: none; padding-bottom: 6px;" },
-      prefBox,
       memberPrefsToggle,
     );
     const secList = h(

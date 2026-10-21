@@ -1215,53 +1215,93 @@ panel,
       },
     }, makeMsIcon(MS_GROUP_PATH, 18), " メンバーの希望");
 
-    const nameIn = h("input", {
-      type: "text",
-      placeholder: "地点名（空欄なら URL から自動取得）",
-      maxlength: 60,
-    });
+    // ---- 行きたい場所：最大3件の入力リスト ----
+    const MAX_WISH_PLACES = 3;
+    const placeInputs = []; // { row, input, removeBtn }
+    const placeList = h("div", { class: "wish-place-list" });
+
+    function makePlaceInput(autoName) {
+      const inp = h("input", {
+        type: "text",
+        placeholder: "地点名（空欄なら現在ページから自動取得）",
+        maxlength: 60,
+        value: autoName || "",
+        class: "wish-place-input",
+      });
+      const removeBtn = h("button", {
+        type: "button",
+        class: "wish-place-remove",
+        title: "削除",
+        onclick: () => {
+          const idx = placeInputs.findIndex((e) => e.row === row);
+          if (idx !== -1) placeInputs.splice(idx, 1);
+          row.remove();
+          updateAddBtn();
+        },
+      }, "×");
+      const row = h("div", { class: "wish-place-row" }, inp, removeBtn);
+      placeInputs.push({ row, input: inp, removeBtn });
+      placeList.appendChild(row);
+      updateAddBtn();
+      return { row, input: inp };
+    }
+
+    const addPlaceBtn = h("button", {
+      type: "button",
+      class: "wish-place-add",
+      onclick: () => {
+        if (placeInputs.length < MAX_WISH_PLACES) {
+          makePlaceInput("");
+          updateAddBtn();
+        }
+      },
+    },
+      h("span", {}, "+"),
+      " 行きたい場所を追加",
+    );
+
+    function updateAddBtn() {
+      addPlaceBtn.style.display = placeInputs.length >= MAX_WISH_PLACES ? "none" : "";
+      // 1件のときは×ボタンを隠す
+      placeInputs.forEach(({ removeBtn }, i) => {
+        removeBtn.style.display = placeInputs.length <= 1 ? "none" : "";
+      });
+    }
+
+    // 初期: 1件作成（現在URLから自動取得）
+    makePlaceInput(T.extractPlaceName(location.href) || "");
+
     const secPrefs = h("section", {},
       h("h3", {}, "旅行の希望を登録"),
       h("div", { class: "form-label" }, "行きたい場所"),
-      nameIn,
-      btn(
-        "現在のページの地点を候補に追加",
-        async () => {
-          const ll = T.extractLatLng(location.href);
-          if (!ll)
-            return flash(
-              "このページの URL から緯度経度を取得できませんでした。場所を検索・選択してからもう一度お試しください。",
-              "err",
-            );
-          if (places.length >= T.MAX_CANDIDATE_PLACES)
-            return flash(
-              `候補地点は最大 ${T.MAX_CANDIDATE_PLACES} 件です`,
-              "err",
-            );
-          if (places.some((p) => T.samePoint(p, ll)))
-            return flash("同じ地点が既に候補にあります", "err");
-          const name = nameIn.value.trim() || T.extractPlaceName(location.href);
-          if (!name)
-            return flash(
-              "場所名を URL から取得できませんでした。地点名を入力してから追加してください（候補地点の名前は後から変更できません）。",
-              "err",
-            );
-          const r = await act(
-            "addPlace",
-            { tripId: S.tripId, place: { name, lat: ll.lat, lng: ll.lng } },
-            "候補地点を追加しました",
-          );
-          if (r.ok) nameIn.value = "";
-        },
-        "place-add",
-      ),
+      placeList,
+      addPlaceBtn,
       h("div", { class: "form-label" }, "予算（一人あたり目安）"),
       budgetRow,
       h("div", { class: "form-label" }, "希望カテゴリ"),
       catPrefRow,
       h("div", { class: "form-label" }, "希望の交通手段"),
       transportRow,
-      btn("希望を保存", async () => {
+      btn("希望を登録", async () => {
+        // 地点登録
+        const ll = T.extractLatLng(location.href);
+        let addedCount = 0;
+        let skipCount = 0;
+        for (const { input } of placeInputs) {
+          const name = input.value.trim() || T.extractPlaceName(location.href);
+          if (!name) continue;
+          if (!ll) { skipCount++; continue; }
+          if (places.length + addedCount >= T.MAX_CANDIDATE_PLACES) {
+            flash(`候補地点は最大 ${T.MAX_CANDIDATE_PLACES} 件です`, "err");
+            break;
+          }
+          await act("addPlace", { tripId: S.tripId, place: { name, lat: ll.lat, lng: ll.lng } }, null);
+          addedCount++;
+        }
+        if (skipCount > 0 && addedCount === 0) {
+          return flash("Google マップで場所を選択した状態でページを開いてから登録してください。", "err");
+        }
+        // 希望保存
         await act("setPreferences", {
           tripId: S.tripId,
           prefs: {
@@ -1269,7 +1309,15 @@ panel,
             transport: [..._transport],
             categories: [..._prefCategories],
           },
-        }, "希望を保存しました");
+        }, null);
+        flash(addedCount > 0 ? `希望を登録しました（地点 ${addedCount} 件）` : "希望を保存しました");
+        // 入力欄リセット
+        while (placeInputs.length > 1) {
+          const last = placeInputs.pop();
+          last.row.remove();
+        }
+        if (placeInputs[0]) placeInputs[0].input.value = "";
+        updateAddBtn();
       }, "primary"),
       memberPrefsToggle,
     );
@@ -1283,7 +1331,9 @@ panel,
             { class: "place-card-list" },
             ranked.map(({ place: p, voters }) => {
               const mine = !!(votes[m.key] && votes[m.key][p.id]);
-              const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}&query_place_id=&center=${p.lat},${p.lng}`;
+              const mapsUrl = (p.lat != null && p.lng != null)
+                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}&center=${p.lat},${p.lng}`
+                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}`;
               return h(
                 "div",
                 { class: "place-card" + (adopted[p.id] ? " adopted" : "") },

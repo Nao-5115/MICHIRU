@@ -377,14 +377,17 @@ const handlers = {
   async addPlace({ tripId, place }) {
     const u = user();
     const id = push(ref(db, path("trips", tripId, "places"))).key;
-    await set(ref(db, path("trips", tripId, "places", id)), {
+    const entry = {
       name: String(place.name).slice(0, 60),
-      lat: +place.lat,
-      lng: +place.lng,
       addedBy: u.key,
       addedByName: u.name,
       addedAt: serverTimestamp(),
-    });
+    };
+    if (place.lat != null && place.lng != null) {
+      entry.lat = +place.lat;
+      entry.lng = +place.lng;
+    }
+    await set(ref(db, path("trips", tripId, "places", id)), entry);
     return { id };
   },
   async removePlace({ tripId, placeId }) {

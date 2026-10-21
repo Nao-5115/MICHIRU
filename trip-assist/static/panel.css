@@ -746,3 +746,59 @@ tr.sel { background: var(--ok-bg); }
   align-items: center;
   gap: 8px;
 }
+
+/* ===== 行きたい場所 複数入力 ===== */
+.wish-place-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.wish-place-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.wish-place-input {
+  flex: 1;
+}
+.wish-place-remove {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  color: var(--muted-fg, #999);
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.wish-place-remove:hover {
+  background: var(--danger-soft, #fee2e2);
+  color: var(--danger, #dc2626);
+}
+.wish-place-add {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1.5px dashed var(--line);
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 13px;
+  padding: 5px 10px;
+  cursor: pointer;
+  width: 100%;
+  margin-bottom: 10px;
+}
+.wish-place-add:hover {
+  background: var(--accent-soft);
+}
+.wish-place-add span {
+  font-size: 18px;
+  line-height: 1;
+}

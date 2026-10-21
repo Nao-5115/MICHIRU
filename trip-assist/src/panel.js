@@ -224,6 +224,15 @@ function main() {
 
   const host = h("div", { id: "tripassist-host" });
   const root = host.attachShadow({ mode: "open" });
+  for (const type of ["keydown", "keyup", "keypress"]) {
+    window.addEventListener(
+      type,
+      (e) => {
+        if (e.composedPath().includes(host)) e.stopImmediatePropagation();
+      },
+      true,
+    );
+  }
   const statusEl = h("div", { class: "status", hidden: true });
   const body = h("div", { class: "body" });
   const tabsEl = h("div", { class: "tabs" });

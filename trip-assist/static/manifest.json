@@ -33,6 +33,16 @@
         "https://www.google.co.jp/maps/*",
         "https://maps.google.com/*"
       ],
+      "js": ["keyguard.js"],
+      "run_at": "document_start"
+    },
+
+    {
+      "matches": [
+        "https://www.google.com/maps/*",
+        "https://www.google.co.jp/maps/*",
+        "https://maps.google.com/*"
+      ],
       "js": ["content.js"],
       "run_at": "document_idle"
     }

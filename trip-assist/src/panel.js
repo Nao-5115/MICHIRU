@@ -57,7 +57,7 @@ function main() {
     regResults: null,
     regBusy: false,
     geo: null,
-    ghost: true,
+    ghost: false,
   };
   const L = () => S.local;
   const SPOT_CATEGORIES = [
@@ -126,12 +126,12 @@ function main() {
     Object.assign(panel.style, { left: g.x + "px", top: g.y + "px", width: g.w + "px", height: g.h + "px", right: "auto" });
   }
   async function saveUi() {
-    try { await chrome.storage.local.set({ ui: { geo: S.geo, ghost: S.ghost } }); } catch (_) {}
+    try { await chrome.storage.local.set({ ui: { geo: S.geo } }); } catch (_) {}
   }
   async function loadUi() {
     try {
       const { ui } = await chrome.storage.local.get("ui");
-      if (ui) { S.geo = ui.geo || null; S.ghost = ui.ghost !== false; }
+      if (ui) S.geo = ui.geo || null;
     } catch (_) {}
   }
   function applyGhost() {
@@ -180,7 +180,7 @@ function main() {
   const navBar = h("div", { class: "navbar", hidden: true });
   const subEl = h("span", { class: "sub" });
   const ghostBtn = btn("👻", () => { S.ghost = !S.ghost; applyGhost(); saveUi(); }, "icon");
-  ghostBtn.title = "離れたら半透明（オン/オフ）";
+  ghostBtn.title = "半透明（オン/オフ）";
   ghostBtn.setAttribute("aria-label", "半透明モードの切り替え");
   const panel = h(
     "div",

@@ -74,7 +74,7 @@
   from { transform: translateX(16px); opacity: 0; }
   to   { transform: none; opacity: 1; }
 }
-.panel.ghost:not(:hover):not(:focus-within) {
+.panel.ghost {
   opacity: 0.4;
 }
 .panel[hidden],

@@ -182,6 +182,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           { method: "DELETE" },
         );
         sendResponse({ ok: true });
+      } else if (t === "app:navigateTab") {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs[0]) await chrome.tabs.update(tabs[0].id, { url: msg.url });
+        sendResponse({ ok: true });
       } else {
         sendResponse({ ok: false, error: "不明なリクエストです" });
       }

@@ -1334,6 +1334,8 @@ panel,
               const mapsUrl = (p.lat != null && p.lng != null)
                 ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}&center=${p.lat},${p.lng}`
                 : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}`;
+              const openInCurrentTab = (url) =>
+                chrome.runtime.sendMessage({ type: "app:navigateTab", url });
               return h(
                 "div",
                 { class: "place-card" + (adopted[p.id] ? " adopted" : "") },
@@ -1341,7 +1343,7 @@ panel,
                   "div",
                   {
                     class: "place-card__header",
-                    onclick: () => window.open(mapsUrl, "_blank"),
+                    onclick: () => openInCurrentTab(mapsUrl),
                     title: "Google マップで開く",
                   },
                   h(

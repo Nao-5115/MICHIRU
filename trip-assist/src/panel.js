@@ -1132,19 +1132,22 @@ panel,
         return btn2;
       })
     );
-    const transportRow = h("div", { class: "toggle-group transport-group" },
+    const transportRow = h("div", { class: "cat-grid" },
       ...TRANSPORT_OPTIONS.map(({ label, svg }) => {
         const btn2 = h("button", {
-          class: "toggle-btn toggle-btn--icon" + (_transport.has(label) ? " selected" : ""),
+          class: "cat-btn" + (_transport.has(label) ? " selected" : ""),
           title: label,
           onclick: () => {
-            if (_transport.has(label)) _transport.delete(label);
-            else _transport.add(label);
-            transportBtns[label].classList.toggle("selected", _transport.has(label));
+            const alreadySelected = _transport.has(label);
+            _transport.clear();
+            if (!alreadySelected) _transport.add(label);
+            TRANSPORT_OPTIONS.forEach(({ label: l }) => {
+              transportBtns[l].classList.toggle("selected", _transport.has(l));
+            });
           },
         },
           makeSvgIcon(svg),
-          h("span", { class: "transport-label" }, label)
+          h("span", { class: "cat-label" }, label)
         );
         transportBtns[label] = btn2;
         return btn2;
@@ -1157,9 +1160,13 @@ panel,
           class: "cat-btn" + (_prefCategories.has(cat) ? " selected" : ""),
           title: cat,
           onclick: () => {
-            if (_prefCategories.has(cat)) _prefCategories.delete(cat);
-            else _prefCategories.add(cat);
-            catPrefBtns[cat].classList.toggle("selected", _prefCategories.has(cat));
+            // 単一選択：同じものを押したら解除、違うものを押したら切替
+            const alreadySelected = _prefCategories.has(cat);
+            _prefCategories.clear();
+            if (!alreadySelected) _prefCategories.add(cat);
+            SPOT_CATEGORIES.forEach((c) => {
+              catPrefBtns[c].classList.toggle("selected", _prefCategories.has(c));
+            });
           },
         },
           makeSvgIcon(svg),
@@ -1271,54 +1278,131 @@ panel,
     // 初期: 1件作成（現在URLから自動取得）
     makePlaceInput(T.extractPlaceName(location.href) || "");
 
+    // ---- 登録済み希望の表示ビュー ----
+    const hasMyPrefs = !!(myPrefs.budget || (myPrefs.transport && myPrefs.transport.length) || (myPrefs.categories && myPrefs.categories.length));
+
+    function buildPrefView() {
+      const budgetLabel = myPrefs.budget
+        ? (BUDGET_OPTIONS.find((o) => o.value === myPrefs.budget) || {}).label || myPrefs.budget
+        : "未設定";
+      const transportLabel = (myPrefs.transport && myPrefs.transport.length)
+        ? myPrefs.transport[0]
+        : "未設定";
+      const categoryLabel = (myPrefs.categories && myPrefs.categories.length)
+        ? myPrefs.categories[0]
+        : "未設定";
+      const transportOpt = TRANSPORT_OPTIONS.find((o) => o.label === transportLabel);
+      const catIcon = SPOT_ICONS[categoryLabel];
+
+      return h("div", { class: "pref-view" },
+        h("div", { class: "pref-view-row" },
+          h("span", { class: "pref-view-label" }, "予算"),
+          h("span", { class: "pref-view-value" }, budgetLabel),
+        ),
+        h("div", { class: "pref-view-row" },
+          h("span", { class: "pref-view-label" }, "交通手段"),
+          h("span", { class: "pref-view-value" },
+            transportOpt ? makeSvgIcon(transportOpt.svg) : null,
+            " " + transportLabel,
+          ),
+        ),
+        h("div", { class: "pref-view-row" },
+          h("span", { class: "pref-view-label" }, "カテゴリ"),
+          h("span", { class: "pref-view-value" },
+            catIcon ? makeSvgIcon(catIcon.svg) : null,
+            " " + (catIcon ? catIcon.label : categoryLabel),
+          ),
+        ),
+      );
+    }
+
+    // フォームと表示ビューを切り替えるコンテナ
+    const prefFormWrap = h("div", {});
+    const prefViewWrap = h("div", {});
+    let _editMode = !hasMyPrefs; // 未登録なら最初からフォーム表示
+
+    function showPrefForm() {
+      _editMode = true;
+      prefFormWrap.style.display = "";
+      prefViewWrap.style.display = "none";
+    }
+    function showPrefView() {
+      _editMode = false;
+      prefFormWrap.style.display = "none";
+      prefViewWrap.style.display = "";
+      prefViewWrap.innerHTML = "";
+      prefViewWrap.appendChild(buildPrefView());
+      prefViewWrap.appendChild(
+        btn("希望を変更する", showPrefForm, "small")
+      );
+    }
+
+    // フォーム内容をprefFormWrapにセット
+    prefFormWrap.appendChild(placeList);
+    prefFormWrap.appendChild(addPlaceBtn);
+    prefFormWrap.appendChild(h("div", { class: "form-label" }, "予算（一人あたり目安）"));
+    prefFormWrap.appendChild(budgetRow);
+    prefFormWrap.appendChild(h("div", { class: "form-label" }, "希望カテゴリ"));
+    prefFormWrap.appendChild(catPrefRow);
+    prefFormWrap.appendChild(h("div", { class: "form-label" }, "希望の交通手段"));
+    prefFormWrap.appendChild(transportRow);
+    prefFormWrap.appendChild(btn("希望を登録", async () => {
+      // 地点登録
+      const ll = T.extractLatLng(location.href);
+      let addedCount = 0;
+      let skipCount = 0;
+      for (const { input } of placeInputs) {
+        const name = input.value.trim() || T.extractPlaceName(location.href);
+        if (!name) continue;
+        if (!ll) { skipCount++; continue; }
+        if (places.length + addedCount >= T.MAX_CANDIDATE_PLACES) {
+          flash(`候補地点は最大 ${T.MAX_CANDIDATE_PLACES} 件です`, "err");
+          break;
+        }
+        await act("addPlace", { tripId: S.tripId, place: { name, lat: ll.lat, lng: ll.lng } }, null);
+        addedCount++;
+      }
+      if (skipCount > 0 && addedCount === 0) {
+        return flash("Google マップで場所を選択した状態でページを開いてから登録してください。", "err");
+      }
+      await act("setPreferences", {
+        tripId: S.tripId,
+        prefs: {
+          budget: _budget,
+          transport: [..._transport],
+          categories: [..._prefCategories],
+        },
+      }, null);
+      flash(addedCount > 0 ? `希望を登録しました（地点 ${addedCount} 件）` : "希望を保存しました");
+      // 入力欄リセット
+      while (placeInputs.length > 1) {
+        const last = placeInputs.pop();
+        last.row.remove();
+      }
+      if (placeInputs[0]) placeInputs[0].input.value = "";
+      updateAddBtn();
+      // 登録後は表示ビューに切替（myPrefsを更新して再描画）
+      Object.assign(myPrefs, {
+        budget: _budget,
+        transport: [..._transport],
+        categories: [..._prefCategories],
+      });
+      showPrefView();
+    }, "primary"));
+
+    // 初期表示
+    if (_editMode) {
+      showPrefForm();
+    } else {
+      prefViewWrap.appendChild(buildPrefView());
+      prefViewWrap.appendChild(btn("希望を変更する", showPrefForm, "small"));
+      prefFormWrap.style.display = "none";
+    }
+
     const secPrefs = h("section", {},
       h("h3", {}, "旅行の希望を登録"),
-      h("div", { class: "form-label" }, "行きたい場所"),
-      placeList,
-      addPlaceBtn,
-      h("div", { class: "form-label" }, "予算（一人あたり目安）"),
-      budgetRow,
-      h("div", { class: "form-label" }, "希望カテゴリ"),
-      catPrefRow,
-      h("div", { class: "form-label" }, "希望の交通手段"),
-      transportRow,
-      btn("希望を登録", async () => {
-        // 地点登録
-        const ll = T.extractLatLng(location.href);
-        let addedCount = 0;
-        let skipCount = 0;
-        for (const { input } of placeInputs) {
-          const name = input.value.trim() || T.extractPlaceName(location.href);
-          if (!name) continue;
-          if (!ll) { skipCount++; continue; }
-          if (places.length + addedCount >= T.MAX_CANDIDATE_PLACES) {
-            flash(`候補地点は最大 ${T.MAX_CANDIDATE_PLACES} 件です`, "err");
-            break;
-          }
-          await act("addPlace", { tripId: S.tripId, place: { name, lat: ll.lat, lng: ll.lng } }, null);
-          addedCount++;
-        }
-        if (skipCount > 0 && addedCount === 0) {
-          return flash("Google マップで場所を選択した状態でページを開いてから登録してください。", "err");
-        }
-        // 希望保存
-        await act("setPreferences", {
-          tripId: S.tripId,
-          prefs: {
-            budget: _budget,
-            transport: [..._transport],
-            categories: [..._prefCategories],
-          },
-        }, null);
-        flash(addedCount > 0 ? `希望を登録しました（地点 ${addedCount} 件）` : "希望を保存しました");
-        // 入力欄リセット
-        while (placeInputs.length > 1) {
-          const last = placeInputs.pop();
-          last.row.remove();
-        }
-        if (placeInputs[0]) placeInputs[0].input.value = "";
-        updateAddBtn();
-      }, "primary"),
+      prefFormWrap,
+      prefViewWrap,
       memberPrefsToggle,
     );
     const secList = h(
@@ -1334,7 +1418,7 @@ panel,
               const mapsUrl = (p.lat != null && p.lng != null)
                 ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}&center=${p.lat},${p.lng}`
                 : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}`;
-              const openInCurrentTab = (url) => { location.href = url; };
+              const openInCurrentTab = (url) => { window.open(url, "_blank"); };
               return h(
                 "div",
                 { class: "place-card" + (adopted[p.id] ? " adopted" : "") },

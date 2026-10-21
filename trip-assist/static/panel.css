@@ -802,3 +802,37 @@ tr.sel { background: var(--ok-bg); }
   font-size: 18px;
   line-height: 1;
 }
+
+/* ===== 登録済み希望の表示ビュー ===== */
+.pref-view {
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pref-view-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.pref-view-label {
+  color: var(--muted-fg, #888);
+  min-width: 60px;
+  font-size: 12px;
+}
+.pref-view-value {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+.pref-view-value svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}

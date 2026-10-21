@@ -836,3 +836,27 @@ tr.sel { background: var(--ok-bg); }
   height: 16px;
   flex-shrink: 0;
 }
+
+/* ===== 登録済み希望地点（編集フォーム内） ===== */
+.wish-place-existing {
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 8px;
+}
+.wish-place-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pref-view-place {
+  font-size: 13px;
+}
+.pref-view-section-label {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 4px;
+  margin-bottom: 2px;
+}

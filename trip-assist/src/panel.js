@@ -1326,7 +1326,24 @@ panel,
       const transportOpt = TRANSPORT_OPTIONS.find((o) => o.label === transportLabel);
       const catIcon = SPOT_ICONS[categoryLabel];
 
+      const locationOnIcon = () => makeMsIcon('M480-480q33 0 56.5-23.5T560-560q0-33-23.5-56.5T480-640q-33 0-56.5 23.5T400-560q0 33 23.5 56.5T480-480Zm0 294q122-112 181-203.5T720-560q0-117-77.5-194.5T480-832q-85 0-162.5 77.5T240-560q0 71 59 162.5T480-186Z', 16);
+      const placeViewRows = myPlaces.length > 0
+        ? myPlaces.map((p) =>
+            h("div", { class: "pref-view-row" },
+              h("span", { class: "pref-view-label" }, ""),
+              h("span", { class: "pref-view-value pref-view-place" }, locationOnIcon(), p.name),
+            )
+          )
+        : [h("div", { class: "pref-view-row" },
+            h("span", { class: "pref-view-label" }, ""),
+            h("span", { class: "pref-view-value" }, "未設定"),
+          )];
+
       return h("div", { class: "pref-view" },
+        h("div", { class: "pref-view-row pref-view-section-label" },
+          h("span", { class: "pref-view-label" }, "希望地点"),
+        ),
+        ...placeViewRows,
         h("div", { class: "pref-view-row" },
           h("span", { class: "pref-view-label" }, "予算"),
           h("span", { class: "pref-view-value" }, budgetLabel),
@@ -1370,6 +1387,8 @@ panel,
     }
 
     // フォーム内容をprefFormWrapにセット
+    prefFormWrap.appendChild(h("div", { class: "form-label" }, "行きたい場所（最大3件）"));
+    prefFormWrap.appendChild(existingPlaceList);
     prefFormWrap.appendChild(placeList);
     prefFormWrap.appendChild(addPlaceBtn);
     prefFormWrap.appendChild(h("div", { class: "form-label" }, "予算（一人あたり目安）"));

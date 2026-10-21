@@ -860,3 +860,67 @@ tr.sel { background: var(--ok-bg); }
   padding-bottom: 4px;
   margin-bottom: 2px;
 }
+
+/* ========== AI スポット提案 ========== */
+.ai-key-section {
+  margin: 8px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.ai-key-section summary {
+  cursor: pointer;
+  font-size: 0.85em;
+  color: var(--muted);
+  padding: 2px 0;
+  user-select: none;
+}
+.ai-key-fields {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ai-key-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82em;
+  color: var(--text);
+}
+.ai-key-fields input {
+  font-size: 0.9em;
+}
+.ai-results {
+  margin-top: 10px;
+}
+.ai-spot-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 6px 0;
+  background: var(--surface-alt, var(--surface));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ai-spot-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ai-spot-name {
+  font-weight: 600;
+  font-size: 0.95em;
+  flex: 1;
+}
+.ai-spot-meta {
+  font-size: 0.8em;
+  color: var(--muted);
+}
+.ai-spot-reason {
+  font-size: 0.85em;
+  color: var(--text);
+  font-style: italic;
+}

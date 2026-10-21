@@ -125,13 +125,99 @@ async function isOurEvent(id) {
 const SEND_UPDATES = new Set(["all", "none", "externalOnly"]);
 const LEGACY_TYPES = new Set(["listEvents", "createEvent", "deleteEvent"]);
 
+
+// ---------- Gemini AI スポット提案 ----------
+async function callGeminiAPI(apiKey, prompt) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Gemini API エラー (${res.status}): ${(err.error || {}).message || ""}`);
+  }
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+}
+
+async function geocodePlace(name, mapsApiKey) {
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(name)}&language=ja&region=jp&key=${mapsApiKey}`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (data.status !== "OK" || !data.results?.[0]) return null;
+  const loc = data.results[0].geometry.location;
+  return { lat: loc.lat, lng: loc.lng };
+}
+
+async function suggestSpotsWithGemini({ preferences, tripName, geminiApiKey, mapsApiKey }) {
+  const budgetLabels = { 5000: "〜5,000円", 10000: "〜10,000円", 20000: "〜20,000円", 30000: "〜30,000円", 99999: "30,000円〜" };
+  const prefEntries = Object.entries(preferences || {});
+  const prefSummary = prefEntries.length === 0
+    ? "特に指定なし"
+    : prefEntries.map(([, p]) => {
+        const parts = [];
+        if (p.budget) parts.push(`予算: ${budgetLabels[p.budget] || p.budget + "円"}`);
+        if (p.transport?.length) parts.push(`交通手段: ${p.transport.join("・")}`);
+        if (p.categories?.length) parts.push(`希望カテゴリ: ${p.categories.join("・")}`);
+        return parts.length ? parts.join(", ") : "特に指定なし";
+      }).join("\n");
+
+  const prompt = `あなたは旅行プランナーです。以下のメンバーの希望に基づいて、日本国内のおすすめ旅行スポットを5件提案してください。
+
+旅行名: ${tripName || "旅行"}
+
+メンバーの希望:
+${prefSummary}
+
+以下のJSON形式のみで回答してください（説明文は不要です）:
+[
+  {"name": "スポット名（Googleマップで検索できる具体的な名称）", "category": "観光スポット|飲食店|穴場スポット|カフェ|ショッピング|自然・景色|その他 のいずれか", "area": "都道府県や市区町村名", "reason": "おすすめ理由（30文字以内）"},
+  ...
+]
+
+条件:
+- スポット名はGoogleマップで検索できる正式名称を使う
+- 5件すべて異なるエリアから選ぶ
+- JSONのみ返す（余分なテキスト不要）`;
+
+  const text = await callGeminiAPI(geminiApiKey, prompt);
+
+  let spots = [];
+  try {
+    const match = text.match(/\[\s\S]*\]/);
+    spots = match ? JSON.parse(match[0]) : [];
+  } catch (_) {
+    throw new Error("Gemini の回答をパースできませんでした。もう一度お試しください。");
+  }
+
+  const results = [];
+  for (const spot of spots.slice(0, 5)) {
+    if (!spot || !spot.name) continue;
+    let lat = null, lng = null;
+    if (mapsApiKey) {
+      try {
+        const geo = await geocodePlace(`${spot.name} ${spot.area || ""}`, mapsApiKey);
+        if (geo) { lat = geo.lat; lng = geo.lng; }
+      } catch (_) {}
+    }
+    results.push({ name: spot.name, category: spot.category || "その他", area: spot.area || "", reason: spot.reason || "", lat, lng });
+  }
+  return results;
+}
+
 // ---------- メッセージ ----------
 // app:* / auth:* / cal:* をここで処理する。fb:* は offscreen.js が処理するので何も返さない。
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id || !msg || typeof msg.type !== "string")
     return false;
   const t = msg.type;
-  if (!/^(app|auth|cal):/.test(t) && !LEGACY_TYPES.has(t)) return false;
+  if (!/^(app|auth|cal|gemini):/.test(t) && !LEGACY_TYPES.has(t)) return false;
   (async () => {
     try {
       if (t === "app:ensure") {
@@ -192,6 +278,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           await chrome.tabs.create({ url: msg.url, active: true });
         }
         sendResponse({ ok: true });
+      } else if (t === "gemini:suggest") {
+        const spots = await suggestSpotsWithGemini(msg);
+        sendResponse({ ok: true, spots });
       } else {
         sendResponse({ ok: false, error: "不明なリクエストです" });
       }

@@ -58,6 +58,11 @@ function main() {
     regBusy: false,
     geo: null,
     ghost: true,
+    aiSuggesting: false,
+    aiResults: null,
+    aiError: "",
+    geminiApiKey: "",
+    mapsApiKey: "",
   };
   const L = () => S.local;
   const SPOT_CATEGORIES = [
@@ -402,6 +407,8 @@ panel,
       }
     }
     if (S.tripId && ch[lk(S.tripId)]) applyLocal(ch[lk(S.tripId)].newValue);
+    if (ch["app:geminiApiKey"]) S.geminiApiKey = ch["app:geminiApiKey"].newValue || "";
+    if (ch["app:mapsApiKey"]) S.mapsApiKey = ch["app:mapsApiKey"].newValue || "";
     scheduleRender(true);
   });
 
@@ -1341,7 +1348,7 @@ panel,
 
       return h("div", { class: "pref-view" },
         h("div", { class: "pref-view-row pref-view-section-label" },
-          h("span", { class: "pref-view-label" }, "希望地点"),
+          h("span", { class: "pref-view-label pref-view-section-title" }, "あなたの希望"),
         ),
         ...placeViewRows,
         h("div", { class: "pref-view-row" },
@@ -1588,7 +1595,130 @@ panel,
           )
         : h("p", { class: "muted" }, "採用する地点は幹事が選びます。"),
     );
-    return [secPrefs, secList];
+
+    // ---- AIスポット提案セクション ----
+    const _geminiKeyRef = { value: S.geminiApiKey };
+    const _mapsKeyRef = { value: S.mapsApiKey };
+
+    const geminiKeyInput = h("input", {
+      type: "password",
+      placeholder: "Gemini API キーを入力（必須）",
+      value: _geminiKeyRef.value,
+      oninput: (e) => { _geminiKeyRef.value = e.target.value; },
+    });
+    const mapsKeyInput = h("input", {
+      type: "password",
+      placeholder: "Google Maps API キーを入力（省略可）",
+      value: _mapsKeyRef.value,
+      oninput: (e) => { _mapsKeyRef.value = e.target.value; },
+    });
+
+    const aiResultsEl = h("div", { class: "ai-results" });
+
+    function buildAiResults() {
+      aiResultsEl.innerHTML = "";
+      if (S.aiSuggesting) {
+        aiResultsEl.appendChild(h("p", { class: "muted" }, "✨ AIがスポットを考えています…"));
+        return;
+      }
+      if (S.aiError) {
+        aiResultsEl.appendChild(h("p", { class: "warn" }, S.aiError));
+      }
+      if (!S.aiResults || !S.aiResults.length) return;
+      S.aiResults.forEach((spot) => {
+        let _added = false;
+        const addedBadge = h("span", { class: "badge ok", hidden: true }, "追加済み");
+        const addBtn = h("button", {
+          class: "btn small",
+          type: "button",
+          onclick: async () => {
+            if (_added) return;
+            const r = await fb("addPlace", {
+              tripId: S.tripId,
+              place: { name: spot.name, lat: spot.lat, lng: spot.lng },
+            });
+            if (r.ok) {
+              _added = true;
+              addBtn.disabled = true;
+              addBtn.textContent = "追加済み";
+              addedBadge.hidden = false;
+            } else {
+              flash(r.error || "追加に失敗しました", "err");
+            }
+          },
+        }, "候補に追加");
+        aiResultsEl.appendChild(
+          h("div", { class: "ai-spot-card" },
+            h("div", { class: "ai-spot-header" },
+              h("span", { class: "ai-spot-name" }, spot.name),
+              spot.category ? h("span", { class: "badge" }, spot.category) : null,
+              addedBadge,
+            ),
+            spot.area ? h("div", { class: "ai-spot-meta" }, "📍 " + spot.area) : null,
+            spot.reason ? h("div", { class: "ai-spot-reason" }, spot.reason) : null,
+            !spot.lat ? h("p", { class: "muted", style: "font-size:0.75em;margin:2px 0" },
+              "（Maps APIキーを設定するとマップにピン留めできます）") : null,
+            addBtn,
+          )
+        );
+      });
+    }
+    buildAiResults();
+
+    const suggestBtn = h("button", {
+      class: "btn primary",
+      type: "button",
+      onclick: async () => {
+        const gKey = _geminiKeyRef.value.trim();
+        const mKey = _mapsKeyRef.value.trim();
+        if (!gKey) return flash("Gemini API キーを入力してください", "err");
+        await chrome.storage.local.set({ "app:geminiApiKey": gKey, "app:mapsApiKey": mKey });
+        S.geminiApiKey = gKey;
+        S.mapsApiKey = mKey;
+        S.aiSuggesting = true;
+        S.aiResults = null;
+        S.aiError = "";
+        buildAiResults();
+        suggestBtn.disabled = true;
+        const r = await send({
+          type: "gemini:suggest",
+          preferences: d.preferences || {},
+          tripName: (d.meta && d.meta.name) || "旅行",
+          geminiApiKey: gKey,
+          mapsApiKey: mKey,
+        });
+        S.aiSuggesting = false;
+        suggestBtn.disabled = false;
+        if (r.ok) {
+          S.aiResults = r.spots || [];
+          S.aiError = r.spots && r.spots.length ? "" : "スポットが取得できませんでした。もう一度お試しください。";
+        } else {
+          S.aiResults = null;
+          S.aiError = r.error || "提案に失敗しました";
+        }
+        buildAiResults();
+      },
+    }, "✨ AIがスポットを提案");
+
+    const apiKeySection = h("details", { class: "ai-key-section" },
+      h("summary", {}, "🔑 APIキー設定"),
+      h("div", { class: "ai-key-fields" },
+        h("label", {}, "Gemini API キー（必須）", geminiKeyInput),
+        h("label", {}, "Google Maps API キー（省略可・座標取得に使用）", mapsKeyInput),
+        h("p", { class: "muted", style: "font-size:0.75em;margin-top:4px" },
+          "Gemini APIキーは Google AI Studio（aistudio.google.com）で無料取得できます。"),
+      ),
+    );
+
+    const secAI = h("section", {},
+      h("h3", {}, "✨ AIスポット提案"),
+      h("p", { class: "muted" }, "メンバーの希望をもとに、AIがおすすめスポットを5件提案します。"),
+      apiKeySection,
+      suggestBtn,
+      aiResultsEl,
+    );
+
+    return [secPrefs, secAI, secList];
   }
 
   // ======================= 全体共有スポットカタログ =======================
@@ -3057,6 +3187,8 @@ panel,
       K.trips,
       K.trip,
       K.spots,
+      "app:geminiApiKey",
+      "app:mapsApiKey",
     ]);
     S.auth = d[K.auth] || { state: "unknown" };
     S.trips = (d[K.trips] && d[K.trips].list) || [];
@@ -3066,6 +3198,8 @@ panel,
     S.spotsError = (spotState && spotState.error) || "";
     S.tripId = d[K.cur] || null;
     S.nav = d[K.nav] || null;
+    S.geminiApiKey = d["app:geminiApiKey"] || "";
+    S.mapsApiKey = d["app:mapsApiKey"] || "";
     let reopen = false;
     if (S.nav) {
       if (!S.nav.ts || Date.now() - S.nav.ts > 12 * 3600 * 1000)

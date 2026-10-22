@@ -148,7 +148,7 @@
         "places": {
           "$placeId": {
             ".write": "auth != null && auth.token.email_verified === true && root.child('trips').child($tripId).child('members').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && ((!data.exists() && newData.child('addedBy').val() === auth.token.email.toLowerCase().replace('.', ',')) || (data.exists() && !newData.exists() && (data.child('addedBy').val() === auth.token.email.toLowerCase().replace('.', ',') || root.child('trips').child($tripId).child('meta').child('ownerUid').val() === auth.uid)))",
-            ".validate": "newData.hasChildren(['name', 'lat', 'lng', 'addedBy', 'addedByName', 'addedAt'])",
+            ".validate": "newData.hasChildren(['name', 'addedBy', 'addedByName', 'addedAt'])",
             "name": {
               ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
             },

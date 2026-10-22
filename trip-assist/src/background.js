@@ -171,20 +171,31 @@ const MAPS_API_KEY   = __MAPS_KEY__;
 // ---------- Gemini AI スポット提案 ----------
 async function callGeminiAPI(prompt) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
-    }),
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`Gemini API エラー (${res.status}): ${(err.error || {}).message || ""}`);
+  // 503 のときは最大3回、指数バックオフでリトライ
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, 2000 * attempt)); // 2s, 4s
+    }
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    if (res.status === 503) {
+      if (attempt < 2) continue; // リトライ
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`Gemini API エラー (${res.status}): ${(err.error || {}).message || ""}`);
+    }
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
   }
-  const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  throw new Error("Gemini API エラー (503): サーバーが混雑しています。しばらく待ってから再度お試しください。");
 }
 
 async function geocodePlace(name) {

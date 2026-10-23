@@ -4,6 +4,8 @@
 const EVENTS_URL =
   "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 const OFFSCREEN_URL = "offscreen.html";
+const GMAIL_SEND_URL =
+  "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
 
 // ---------- offscreen ドキュメント ----------
 async function ensureOffscreen() {
@@ -49,10 +51,18 @@ function getToken(interactive) {
 }
 const removeToken = (token) =>
   new Promise((r) => chrome.identity.removeCachedAuthToken({ token }, r));
+const clearAuthTokenCache = () =>
+  new Promise((resolve, reject) => {
+    chrome.identity.clearAllCachedAuthTokens(() => {
+      if (chrome.runtime.lastError)
+        reject(new Error(chrome.runtime.lastError.message));
+      else resolve();
+    });
+  });
 
 // ---------- Google Calendar API ----------
-async function api(url, opt = {}) {
-  let token = await getToken(true);
+async function api(url, opt = {}, tokenState = null) {
+  let token = tokenState ? tokenState.token : await getToken(false);
   for (let attempt = 0; attempt < 2; attempt++) {
     const res = await fetch(url, {
       ...opt,
@@ -64,7 +74,8 @@ async function api(url, opt = {}) {
     });
     if (res.status === 401 && attempt === 0) {
       await removeToken(token);
-      token = await getToken(true);
+      token = await getToken(false);
+      if (tokenState) tokenState.token = token;
       continue;
     }
     if (!res.ok) {
@@ -79,6 +90,70 @@ async function api(url, opt = {}) {
     if (res.status === 204) return null; // DELETE 成功は本文なし
     return res.json();
   }
+}
+
+async function createEvents(events) {
+  if (!Array.isArray(events) || events.length === 0)
+    throw new Error("登録する予定がありません");
+
+  const tokenState = { token: await getToken(false) };
+  const results = [];
+  for (const { event, sendUpdates } of events) {
+    try {
+      const su = SEND_UPDATES.has(sendUpdates) ? sendUpdates : "none";
+      const created = await api(
+        `${EVENTS_URL}?sendUpdates=${su}`,
+        { method: "POST", body: JSON.stringify(event) },
+        tokenState,
+      );
+      results.push({ ok: true, id: created.id });
+    } catch (e) {
+      const error = String((e && e.message) || e);
+      results.push({ ok: false, error });
+      if (/認証|client_id|401|403/.test(error)) {
+        for (let i = results.length; i < events.length; i++)
+          results.push({ ok: false, error });
+        break;
+      }
+    }
+  }
+  return results;
+}
+
+// ---------- Gmail 送信 ----------
+const utf8b64 = (s) => {
+  let bin = "";
+  new TextEncoder().encode(s).forEach((b) => (bin += String.fromCharCode(b)));
+  return btoa(bin);
+};
+const toB64Url = (s) =>
+  utf8b64(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+async function sendMail({ to, subject, body }) {
+  // ヘッダインジェクション対策（改行・空白を含む宛先はNG）
+  if (typeof to !== "string" || !/^[^\s<>,;"]+@[^\s<>,;"]+$/.test(to))
+    throw new Error("宛先のメールアドレスが不正です");
+  if (typeof subject !== "string" || typeof body !== "string")
+    throw new Error("件名または本文が不正です");
+  if (subject.length > 200 || body.length > 5000)
+    throw new Error("件名または本文が長すぎます");
+
+  const raw = [
+    `To: ${to}`,
+    `Subject: =?UTF-8?B?${utf8b64(subject.replace(/[\r\n]+/g, " "))}?=`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    utf8b64(body)
+      .match(/.{1,76}/g)
+      .join("\r\n"),
+  ].join("\r\n");
+
+  await api(GMAIL_SEND_URL, {
+    method: "POST",
+    body: JSON.stringify({ raw: toB64Url(raw) }),
+  });
 }
 
 async function listEvents(timeMin, timeMax) {
@@ -131,7 +206,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id || !msg || typeof msg.type !== "string")
     return false;
   const t = msg.type;
-  if (!/^(app|auth|cal):/.test(t) && !LEGACY_TYPES.has(t)) return false;
+  if (!/^(app|auth|cal|mail):/.test(t) && !LEGACY_TYPES.has(t)) return false;
   (async () => {
     try {
       if (t === "app:ensure") {
@@ -150,6 +225,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           values: await chrome.storage.local.get(keys),
         });
       } else if (t === "auth:token") {
+        if (msg.refresh) await clearAuthTokenCache();
         sendResponse({ ok: true, token: await getToken(!!msg.interactive) });
       } else if (t === "auth:clear") {
         if (msg.token) await removeToken(msg.token);
@@ -166,6 +242,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           body: JSON.stringify(msg.event),
         });
         sendResponse({ ok: true, id: e.id, link: e.htmlLink });
+      } else if (t === "cal:createBatch") {
+        sendResponse({ ok: true, results: await createEvents(msg.events) });
       } else if (t === "cal:delete" || t === "deleteEvent") {
         // この拡張機能が登録して記録した予定のみ削除可能（記録のない eventId は拒否）
         const eventId = msg.eventId;
@@ -181,6 +259,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           `${EVENTS_URL}/${encodeURIComponent(eventId)}?sendUpdates=${su}`,
           { method: "DELETE" },
         );
+        sendResponse({ ok: true });
+      } else if (t === "mail:send") {
+        await sendMail(msg);
         sendResponse({ ok: true });
       } else {
         sendResponse({ ok: false, error: "不明なリクエストです" });

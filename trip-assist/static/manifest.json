@@ -19,7 +19,8 @@
       "openid",
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/userinfo.profile",
-      "https://www.googleapis.com/auth/calendar.events"
+      "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/gmail.send"
     ]
   },
   "background": {
@@ -32,13 +33,23 @@
         "https://www.google.co.jp/maps/*",
         "https://maps.google.com/*"
       ],
+      "js": ["keyguard.js"],
+      "run_at": "document_start"
+    },
+
+    {
+      "matches": [
+        "https://www.google.com/maps/*",
+        "https://www.google.co.jp/maps/*",
+        "https://maps.google.com/*"
+      ],
       "js": ["content.js"],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["panel.css"],
+      "resources": ["panel.css", "michiru-logo.png"],
       "matches": [
         "https://www.google.com/*",
         "https://www.google.co.jp/*",

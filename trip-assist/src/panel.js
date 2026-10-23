@@ -56,6 +56,9 @@ function main() {
     delResults: null,
     regResults: null,
     regBusy: false,
+    geo: null,
+    ghost: true,
+    mailOnInvite: true,
   };
   const L = () => S.local;
   const SPOT_CATEGORIES = [
@@ -108,26 +111,174 @@ function main() {
   const btn = (label, onclick, cls = "") =>
     h("button", { class: "btn " + cls, type: "button", onclick }, label);
 
+  // ---------- パネル位置・サイズ・半透明 ----------
+  const MIN_W = 300,
+    MIN_H = 240;
+  const defaultGeo = () => {
+    const w = Math.min(380, innerWidth);
+    return { x: innerWidth - w - 12, y: 12, w, h: innerHeight - 24 };
+  };
+  function clampGeo(g) {
+    const w = Math.min(Math.max(g.w, MIN_W), innerWidth),
+      h = Math.min(Math.max(g.h, MIN_H), innerHeight);
+    return {
+      w,
+      h,
+      x: Math.min(Math.max(g.x, 0), innerWidth - w),
+      y: Math.min(Math.max(g.y, 0), innerHeight - h),
+    };
+  }
+  function applyGeo() {
+    const g = (S.geo = clampGeo(S.geo || defaultGeo()));
+    Object.assign(panel.style, {
+      left: g.x + "px",
+      top: g.y + "px",
+      width: g.w + "px",
+      height: g.h + "px",
+      right: "auto",
+    });
+  }
+  async function saveUi() {
+    try {
+      await chrome.storage.local.set({ ui: { geo: S.geo, ghost: S.ghost } });
+    } catch (_) {}
+  }
+  async function loadUi() {
+    try {
+      const { ui } = await chrome.storage.local.get("ui");
+      if (ui) {
+        S.geo = ui.geo || null;
+        S.ghost = ui.ghost !== false;
+      }
+    } catch (_) {}
+  }
+  function applyGhost() {
+    panel.classList.toggle("ghost", S.ghost);
+    ghostBtn.style.opacity = S.ghost ? 1 : 0.5;
+  }
+  function startDrag(e) {
+    if (e.button !== 0 || e.target.closest("button")) return;
+    e.preventDefault();
+    const el = e.currentTarget,
+      sx = e.clientX,
+      sy = e.clientY,
+      g0 = { ...S.geo };
+    el.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      S.geo = { ...g0, x: g0.x + ev.clientX - sx, y: g0.y + ev.clientY - sy };
+      applyGeo();
+    };
+    const up = () => {
+      el.removeEventListener("pointermove", move);
+      saveUi();
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up, { once: true });
+    el.addEventListener("pointercancel", up, { once: true });
+  }
+  function startResize(e, dir) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const el = e.currentTarget,
+      sx = e.clientX,
+      sy = e.clientY,
+      g0 = { ...S.geo };
+    el.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      const dx = ev.clientX - sx,
+        dy = ev.clientY - sy;
+      let { x, y, w, h } = g0;
+      if (dir.includes("e")) w = g0.w + dx;
+      if (dir.includes("s")) h = g0.h + dy;
+      if (dir.includes("w")) {
+        w = g0.w - dx;
+        x = g0.x + dx;
+      }
+      if (dir.includes("n")) {
+        h = g0.h - dy;
+        y = g0.y + dy;
+      }
+      if (w < MIN_W) {
+        if (dir.includes("w")) x -= MIN_W - w;
+        w = MIN_W;
+      }
+      if (h < MIN_H) {
+        if (dir.includes("n")) y -= MIN_H - h;
+        h = MIN_H;
+      }
+      S.geo = { x, y, w, h };
+      applyGeo();
+    };
+    const up = () => {
+      el.removeEventListener("pointermove", move);
+      saveUi();
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up, { once: true });
+    el.addEventListener("pointercancel", up, { once: true });
+  }
+  window.addEventListener("resize", () => {
+    if (S.open) applyGeo();
+  });
+
   const host = h("div", { id: "tripassist-host" });
   const root = host.attachShadow({ mode: "open" });
+  for (const type of ["keydown", "keyup", "keypress"]) {
+    window.addEventListener(
+      type,
+      (e) => {
+        if (e.composedPath().includes(host)) e.stopImmediatePropagation();
+      },
+      true,
+    );
+  }
   const statusEl = h("div", { class: "status", hidden: true });
   const body = h("div", { class: "body" });
   const tabsEl = h("div", { class: "tabs" });
   const navBar = h("div", { class: "navbar", hidden: true });
   const subEl = h("span", { class: "sub" });
+  const ghostBtn = btn(
+    "👻",
+    () => {
+      S.ghost = !S.ghost;
+      applyGhost();
+      saveUi();
+    },
+    "icon",
+  );
+  ghostBtn.title = "離れたら半透明（オン/オフ）";
+  ghostBtn.setAttribute("aria-label", "半透明モードの切り替え");
   const panel = h(
     "div",
     { class: "panel", hidden: true },
     h(
       "div",
-      { class: "head" },
-      h("div", {}, h("strong", {}, "旅行アシスト"), " ", subEl),
-      btn("×", () => toggle(false), "icon"),
+      { class: "head", onpointerdown: startDrag },
+      h(
+        "div",
+        { class: "head-left" },
+        h("img", {
+          src: chrome.runtime.getURL("michiru-logo.png"),
+          class: "head-logo",
+          alt: "MICHIRU",
+        }),
+        subEl,
+      ),
+      h(
+        "span",
+        {},
+        ghostBtn,
+        btn("×", () => toggle(false), "icon"),
+      ),
     ),
     navBar,
     tabsEl,
     statusEl,
     body,
+    ...["n", "s", "e", "w", "ne", "nw", "se", "sw"].map((d) =>
+      h("div", { class: "grip " + d, onpointerdown: (e) => startResize(e, d) }),
+    ),
   );
   const fab = h(
     "button",
@@ -158,7 +309,11 @@ function main() {
     S.open = open;
     panel.hidden = !open;
     fab.hidden = open;
-    if (open) render();
+    if (open) {
+      applyGeo();
+      applyGhost();
+      render();
+    }
   }
 
   // ---------- 再描画（他のメンバーの更新で入力中の欄を壊さない） ----------
@@ -524,6 +679,30 @@ function main() {
     flash("旅行を削除しました");
   }
 
+  // 招待メールの送信。Gmail で送れなければ mailto: で幹事のメーラーを開く
+  function inviteMailText(tripName) {
+    const m = me();
+    return {
+      subject: `【旅行アシスト】「${tripName}」に招待されました`,
+      body:
+        `${m.email} さんから、旅行「${tripName}」に招待されました。\n\n` +
+        `Chrome 拡張機能「旅行アシスト」を開き、このメールアドレスで Google サインインすると、` +
+        `旅行が自動的に一覧に表示されます。日程の出欠や行きたい場所の投票ができます。`,
+    };
+  }
+  async function notifyInvite(email, tripName) {
+    const { subject, body } = inviteMailText(tripName);
+    const r = await send({ type: "mail:send", to: email, subject, body });
+    if (r.ok) return flash(`${email} に招待メールを送りました`);
+    // フォールバック: mailto
+    const url = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    flash(
+      `メールを自動送信できなかったため、メーラーを開きます（${r.error}）`,
+      "err",
+    );
+    window.open(url, "_blank");
+  }
+
   function viewMembers() {
     const tr = S.trip && S.trip.id === S.tripId ? S.trip : null;
     if (!S.tripId || !tr) return null;
@@ -591,6 +770,16 @@ function main() {
             "div",
             {},
             mailIn,
+            h(
+              "label",
+              { class: "inline" },
+              h("input", {
+                type: "checkbox",
+                checked: S.mailOnInvite,
+                onchange: (e) => (S.mailOnInvite = e.target.checked),
+              }),
+              "招待メールも送る",
+            ),
             btn(
               "メンバーを招待",
               async () => {
@@ -605,7 +794,10 @@ function main() {
                   { tripId: S.tripId, email },
                   `${email} を招待しました`,
                 );
-                if (r.ok) mailIn.value = "";
+                if (!r.ok) return;
+                mailIn.value = "";
+                if (S.mailOnInvite)
+                  await notifyInvite(email, tr.data.meta.name);
               },
               "primary",
             ),
@@ -991,6 +1183,8 @@ function main() {
       Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
     return 2 * r * Math.asin(Math.sqrt(q));
   };
+  const spotMapUrl = (spot) =>
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.name} ${spot.lat},${spot.lng}`)}`;
   function spotStars(rating, size = 14) {
     return h(
       "span",
@@ -1013,21 +1207,86 @@ function main() {
         h("p", { class: "muted" }, "おすすめスポットを読み込んでいます…"),
       ];
     const spots = S.spots || [];
-    const autoName = T.extractPlaceName(location.href) || "";
-    const nameIn = h("input", {
-      type: "text",
-      maxlength: 60,
-      placeholder: autoName
-        ? "地図から取得済み。変更できます"
-        : "スポット名を入力",
-      value: autoName,
-    });
-    const category = h(
-      "select",
-      {},
-      h("option", { value: "" }, "カテゴリを選択"),
-      ...SPOT_CATEGORIES.map((x) => h("option", { value: x }, x)),
+    const currentPlaceName = () => {
+      const heading =
+        document.querySelector("h1.DUwDvf") ||
+        document.querySelector('[role="main"] h1');
+      const name = heading && heading.textContent.trim();
+      return name ? name.slice(0, 60) : null;
+    };
+    // カテゴリアイコングリッド（SVGインライン）
+    const SPOT_ICONS = {
+      観光スポット: {
+        label: "観光",
+        svg: '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>',
+      },
+      飲食店: {
+        label: "飲食",
+        svg: '<path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/>',
+      },
+      穴場スポット: {
+        label: "穴場",
+        svg: '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5.5-2.5l7.51-3.49 3.49-7.51-7.51 3.49-3.49 7.51zm5.5-6.6c.61 0 1.1.49 1.1 1.1s-.49 1.1-1.1 1.1-1.1-.49-1.1-1.1.49-1.1 1.1-1.1z"/>',
+      },
+      カフェ: {
+        label: "カフェ",
+        svg: '<path d="M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm0 5h-2V5h2v3zM4 19h16v2H4z"/>',
+      },
+      ショッピング: {
+        label: "ショッピング",
+        svg: '<path d="M18 6h-2c0-2.21-1.79-4-4-4S8 3.79 8 6H6c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h12c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6-2c1.1 0 2 .9 2 2h-4c0-1.1.9-2 2-2zm0 10c-2.21 0-4-1.79-4-4h2c0 1.1.9 2 2 2s2-.9 2-2h2c0 2.21-1.79 4-4 4z"/>',
+      },
+      "自然・景色": {
+        label: "自然",
+        svg: '<path d="M17 12h2L12 2 5.05 12H7l-3.9 6h8.45V22h1.1v-4H21L17 12zm-9.24 4l2.99-4.52.25-.38.25.38L14.24 16H7.76z"/>',
+      },
+      その他: {
+        label: "その他",
+        svg: '<path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>',
+      },
+    };
+    function makeSvgIcon(svgPath) {
+      const ns = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(ns, "svg");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("width", "22");
+      svg.setAttribute("height", "22");
+      svg.setAttribute("fill", "currentColor");
+      svg.innerHTML = svgPath;
+      return svg;
+    }
+    let _categoryValue = "";
+    const catBtns = {};
+    const catGrid = h(
+      "div",
+      { class: "cat-grid" },
+      ...SPOT_CATEGORIES.map((cat) => {
+        const { label, svg } = SPOT_ICONS[cat];
+        const btn_ = h(
+          "button",
+          {
+            type: "button",
+            class: "cat-btn",
+            title: cat,
+            onclick: () => {
+              _categoryValue = _categoryValue === cat ? "" : cat;
+              SPOT_CATEGORIES.forEach((c) => {
+                catBtns[c].classList.toggle("selected", c === _categoryValue);
+              });
+            },
+          },
+          makeSvgIcon(svg),
+          h("span", { class: "cat-label" }, label),
+        );
+        catBtns[cat] = btn_;
+        return btn_;
+      }),
     );
+    const category = {
+      get value() {
+        return _categoryValue;
+      },
+    };
     const description = h("textarea", {
       rows: 3,
       maxlength: 500,
@@ -1035,8 +1294,8 @@ function main() {
     });
     const recommendation = h("textarea", {
       rows: 2,
-      maxlength: 200,
-      placeholder: "おすすめポイント（任意、200文字以内）",
+      maxlength: 50,
+      placeholder: "一言コメント（任意、50文字以内）",
     });
     const author = h("input", {
       type: "text",
@@ -1045,7 +1304,6 @@ function main() {
       value: S.auth.name || "",
     });
     let rating = 0;
-    const ratingLabel = h("span", { class: "muted" }, "評価を選択してください");
     const ratingButtons = h("div", { class: "spot-rating" });
     function paintRating() {
       ratingButtons.replaceChildren(
@@ -1070,9 +1328,6 @@ function main() {
           ),
         ),
       );
-      ratingLabel.textContent = rating
-        ? `${rating} / 5`
-        : "評価を選択してください";
     }
     paintRating();
     const current = T.extractLatLng(location.href);
@@ -1083,22 +1338,12 @@ function main() {
       "section",
       {},
       h("h3", {}, "おすすめスポットを共有"),
-      h(
-        "p",
-        { class: "muted" },
-        "この一覧は旅行をまたいで共有され、最新100件を表示します。場所を開いてから登録してください。",
-      ),
+
       S.spotsError ? h("p", { class: "warn" }, S.spotsError) : null,
-      h("label", {}, "スポット名", nameIn),
-      h("label", {}, "カテゴリ", category),
+      h("div", {}, h("div", { class: "form-label" }, "カテゴリ"), catGrid),
       h("label", {}, "レビュー", description),
-      h("label", {}, "おすすめポイント", recommendation),
-      h(
-        "label",
-        {},
-        "評価（必須）",
-        h("div", { class: "row" }, ratingButtons, ratingLabel),
-      ),
+      h("label", {}, "一言コメント", recommendation),
+      h("label", {}, "評価（必須）", h("div", { class: "row" }, ratingButtons)),
       h("label", {}, "表示名", author),
       btn(
         "現在の場所を登録",
@@ -1109,9 +1354,12 @@ function main() {
               "Google マップで場所を選択してから登録してください。",
               "err",
             );
-          const name = nameIn.value.trim() || autoName;
+          const name = currentPlaceName();
           if (!name || name.length > 60)
-            return flash("スポット名を60文字以内で入力してください。", "err");
+            return flash(
+              "Google マップで登録したい場所の詳細を開いてから登録してください。",
+              "err",
+            );
           if (!SPOT_CATEGORIES.includes(category.value))
             return flash("カテゴリを選択してください。", "err");
           if (!rating) return flash("評価（星）を選択してください。", "err");
@@ -1134,7 +1382,6 @@ function main() {
               "err",
             );
           flash(`「${name}」を共有スポットに登録しました`);
-          nameIn.value = "";
           description.value = "";
           recommendation.value = "";
           rating = 0;
@@ -1152,7 +1399,7 @@ function main() {
         const canDelete = spot.registeredByEmail === myEmail;
         const details = h(
           "div",
-          { class: "spot-details" },
+          { class: "spot-details", hidden: true },
           h(
             "div",
             { class: "muted" },
@@ -1165,13 +1412,13 @@ function main() {
             ? h(
                 "p",
                 { class: "spot-recommendation" },
-                "おすすめ: " + spot.recommendation,
+                "💬 " + spot.recommendation,
               )
             : null,
           h(
             "a",
             {
-              href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.lat},${spot.lng}`)}`,
+              href: spotMapUrl(spot),
               target: "_blank",
               rel: "noopener noreferrer",
             },
@@ -1189,8 +1436,9 @@ function main() {
               {
                 type: "button",
                 class: "spot-expand",
-                onclick: () => {
+                onclick: (e) => {
                   details.hidden = !details.hidden;
+                  e.currentTarget.classList.toggle("open", !details.hidden);
                 },
               },
               h("b", {}, spot.name),
@@ -1237,13 +1485,26 @@ function main() {
         ? h("ul", { class: "list" }, ...rows(spots))
         : h("p", { class: "muted" }, "共有スポットはまだありません。"),
     );
+    let nearbyOpen = false;
+    const nearbyList = h(
+      "ul",
+      { class: "list", hidden: true },
+      ...rows(nearby),
+    );
+    const nearbyToggle = h(
+      "h3",
+      {
+        class: "nearby-toggle",
+        onclick: () => {
+          nearbyOpen = !nearbyOpen;
+          nearbyList.hidden = !nearbyOpen;
+          nearbyToggle.classList.toggle("open", nearbyOpen);
+        },
+      },
+      `この場所の近くのレビュー（${nearby.length}件）`,
+    );
     const nearbySection = nearby.length
-      ? h(
-          "section",
-          {},
-          h("h3", {}, `この場所の近くのレビュー（${nearby.length}件）`),
-          h("ul", { class: "list" }, ...rows(nearby)),
-        )
+      ? h("section", {}, nearbyToggle, nearbyList)
       : null;
     return [form, nearbySection, list];
   }
@@ -1261,11 +1522,36 @@ function main() {
       style.id = "tripassist-spot-style";
       style.textContent = `
         #tripassist-spot-layer{position:fixed;inset:0;pointer-events:none;z-index:2147483646;overflow:hidden}
-        .tripassist-spot-marker{position:absolute;pointer-events:auto;cursor:pointer;transform:translate(-12px,-28px)}
-        .tripassist-spot-pin{width:24px;height:24px;border:2px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px #0006}
-        .tripassist-spot-dot{position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;background:white;transform:translate(-50%,-50%) rotate(45deg)}
-        .tripassist-spot-label{position:absolute;left:28px;top:-4px;padding:3px 8px;border-radius:4px;background:#202124e8;color:white;font:bold 11px Arial,sans-serif;white-space:nowrap;opacity:0;pointer-events:none}
-        .tripassist-spot-marker:hover .tripassist-spot-label{opacity:1}
+        .tripassist-spot-marker{position:absolute;pointer-events:auto;cursor:pointer;transform:translate(-50%,-100%)}
+        .tripassist-spot-callout{
+          display:flex;flex-direction:column;gap:2px;
+          padding:5px 9px;border-radius:8px;
+          background:white;box-shadow:0 2px 8px #0004;
+          font:12px/1.4 Arial,sans-serif;
+          border:2px solid var(--sc,#1a73e8);color:#202124;
+          max-width:160px;position:relative;
+        }
+        .tripassist-spot-name{
+          font-weight:bold;font-size:12px;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+        }
+        .tripassist-spot-rec{
+          font-size:10px;color:#5f6368;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+        }
+        .tripassist-spot-marker:hover .tripassist-spot-rec{color:rgba(255,255,255,0.85)}
+        .tripassist-spot-callout::after{
+          content:"";position:absolute;bottom:-8px;left:50%;
+          transform:translateX(-50%);
+          border:4px solid transparent;
+          border-top:5px solid var(--sc,#1a73e8);
+        }
+        .tripassist-spot-marker:hover .tripassist-spot-callout{
+          background:var(--sc,#1a73e8);color:white;
+        }
+        .tripassist-spot-marker:hover .tripassist-spot-callout::after{
+          border-top-color:var(--sc,#1a73e8);
+        }
         .tripassist-spot-popup{position:absolute;width:260px;max-height:45vh;overflow:auto;padding:12px 14px;border-radius:10px;background:white;color:#202124;box-shadow:0 4px 16px #0005;pointer-events:auto;z-index:2;font:13px/1.5 Arial,sans-serif}
         .tripassist-spot-popup h4{margin:0 0 6px;font-size:14px}.tripassist-spot-popup p{margin:5px 0;color:#5f6368}
         .tripassist-spot-popup a{color:#1a73e8}.tripassist-spot-close{float:right;border:0;background:none;font-size:20px;cursor:pointer}
@@ -1310,7 +1596,7 @@ function main() {
     const date = spot.registeredAt
       ? new Date(spot.registeredAt).toLocaleDateString("ja-JP")
       : "";
-    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.lat},${spot.lng}`)}`;
+    const mapUrl = spotMapUrl(spot);
     const left = Math.max(
       8,
       Math.min(x + 18, window.innerWidth - (S.open ? 390 : 280)),
@@ -1344,9 +1630,7 @@ function main() {
         spotStars(+spot.rating),
       ),
       spot.description ? h("p", {}, spot.description) : null,
-      spot.recommendation
-        ? h("p", {}, `おすすめ: ${spot.recommendation}`)
-        : null,
+      spot.recommendation ? h("p", {}, `💬 ${spot.recommendation}`) : null,
       h("p", {}, `${spot.registeredBy || "匿名"}${date ? ` ・ ${date}` : ""}`),
       h(
         "a",
@@ -1375,9 +1659,13 @@ function main() {
         y > window.innerHeight + 50
       )
         continue;
+      const color = SPOT_COLORS[spot.category] || "#616161";
+      const stars = "★".repeat(
+        Math.max(0, Math.min(5, Math.round(+spot.rating))),
+      );
       const marker = h("div", {
         class: "tripassist-spot-marker",
-        title: spot.name,
+        title: `${spot.name}\n${spot.category}　${stars}`,
         onclick: (e) => {
           e.stopPropagation();
           showSpotPopup(spot, x, y);
@@ -1385,15 +1673,16 @@ function main() {
       });
       marker.style.left = `${x}px`;
       marker.style.top = `${y}px`;
-      const color = SPOT_COLORS[spot.category] || "#616161";
-      marker.append(
-        h(
-          "div",
-          { class: "tripassist-spot-pin", style: `background:${color}` },
-          h("div", { class: "tripassist-spot-dot" }),
-        ),
-        h("span", { class: "tripassist-spot-label" }, spot.name),
+      const callout = h(
+        "div",
+        { class: "tripassist-spot-callout" },
+        h("div", { class: "tripassist-spot-name" }, spot.name),
+        spot.recommendation
+          ? h("div", { class: "tripassist-spot-rec" }, spot.recommendation)
+          : null,
       );
+      callout.style.setProperty("--sc", color);
+      marker.append(callout);
       spotLayer.append(marker);
     }
   }
@@ -2051,8 +2340,18 @@ function main() {
     S.regBusy = true;
     S.regResults = [];
     const recs = [];
-    for (const { ev, sendUpdates } of events) {
-      const res = await send({ type: "cal:create", event: ev, sendUpdates });
+    const batch = await send({
+      type: "cal:createBatch",
+      events: events.map(({ ev, sendUpdates }) => ({
+        event: ev,
+        sendUpdates,
+      })),
+    });
+    const results = batch.ok
+      ? batch.results
+      : events.map(() => ({ ok: false, error: batch.error }));
+    for (const [index, res] of results.entries()) {
+      const ev = events[index].ev;
       S.regResults.push({ name: ev.summary, ok: res.ok, error: res.error });
       if (res.ok && res.id) {
         recs.push(

@@ -1,0 +1,78 @@
+MICHIRU（プロジェクトのフォルダ）
+※ node_modules と .git は省略しています
+
+MICHIRU/
+├─ .DS_Store ............... macOS が自動で作るフォルダ表示の設定ファイル（不要）
+├─ .gitignore .............. Git で管理しないファイルの指定
+├─ README.md ............... プロジェクトの説明（セットアップ・使い方・役割）
+└─ trip-assist/ ............ Chrome 拡張機能の本体
+   ├─ .env ................. APIキーなどの秘密情報（Git には含めない）
+   ├─ .env.example ......... .env の雛形
+   ├─ .gitignore ........... trip-assist 内で Git 管理しないファイルの指定
+   ├─ database.rules.json .. Firebase Realtime Database のアクセス制御ルール
+   ├─ firebase-config.json . Firebase の接続設定
+   ├─ package.json ......... npm の設定（依存パッケージとスクリプト）
+   ├─ package-lock.json .... 依存パッケージのバージョンの固定
+   ├─ rollup.config.mjs .... ビルド設定（src/ を dist/ にまとめる）
+   │
+   ├─ dist/ ................ ビルド結果（Chrome に読み込ませるフォルダ）
+   │  ├─ background.js ..... ビルド後の background（Service Worker）
+   │  ├─ content.js ........ ビルド後のサイドパネル本体
+   │  ├─ offscreen.js ...... ビルド後の Firebase 接続処理
+   │  ├─ keyguard.js ....... マップより先にキー入力を受け取るスクリプト
+   │  ├─ manifest.json ..... 拡張機能の設定（権限・ID・OAuth）
+   │  ├─ michiru-logo.png .. ロゴ画像
+   │  ├─ offscreen.html .... offscreen 用の HTML
+   │  ├─ panel.css ......... パネルのスタイル
+   │  └─ panel.css.bak-before-gray ... panel.css の古いバックアップ（削除してよい）
+   │
+   ├─ scripts/
+   │  └─ verify-no-remote-code.mjs ... dist/ に外部コードの読み込みが無いか検査する
+   │
+   ├─ src/ ................. ソースコード
+   │  ├─ background.js ..... Service Worker。Google カレンダー・Gemini・ジオコーディングなど外部 API の呼び出しとメッセージ処理
+   │  ├─ lib.js ............ 共通の関数（メールアドレス、日付・時刻、ルート最適化、HTML エスケープなど）
+   │  ├─ offscreen.js ...... Firebase の接続と読み書き（offscreen ドキュメントで動作）
+   │  ├─ panel.js .......... サイドパネルの入口（panel/index.js を呼ぶだけ）
+   │  └─ panel/ ............ サイドパネルの機能別モジュール
+   │     ├─ index.js ....... モジュールを順に組み立てて実行する
+   │     ├─ constants.js ... 保存キーや既定値などの定数
+   │     ├─ core/ .......... 土台となる部分
+   │     │  ├─ state.js .... 共有の状態（S）とスポット分類・色などの定数
+   │     │  ├─ dom.js ...... 要素とアイコンを作るヘルパ（createEl, makeButton）
+   │     │  ├─ geometry.js . パネルの位置・サイズ・ドラッグとリサイズ
+   │     │  ├─ shell.js .... パネル本体（Shadow DOM）と開閉ボタン
+   │     │  ├─ messaging.js  再描画の制御・拡張機能内の通信・Firebase 呼び出し
+   │     │  ├─ storage.js .. 幹事のローカル保存と旅行の切り替え
+   │     │  ├─ common.js ... サインイン案内・表示の制限・データ更新
+   │     │  ├─ render.js ... タブの定義と画面の描画
+   │     │  └─ boot.js ..... 起動処理（保存済み状態の復元など）
+   │     ├─ tabs/ .......... タブごとの画面
+   │     │  ├─ trip.js ..... 「旅行」タブ（作成・一覧・削除・招待・メンバー）
+   │     │  ├─ schedule.js . 「日程」タブ（候補日と出欠）
+   │     │  ├─ vote.js ..... 「投票」タブ（候補地点の投票・AI によるスポット提案）
+   │     │  ├─ spots.js .... 「スポット」タブ（共有スポットの一覧・登録）
+   │     │  ├─ route.js .... 「ルート」タブ（訪問順・移動手段・しおり・ルート案内）
+   │     │  ├─ register.js . 「登録」タブ（Google カレンダーへの登録）
+   │     │  └─ my-events.js  登録済みの予定の一覧と削除
+   │     └─ map/ ........... Google マップ上の表示
+   │        ├─ overlay.js .. 共有スポットのマーカー・ポップアップ・採用地点の取り込み
+   │        └─ prefs-float.js  メンバー希望のフロートウィンドウ
+   │
+   ├─ static/ .............. ビルド時にそのまま dist/ へコピーされる元ファイル
+   │  ├─ keyguard.js ....... （dist/ と同じ内容の原本）
+   │  ├─ manifest.json ..... 拡張機能の設定の原本
+   │  ├─ michiru-logo.png .. ロゴ画像
+   │  ├─ offscreen.html .... offscreen 用の HTML
+   │  ├─ panel.css ......... パネルのスタイルの原本
+   │  └─ panel.css.bak-before-gray ... 古いバックアップ（削除してよい）
+   │
+   ├─ test/ ................ テスト（npm test で実行）
+   │  ├─ lib.test.mjs ...... lib.js のテスト
+   │  ├─ offscreen.test.mjs  offscreen.js のテスト（現在は失敗する）
+   │  └─ panel.smoke.test.mjs  サイドパネルの動作確認テスト（現在は失敗する）
+   │
+   └─ testing/ ............. テスト用の補助ファイル
+      ├─ .offscreen.generated.mjs ... テスト時に offscreen.js から自動生成されるファイル
+      ├─ fake-config.mjs ... テスト用の偽の Firebase 設定
+      └─ fake-firebase.mjs . テスト用の偽の Firebase SDK

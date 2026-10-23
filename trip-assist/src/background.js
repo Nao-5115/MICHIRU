@@ -51,10 +51,18 @@ function getToken(interactive) {
 }
 const removeToken = (token) =>
   new Promise((r) => chrome.identity.removeCachedAuthToken({ token }, r));
+const clearAuthTokenCache = () =>
+  new Promise((resolve, reject) => {
+    chrome.identity.clearAllCachedAuthTokens(() => {
+      if (chrome.runtime.lastError)
+        reject(new Error(chrome.runtime.lastError.message));
+      else resolve();
+    });
+  });
 
 // ---------- Google Calendar API ----------
-async function api(url, opt = {}) {
-  let token = await getToken(true);
+async function api(url, opt = {}, tokenState = null) {
+  let token = tokenState ? tokenState.token : await getToken(false);
   for (let attempt = 0; attempt < 2; attempt++) {
     const res = await fetch(url, {
       ...opt,
@@ -66,7 +74,8 @@ async function api(url, opt = {}) {
     });
     if (res.status === 401 && attempt === 0) {
       await removeToken(token);
-      token = await getToken(true);
+      token = await getToken(false);
+      if (tokenState) tokenState.token = token;
       continue;
     }
     if (!res.ok) {
@@ -81,6 +90,34 @@ async function api(url, opt = {}) {
     if (res.status === 204) return null; // DELETE 成功は本文なし
     return res.json();
   }
+}
+
+async function createEvents(events) {
+  if (!Array.isArray(events) || events.length === 0)
+    throw new Error("登録する予定がありません");
+
+  const tokenState = { token: await getToken(false) };
+  const results = [];
+  for (const { event, sendUpdates } of events) {
+    try {
+      const su = SEND_UPDATES.has(sendUpdates) ? sendUpdates : "none";
+      const created = await api(
+        `${EVENTS_URL}?sendUpdates=${su}`,
+        { method: "POST", body: JSON.stringify(event) },
+        tokenState,
+      );
+      results.push({ ok: true, id: created.id });
+    } catch (e) {
+      const error = String((e && e.message) || e);
+      results.push({ ok: false, error });
+      if (/認証|client_id|401|403/.test(error)) {
+        for (let i = results.length; i < events.length; i++)
+          results.push({ ok: false, error });
+        break;
+      }
+    }
+  }
+  return results;
 }
 
 // ---------- Gmail 送信 ----------
@@ -188,6 +225,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           values: await chrome.storage.local.get(keys),
         });
       } else if (t === "auth:token") {
+        if (msg.refresh) await clearAuthTokenCache();
         sendResponse({ ok: true, token: await getToken(!!msg.interactive) });
       } else if (t === "auth:clear") {
         if (msg.token) await removeToken(msg.token);
@@ -204,6 +242,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           body: JSON.stringify(msg.event),
         });
         sendResponse({ ok: true, id: e.id, link: e.htmlLink });
+      } else if (t === "cal:createBatch") {
+        sendResponse({ ok: true, results: await createEvents(msg.events) });
       } else if (t === "cal:delete" || t === "deleteEvent") {
         // この拡張機能が登録して記録した予定のみ削除可能（記録のない eventId は拒否）
         const eventId = msg.eventId;

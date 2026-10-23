@@ -1183,6 +1183,8 @@ function main() {
       Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
     return 2 * r * Math.asin(Math.sqrt(q));
   };
+  const spotMapUrl = (spot) =>
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.name} ${spot.lat},${spot.lng}`)}`;
   function spotStars(rating, size = 14) {
     return h(
       "span",
@@ -1205,15 +1207,13 @@ function main() {
         h("p", { class: "muted" }, "おすすめスポットを読み込んでいます…"),
       ];
     const spots = S.spots || [];
-    const autoName = T.extractPlaceName(location.href) || "";
-    const nameIn = h("input", {
-      type: "text",
-      maxlength: 60,
-      placeholder: autoName
-        ? "地図から取得済み。変更できます"
-        : "スポット名を入力",
-      value: autoName,
-    });
+    const currentPlaceName = () => {
+      const heading =
+        document.querySelector("h1.DUwDvf") ||
+        document.querySelector('[role="main"] h1');
+      const name = heading && heading.textContent.trim();
+      return name ? name.slice(0, 60) : null;
+    };
     // カテゴリアイコングリッド（SVGインライン）
     const SPOT_ICONS = {
       観光スポット: {
@@ -1340,7 +1340,6 @@ function main() {
       h("h3", {}, "おすすめスポットを共有"),
 
       S.spotsError ? h("p", { class: "warn" }, S.spotsError) : null,
-      h("label", {}, "スポット名", nameIn),
       h("div", {}, h("div", { class: "form-label" }, "カテゴリ"), catGrid),
       h("label", {}, "レビュー", description),
       h("label", {}, "一言コメント", recommendation),
@@ -1355,9 +1354,12 @@ function main() {
               "Google マップで場所を選択してから登録してください。",
               "err",
             );
-          const name = nameIn.value.trim() || autoName;
+          const name = currentPlaceName();
           if (!name || name.length > 60)
-            return flash("スポット名を60文字以内で入力してください。", "err");
+            return flash(
+              "Google マップで登録したい場所の詳細を開いてから登録してください。",
+              "err",
+            );
           if (!SPOT_CATEGORIES.includes(category.value))
             return flash("カテゴリを選択してください。", "err");
           if (!rating) return flash("評価（星）を選択してください。", "err");
@@ -1380,7 +1382,6 @@ function main() {
               "err",
             );
           flash(`「${name}」を共有スポットに登録しました`);
-          nameIn.value = "";
           description.value = "";
           recommendation.value = "";
           rating = 0;
@@ -1417,7 +1418,7 @@ function main() {
           h(
             "a",
             {
-              href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.lat},${spot.lng}`)}`,
+              href: spotMapUrl(spot),
               target: "_blank",
               rel: "noopener noreferrer",
             },
@@ -1595,7 +1596,7 @@ function main() {
     const date = spot.registeredAt
       ? new Date(spot.registeredAt).toLocaleDateString("ja-JP")
       : "";
-    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.lat},${spot.lng}`)}`;
+    const mapUrl = spotMapUrl(spot);
     const left = Math.max(
       8,
       Math.min(x + 18, window.innerWidth - (S.open ? 390 : 280)),
@@ -2339,8 +2340,18 @@ function main() {
     S.regBusy = true;
     S.regResults = [];
     const recs = [];
-    for (const { ev, sendUpdates } of events) {
-      const res = await send({ type: "cal:create", event: ev, sendUpdates });
+    const batch = await send({
+      type: "cal:createBatch",
+      events: events.map(({ ev, sendUpdates }) => ({
+        event: ev,
+        sendUpdates,
+      })),
+    });
+    const results = batch.ok
+      ? batch.results
+      : events.map(() => ({ ok: false, error: batch.error }));
+    for (const [index, res] of results.entries()) {
+      const ev = events[index].ev;
       S.regResults.push({ name: ev.summary, ok: res.ok, error: res.error });
       if (res.ok && res.id) {
         recs.push(

@@ -182,6 +182,7 @@ const handlers = {
     const r = await chrome.runtime.sendMessage({
       type: "auth:token",
       interactive: true,
+      refresh: true,
     });
     if (!r || !r.ok)
       throw new Error((r && r.error) || "Google 認証に失敗しました");

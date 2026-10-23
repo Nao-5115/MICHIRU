@@ -1,65 +1,65 @@
 // 「登録」タブ（Google カレンダーへの予定登録）
 import * as T from "../../lib.js";
 
-export function installRegisterTab(c) {
-  const { gate, tripData, L, me, currentItinerary, h, saveLocal, S, NOTICE, btn, registerToCalendar, flash, send } = c;
-  const render = (...args) => c.render(...args);
+export function installRegisterTab(ctx) {
+  const { gate, tripData, getLocal, currentMember, currentItinerary, createEl, saveLocal, state, NOTICE, makeButton, registerToCalendar, flash, sendMessage } = ctx;
+  const render = (...args) => ctx.render(...args);
 
   function viewRegister() {
-    const g = gate(true);
-    if (g) return g;
-    const d = tripData(),
-      st = L().settings,
-      m = me();
-    const others = T.membersOf(d).filter((x) => x.key !== m.key);
-    const it = currentItinerary();
-    const cand = T.datesOf(d).find((c) => c.id === L().confirmedId);
-    const sec = h(
+    const gateView = gate(true);
+    if (gateView) return gateView;
+    const trip = tripData(),
+      settings = getLocal().settings,
+      myMember = currentMember();
+    const others = T.membersOf(trip).filter((member) => member.key !== myMember.key);
+    const itinerary = currentItinerary();
+    const cand = T.datesOf(trip).find((date) => date.id === getLocal().confirmedId);
+    const section = createEl(
       "section",
       {},
-      h("h3", {}, "Google カレンダーに登録"),
+      createEl("h3", {}, "Google カレンダーに登録"),
       cand
-        ? h("p", {}, "確定日程: ", h("b", {}, T.fmtRange(cand)))
-        : h(
+        ? createEl("p", {}, "確定日程: ", createEl("b", {}, T.fmtRange(cand)))
+        : createEl(
             "p",
             { class: "warn" },
             "日程が未確定です。「日程」タブで「この日で確定」を押すか、下から選んでください。",
           ),
-      h(
+      createEl(
         "select",
         {
-          onchange: async (e) => {
-            L().confirmedId = e.target.value || null;
+          onchange: async (event) => {
+            getLocal().confirmedId = event.target.value || null;
             await saveLocal();
-            S.regResults = null;
+            state.regResults = null;
             render();
           },
         },
-        h("option", { value: "" }, "候補日から選択…"),
-        T.datesOf(d).map((c) =>
-          h(
+        createEl("option", { value: "" }, "候補日から選択…"),
+        T.datesOf(trip).map((date) =>
+          createEl(
             "option",
-            { value: c.id, selected: c.id === L().confirmedId },
-            T.fmtRange(c),
+            { value: date.id, selected: date.id === getLocal().confirmedId },
+            T.fmtRange(date),
           ),
         ),
       ),
-      h(
+      createEl(
         "p",
         { class: "muted" },
-        it
-          ? `しおり: ${it.rows.length} 地点を予定の説明欄に記載し、最初の訪問地点を場所に設定します。`
+        itinerary
+          ? `しおり: ${itinerary.rows.length} 地点を予定の説明欄に記載し、最初の訪問地点を場所に設定します。`
           : "しおりが未作成です（日程のみ登録されます）。",
       ),
-      h(
+      createEl(
         "label",
         { class: "inline" },
-        h("input", {
+        createEl("input", {
           type: "checkbox",
-          checked: st.invite && others.length > 0,
+          checked: settings.invite && others.length > 0,
           disabled: !others.length,
-          onchange: async (e) => {
-            st.invite = e.target.checked;
+          onchange: async (event) => {
+            settings.invite = event.target.checked;
             await saveLocal();
             render();
           },
@@ -68,117 +68,117 @@ export function installRegisterTab(c) {
           ? `メンバー ${others.length} 人を招待して、招待メールを送る`
           : "招待できるメンバーがいません",
       ),
-      st.invite && others.length
-        ? h("div", { class: "warn" }, "⚠ " + NOTICE)
+      settings.invite && others.length
+        ? createEl("div", { class: "warn" }, "⚠ " + NOTICE)
         : null,
-      h(
+      createEl(
         "label",
         { class: "inline" },
-        h("input", {
+        createEl("input", {
           type: "checkbox",
-          checked: st.timed,
-          disabled: !it,
-          onchange: async (e) => {
-            st.timed = e.target.checked;
+          checked: settings.timed,
+          disabled: !itinerary,
+          onchange: async (event) => {
+            settings.timed = event.target.checked;
             await saveLocal();
           },
         }),
         "各地点を時刻付きの予定としても登録（あなたのカレンダーのみ・開始日に作成）",
       ),
-      btn("カレンダーに登録", registerToCalendar, "primary"),
-      S.regResults
-        ? h(
+      makeButton("カレンダーに登録", registerToCalendar, "primary"),
+      state.regResults
+        ? createEl(
             "ul",
             { class: "list" },
-            S.regResults.map((r) =>
-              h(
+            state.regResults.map((result) =>
+              createEl(
                 "li",
-                { class: r.ok ? "okli" : "warn" },
-                (r.ok ? "✔ " : "✖ ") + r.name + (r.ok ? "" : ` — ${r.error}`),
+                { class: result.ok ? "okli" : "warn" },
+                (result.ok ? "✔ " : "✖ ") + result.name + (result.ok ? "" : ` — ${result.error}`),
               ),
             ),
           )
         : null,
     );
-    return [sec, viewMyEvents()];
+    return [section, viewMyEvents()];
   }
 
   // この拡張機能から登録した予定の一覧と削除
   function viewMyEvents() {
-    const list = [...L().events].sort((a, b) => a.start.localeCompare(b.start));
-    for (const id of [...S.selDel])
-      if (!list.some((r) => r.id === id)) S.selDel.delete(id);
-    return h(
+    const list = [...getLocal().events].sort((first, second) => first.start.localeCompare(second.start));
+    for (const selectedId of [...state.selDel])
+      if (!list.some((event) => event.id === selectedId)) state.selDel.delete(selectedId);
+    return createEl(
       "section",
       {},
-      h("h3", {}, "この拡張機能から登録した予定"),
+      createEl("h3", {}, "この拡張機能から登録した予定"),
       list.length
-        ? h(
+        ? createEl(
             "ul",
             { class: "list" },
-            list.map((r) =>
-              h(
+            list.map((event) =>
+              createEl(
                 "li",
                 {},
-                h(
+                createEl(
                   "label",
                   { class: "inline" },
-                  h("input", {
+                  createEl("input", {
                     type: "checkbox",
-                    checked: S.selDel.has(r.id),
-                    onchange: (e) => {
-                      if (e.target.checked) S.selDel.add(r.id);
-                      else S.selDel.delete(r.id);
+                    checked: state.selDel.has(event.id),
+                    onchange: (event) => {
+                      if (event.target.checked) state.selDel.add(event.id);
+                      else state.selDel.delete(event.id);
                     },
                   }),
-                  h(
+                  createEl(
                     "span",
                     {},
-                    r.title,
-                    r.attendees
-                      ? h("span", { class: "badge" }, `ゲスト${r.attendees}人`)
+                    event.title,
+                    event.attendees
+                      ? createEl("span", { class: "badge" }, `ゲスト${event.attendees}人`)
                       : null,
-                    h("div", { class: "muted" }, T.fmtEventWhen(r)),
+                    createEl("div", { class: "muted" }, T.fmtEventWhen(event)),
                   ),
                 ),
               ),
             ),
           )
-        : h(
+        : createEl(
             "p",
             { class: "muted" },
             "登録した予定はありません。（カレンダー上のそれ以外の予定は、ここには表示されず削除もできません）",
           ),
       list.length
-        ? h(
+        ? createEl(
             "div",
             {},
-            btn(
+            makeButton(
               "すべて選択",
               () => {
-                list.forEach((r) => S.selDel.add(r.id));
+                list.forEach((event) => state.selDel.add(event.id));
                 render();
               },
               "small",
             ),
-            btn(
+            makeButton(
               "選択を解除",
               () => {
-                S.selDel.clear();
+                state.selDel.clear();
                 render();
               },
               "small",
             ),
-            btn(
+            makeButton(
               "選択した予定を削除",
               async () => {
-                const targets = list.filter((r) => S.selDel.has(r.id));
+                const targets = list.filter((event) => state.selDel.has(event.id));
                 if (!targets.length)
                   return flash("削除する予定を選択してください", "err");
                 const lines = targets
-                  .map((r) => `・${r.title}（${T.fmtEventWhen(r)}）`)
+                  .map((event) => `・${event.title}（${T.fmtEventWhen(event)}）`)
                   .join("\n");
-                const mail = targets.some((r) => r.attendees)
+                const mail = targets.some((event) => event.attendees)
                   ? "\nゲストには、予定のキャンセル通知メールが送信されます。"
                   : "";
                 if (
@@ -187,40 +187,40 @@ export function installRegisterTab(c) {
                   )
                 )
                   return;
-                S.delResults = [];
-                for (const r of targets) {
-                  const res = await send({
+                state.delResults = [];
+                for (const event of targets) {
+                  const response = await sendMessage({
                     type: "cal:delete",
-                    eventId: r.id,
-                    notify: r.attendees > 0,
+                    eventId: event.id,
+                    notify: event.attendees > 0,
                   });
                   const gone =
-                    !res.ok && (res.status === 404 || res.status === 410);
-                  if (res.ok || gone) {
+                    !response.ok && (response.status === 404 || response.status === 410);
+                  if (response.ok || gone) {
                     // 成功、またはカレンダー側で削除済み → 記録を整理
-                    L().events = L().events.filter((x) => x.id !== r.id);
-                    S.selDel.delete(r.id);
-                    S.delResults.push({
+                    getLocal().events = getLocal().events.filter((event) => event.id !== event.id);
+                    state.selDel.delete(event.id);
+                    state.delResults.push({
                       ok: true,
-                      text: res.ok
-                        ? `${r.title}: 削除しました`
-                        : `${r.title}: カレンダー上に既に存在しない（手動で削除済み）ため、記録のみ整理しました`,
+                      text: response.ok
+                        ? `${event.title}: 削除しました`
+                        : `${event.title}: カレンダー上に既に存在しない（手動で削除済み）ため、記録のみ整理しました`,
                     });
                   } else {
-                    S.delResults.push({
+                    state.delResults.push({
                       ok: false,
-                      text: `${r.title}: 削除に失敗しました — ${res.error}（記録は残してあります。再度お試しください）`,
+                      text: `${event.title}: 削除に失敗しました — ${response.error}（記録は残してあります。再度お試しください）`,
                     });
-                    if (/認証|client_id/.test(res.error)) break; // 認証系の失敗は打ち切り
+                    if (/認証|client_id/.test(response.error)) break; // 認証系の失敗は打ち切り
                   }
                 }
                 await saveLocal();
-                const ng = S.delResults.filter((x) => !x.ok).length;
+                const failedCount = state.delResults.filter((result) => !result.ok).length;
                 flash(
-                  ng
-                    ? `${ng} 件の削除に失敗しました`
-                    : `${S.delResults.length} 件の予定を処理しました`,
-                  ng ? "err" : "ok",
+                  failedCount
+                    ? `${failedCount} 件の削除に失敗しました`
+                    : `${state.delResults.length} 件の予定を処理しました`,
+                  failedCount ? "err" : "ok",
                 );
                 render();
               },
@@ -228,15 +228,15 @@ export function installRegisterTab(c) {
             ),
           )
         : null,
-      S.delResults
-        ? h(
+      state.delResults
+        ? createEl(
             "ul",
             { class: "list" },
-            S.delResults.map((x) =>
-              h(
+            state.delResults.map((result) =>
+              createEl(
                 "li",
-                { class: x.ok ? "okli" : "warn" },
-                (x.ok ? "✔ " : "✖ ") + x.text,
+                { class: result.ok ? "okli" : "warn" },
+                (result.ok ? "✔ " : "✖ ") + result.text,
               ),
             ),
           )
@@ -244,5 +244,5 @@ export function installRegisterTab(c) {
     );
   }
 
-  Object.assign(c, { viewRegister, viewMyEvents });
+  Object.assign(ctx, { viewRegister, viewMyEvents });
 }

@@ -1,6 +1,6 @@
 // パネル全体で使う定数（ローカル保存キー・既定値など）
 
-export const K = {
+export const STORAGE_KEYS = {
   cur: "app:currentTripId",
   nav: "app:nav",
   auth: "fb:auth",
@@ -9,9 +9,9 @@ export const K = {
   spots: "fb:spots",
 };
 
-export const lk = (id) => "local:" + id;
+export const localKey = (tripId) => "local:" + tripId;
 
-export const rid = () => Math.random().toString(36).slice(2, 10);
+export const randomId = () => Math.random().toString(36).slice(2, 10);
 
 export const DEF_LOCAL = () => ({
   places: [],

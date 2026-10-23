@@ -1,118 +1,118 @@
 // パネルの位置・サイズ・半透明表示・ドラッグ／リサイズ
 
-export function installGeometry(c) {
-  const { h, S, panel, ghostBtn } = c;
+export function installGeometry(ctx) {
+  const { createEl, state, panel, ghostBtn } = ctx;
 
   // ---------- パネル位置・サイズ・半透明 ----------
   const MIN_W = 300,
     MIN_H = 240;
   const defaultGeo = () => {
-    const w = Math.min(380, innerWidth);
-    return { x: innerWidth - w - 12, y: 12, w, h: innerHeight - 24 };
+    const width = Math.min(380, innerWidth);
+    return { x: innerWidth - width - 12, y: 12, w: width, h: innerHeight - 24 };
   };
-  function clampGeo(g) {
-    const w = Math.min(Math.max(g.w, MIN_W), innerWidth),
-      h = Math.min(Math.max(g.h, MIN_H), innerHeight);
+  function clampGeo(geo) {
+    const width = Math.min(Math.max(geo.w, MIN_W), innerWidth),
+      height = Math.min(Math.max(geo.h, MIN_H), innerHeight);
     return {
-      w,
-      h,
-      x: Math.min(Math.max(g.x, 0), innerWidth - w),
-      y: Math.min(Math.max(g.y, 0), innerHeight - h),
+      w: width,
+      h: height,
+      x: Math.min(Math.max(geo.x, 0), innerWidth - width),
+      y: Math.min(Math.max(geo.y, 0), innerHeight - height),
     };
   }
   function applyGeo() {
-    const g = (S.geo = clampGeo(S.geo || defaultGeo()));
+    const geo = (state.geo = clampGeo(state.geo || defaultGeo()));
     Object.assign(panel.style, {
-      left: g.x + "px",
-      top: g.y + "px",
-      width: g.w + "px",
-      height: g.h + "px",
+      left: geo.x + "px",
+      top: geo.y + "px",
+      width: geo.w + "px",
+      height: geo.h + "px",
       right: "auto",
     });
   }
   async function saveUi() {
     try {
-      await chrome.storage.local.set({ ui: { geo: S.geo, ghost: S.ghost } });
+      await chrome.storage.local.set({ ui: { geo: state.geo, ghost: state.ghost } });
     } catch (_) {}
   }
   async function loadUi() {
     try {
-      const { ui } = await chrome.storage.local.get("ui");
-      if (ui) {
-        S.geo = ui.geo || null;
-        S.ghost = ui.ghost !== false;
+      const { ui: savedUi } = await chrome.storage.local.get("ui");
+      if (savedUi) {
+        state.geo = savedUi.geo || null;
+        state.ghost = savedUi.ghost !== false;
       }
     } catch (_) {}
   }
   function applyGhost() {
-    panel.classList.toggle("ghost", S.ghost);
-    ghostBtn.style.opacity = S.ghost ? 1 : 0.5;
+    panel.classList.toggle("ghost", state.ghost);
+    ghostBtn.style.opacity = state.ghost ? 1 : 0.5;
   }
-  function startDrag(e) {
-    if (e.button !== 0 || e.target.closest("button")) return;
-    e.preventDefault();
-    const el = e.currentTarget,
-      sx = e.clientX,
-      sy = e.clientY,
-      g0 = { ...S.geo };
-    el.setPointerCapture(e.pointerId);
-    const move = (ev) => {
-      S.geo = { ...g0, x: g0.x + ev.clientX - sx, y: g0.y + ev.clientY - sy };
+  function startDrag(event) {
+    if (event.button !== 0 || event.target.closest("button")) return;
+    event.preventDefault();
+    const handle = event.currentTarget,
+      startX = event.clientX,
+      startY = event.clientY,
+      startGeo = { ...state.geo };
+    handle.setPointerCapture(event.pointerId);
+    const move = (event) => {
+      state.geo = { ...startGeo, x: startGeo.x + event.clientX - startX, y: startGeo.y + event.clientY - startY };
       applyGeo();
     };
-    const up = () => {
-      el.removeEventListener("pointermove", move);
+    const onPointerUp = () => {
+      handle.removeEventListener("pointermove", move);
       saveUi();
     };
-    el.addEventListener("pointermove", move);
-    el.addEventListener("pointerup", up, { once: true });
-    el.addEventListener("pointercancel", up, { once: true });
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", onPointerUp, { once: true });
+    handle.addEventListener("pointercancel", onPointerUp, { once: true });
   }
-  function startResize(e, dir) {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const el = e.currentTarget,
-      sx = e.clientX,
-      sy = e.clientY,
-      g0 = { ...S.geo };
-    el.setPointerCapture(e.pointerId);
-    const move = (ev) => {
-      const dx = ev.clientX - sx,
-        dy = ev.clientY - sy;
-      let { x, y, w, h } = g0;
-      if (dir.includes("e")) w = g0.w + dx;
-      if (dir.includes("s")) h = g0.h + dy;
-      if (dir.includes("w")) {
-        w = g0.w - dx;
-        x = g0.x + dx;
+  function startResize(event, direction) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const handle = event.currentTarget,
+      startX = event.clientX,
+      startY = event.clientY,
+      startGeo = { ...state.geo };
+    handle.setPointerCapture(event.pointerId);
+    const move = (event) => {
+      const deltaX = event.clientX - startX,
+        deltaY = event.clientY - startY;
+      let { x, y, w: width, h: height } = startGeo;
+      if (direction.includes("e")) width = startGeo.w + deltaX;
+      if (direction.includes("s")) height = startGeo.h + deltaY;
+      if (direction.includes("w")) {
+        width = startGeo.w - deltaX;
+        x = startGeo.x + deltaX;
       }
-      if (dir.includes("n")) {
-        h = g0.h - dy;
-        y = g0.y + dy;
+      if (direction.includes("n")) {
+        height = startGeo.h - deltaY;
+        y = startGeo.y + deltaY;
       }
-      if (w < MIN_W) {
-        if (dir.includes("w")) x -= MIN_W - w;
-        w = MIN_W;
+      if (width < MIN_W) {
+        if (direction.includes("w")) x -= MIN_W - width;
+        width = MIN_W;
       }
-      if (h < MIN_H) {
-        if (dir.includes("n")) y -= MIN_H - h;
-        h = MIN_H;
+      if (height < MIN_H) {
+        if (direction.includes("n")) y -= MIN_H - height;
+        height = MIN_H;
       }
-      S.geo = { x, y, w, h };
+      state.geo = { x, y, w: width, h: height };
       applyGeo();
     };
-    const up = () => {
-      el.removeEventListener("pointermove", move);
+    const onPointerUp = () => {
+      handle.removeEventListener("pointermove", move);
       saveUi();
     };
-    el.addEventListener("pointermove", move);
-    el.addEventListener("pointerup", up, { once: true });
-    el.addEventListener("pointercancel", up, { once: true });
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", onPointerUp, { once: true });
+    handle.addEventListener("pointercancel", onPointerUp, { once: true });
   }
   window.addEventListener("resize", () => {
-    if (S.open) applyGeo();
+    if (state.open) applyGeo();
   });
 
-  Object.assign(c, { MIN_W, MIN_H, defaultGeo, clampGeo, applyGeo, saveUi, loadUi, applyGhost, startDrag, startResize });
+  Object.assign(ctx, { MIN_W, MIN_H, defaultGeo, clampGeo, applyGeo, saveUi, loadUi, applyGhost, startDrag, startResize });
 }

@@ -1,113 +1,113 @@
 // 「日程」タブ（候補日と出欠のリアルタイム同期）
 import * as T from "../../lib.js";
 
-export function installScheduleTab(c) {
-  const { gate, tripData, me, isOwner, h, btn, flash, act, S, refreshEvents, L, saveLocal, warnFor } = c;
-  const render = (...args) => c.render(...args);
+export function installScheduleTab(ctx) {
+  const { gate, tripData, currentMember, isOwner, createEl, makeButton, flash, runAction, state, refreshEvents, getLocal, saveLocal, warnFor } = ctx;
+  const render = (...args) => ctx.render(...args);
 
   // ======================= 日程タブ（出欠のリアルタイム同期） =======================
   function viewSchedule() {
-    const g = gate();
-    if (g) return g;
-    const d = tripData(),
-      m = me(),
+    const gateView = gate();
+    if (gateView) return gateView;
+    const trip = tripData(),
+      myMember = currentMember(),
       owner = isOwner();
-    const ms = T.membersOf(d),
-      ds = T.datesOf(d);
-    const ranked = T.rankDates(ds, ms, d.answers || {});
-    const dS = h("input", { type: "date" }),
-      dE = h("input", { type: "date" });
+    const members = T.membersOf(trip),
+      dates = T.datesOf(trip);
+    const ranked = T.rankDates(dates, members, trip.answers || {});
+    const startDateInput = createEl("input", { type: "date" }),
+      endDateInput = createEl("input", { type: "date" });
     const secAdd = owner
-      ? h(
+      ? createEl(
           "section",
           {},
-          h("h3", {}, "候補日を追加（幹事）"),
-          h(
+          createEl("h3", {}, "候補日を追加（幹事）"),
+          createEl(
             "div",
             { class: "row" },
-            h("label", {}, "開始", dS),
-            h("label", {}, "終了(任意)", dE),
-            btn("追加", async () => {
-              if (!dS.value) return flash("開始日を入力してください", "err");
-              const e = dE.value || dS.value;
-              if (e < dS.value)
+            createEl("label", {}, "開始", startDateInput),
+            createEl("label", {}, "終了(任意)", endDateInput),
+            makeButton("追加", async () => {
+              if (!startDateInput.value) return flash("開始日を入力してください", "err");
+              const dateValue = endDateInput.value || startDateInput.value;
+              if (dateValue < startDateInput.value)
                 return flash("終了日は開始日以降にしてください", "err");
-              if (ds.length >= T.MAX_DATES)
+              if (dates.length >= T.MAX_DATES)
                 return flash(`候補日は最大 ${T.MAX_DATES} 件です`, "err");
-              await act(
+              await runAction(
                 "addDate",
-                { tripId: S.tripId, s: dS.value, e },
+                { tripId: state.tripId, s: startDateInput.value, e: dateValue },
                 "候補日を追加しました",
               );
             }),
           ),
         )
       : null;
-    const secList = h(
+    const secList = createEl(
       "section",
       {},
-      h("h3", {}, "候補日と出欠（参加可能人数の多い順）"),
-      h(
+      createEl("h3", {}, "候補日と出欠（参加可能人数の多い順）"),
+      createEl(
         "p",
         { class: "muted" },
         "誰かが出欠を入力すると、全員の画面がすぐに更新されます。",
       ),
-      h(
+      createEl(
         "div",
         { class: "row" },
-        btn("自分のカレンダーの予定を重ねて表示", () => refreshEvents(true)),
+        makeButton("自分のカレンダーの予定を重ねて表示", () => refreshEvents(true)),
       ),
       ranked.length
-        ? h(
+        ? createEl(
             "ul",
             { class: "list" },
-            ranked.map((r) => {
-              const c = r.date,
-                mine = ((d.answers || {})[m.key] || {})[c.id];
-              return h(
+            ranked.map((candidate) => {
+              const date = candidate.date,
+                mine = ((trip.answers || {})[myMember.key] || {})[date.id];
+              return createEl(
                 "li",
-                { class: L() && L().confirmedId === c.id ? "sel" : "" },
-                h(
+                { class: getLocal() && getLocal().confirmedId === date.id ? "sel" : "" },
+                createEl(
                   "div",
                   { class: "line" },
-                  h("b", {}, T.fmtRange(c)),
-                  h(
+                  createEl("b", {}, T.fmtRange(date)),
+                  createEl(
                     "span",
                     { class: "counts" },
-                    `○${r.yes.length}  △${r.maybe.length}  ×${r.no.length}`,
+                    `○${candidate.yes.length}  △${candidate.maybe.length}  ×${candidate.no.length}`,
                   ),
                 ),
-                r.yes.length
-                  ? h("div", { class: "muted" }, "○ " + r.yes.join("、"))
+                candidate.yes.length
+                  ? createEl("div", { class: "muted" }, "○ " + candidate.yes.join("、"))
                   : null,
-                r.maybe.length
-                  ? h("div", { class: "muted" }, "△ " + r.maybe.join("、"))
+                candidate.maybe.length
+                  ? createEl("div", { class: "muted" }, "△ " + candidate.maybe.join("、"))
                   : null,
-                r.no.length
-                  ? h("div", { class: "muted" }, "× " + r.no.join("、"))
+                candidate.no.length
+                  ? createEl("div", { class: "muted" }, "× " + candidate.no.join("、"))
                   : null,
-                r.none.length
-                  ? h("div", { class: "muted" }, "未回答 " + r.none.join("、"))
+                candidate.none.length
+                  ? createEl("div", { class: "muted" }, "未回答 " + candidate.none.join("、"))
                   : null,
-                h(
+                createEl(
                   "div",
                   { class: "row" },
-                  h(
+                  createEl(
                     "label",
                     {},
                     "あなたの出欠",
-                    h(
+                    createEl(
                       "select",
                       {
-                        onchange: async (e) => {
-                          const v = e.target.value;
-                          e.target.blur();
-                          await act(
+                        onchange: async (event) => {
+                          const value = event.target.value;
+                          event.target.blur();
+                          await runAction(
                             "setAnswer",
                             {
-                              tripId: S.tripId,
-                              dateId: c.id,
-                              v: v === "" ? null : +v,
+                              tripId: state.tripId,
+                              dateId: date.id,
+                              v: value === "" ? null : +value,
                             },
                             "出欠を更新しました",
                           );
@@ -118,44 +118,44 @@ export function installScheduleTab(c) {
                         ["1", "○ 参加可"],
                         ["2", "△ 未定"],
                         ["0", "× 不可"],
-                      ].map(([v, l]) =>
-                        h(
+                      ].map(([value, label]) =>
+                        createEl(
                           "option",
-                          { value: v, selected: String(mine ?? "") === v },
-                          l,
+                          { value: value, selected: String(mine ?? "") === value },
+                          label,
                         ),
                       ),
                     ),
                   ),
                   owner
-                    ? h(
+                    ? createEl(
                         "div",
                         {},
-                        btn(
-                          L().confirmedId === c.id ? "確定中" : "この日で確定",
+                        makeButton(
+                          getLocal().confirmedId === date.id ? "確定中" : "この日で確定",
                           async () => {
-                            L().confirmedId = c.id;
+                            getLocal().confirmedId = date.id;
                             await saveLocal();
                             render();
                           },
                           "small",
                         ),
-                        btn(
+                        makeButton(
                           "削除",
                           async () => {
                             if (
                               !confirm(
-                                `候補日 ${T.fmtRange(c)} を削除します。よろしいですか？`,
+                                `候補日 ${T.fmtRange(date)} を削除します。よろしいですか？`,
                               )
                             )
                               return;
-                            if (L().confirmedId === c.id) {
-                              L().confirmedId = null;
+                            if (getLocal().confirmedId === date.id) {
+                              getLocal().confirmedId = null;
                               await saveLocal();
                             }
-                            await act(
+                            await runAction(
                               "removeDate",
-                              { tripId: S.tripId, dateId: c.id },
+                              { tripId: state.tripId, dateId: date.id },
                               "候補日を削除しました",
                             );
                           },
@@ -164,11 +164,11 @@ export function installScheduleTab(c) {
                       )
                     : null,
                 ),
-                warnFor(c),
+                warnFor(date),
               );
             }),
           )
-        : h(
+        : createEl(
             "p",
             { class: "muted" },
             owner
@@ -179,5 +179,5 @@ export function installScheduleTab(c) {
     return [secAdd, secList];
   }
 
-  Object.assign(c, { viewSchedule });
+  Object.assign(ctx, { viewSchedule });
 }

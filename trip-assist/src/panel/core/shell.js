@@ -1,34 +1,34 @@
 // パネル本体（Shadow DOM）・ボタン（FAB）・開閉・通知
 
-export function installShell(c) {
-  const { h, btn, S } = c;
-  const applyGhost = (...args) => c.applyGhost(...args);
-  const saveUi = (...args) => c.saveUi(...args);
-  const startDrag = (...args) => c.startDrag(...args);
-  const startResize = (...args) => c.startResize(...args);
-  const applyGeo = (...args) => c.applyGeo(...args);
-  const render = (...args) => c.render(...args);
+export function installShell(ctx) {
+  const { createEl, makeButton, state } = ctx;
+  const applyGhost = (...args) => ctx.applyGhost(...args);
+  const saveUi = (...args) => ctx.saveUi(...args);
+  const startDrag = (...args) => ctx.startDrag(...args);
+  const startResize = (...args) => ctx.startResize(...args);
+  const applyGeo = (...args) => ctx.applyGeo(...args);
+  const render = (...args) => ctx.render(...args);
 
-  const host = h("div", { id: "tripassist-host" });
+  const host = createEl("div", { id: "tripassist-host" });
   const root = host.attachShadow({ mode: "open" });
   for (const type of ["keydown", "keyup", "keypress"]) {
     window.addEventListener(
       type,
-      (e) => {
-        if (e.composedPath().includes(host)) e.stopImmediatePropagation();
+      (event) => {
+        if (event.composedPath().includes(host)) event.stopImmediatePropagation();
       },
       true,
     );
   }
-  const statusEl = h("div", { class: "status", hidden: true });
-  const body = h("div", { class: "body" });
-  const tabsEl = h("div", { class: "tabs" });
-  const navBar = h("div", { class: "navbar", hidden: true });
-  const subEl = h("span", { class: "sub" });
-  const ghostBtn = btn(
+  const statusEl = createEl("div", { class: "status", hidden: true });
+  const body = createEl("div", { class: "body" });
+  const tabsEl = createEl("div", { class: "tabs" });
+  const navBar = createEl("div", { class: "navbar", hidden: true });
+  const subEl = createEl("span", { class: "sub" });
+  const ghostBtn = makeButton(
     "👻",
     () => {
-      S.ghost = !S.ghost;
+      state.ghost = !state.ghost;
       applyGhost();
       saveUi();
     },
@@ -36,38 +36,38 @@ export function installShell(c) {
   );
   ghostBtn.title = "離れたら半透明（オン/オフ）";
   ghostBtn.setAttribute("aria-label", "半透明モードの切り替え");
-  const panel = h(
+  const panel = createEl(
     "div",
     { class: "panel", hidden: true },
-    h(
+    createEl(
       "div",
       { class: "head", onpointerdown: startDrag },
-      h(
+      createEl(
         "div",
         { class: "head-left" },
-        h("img", {
+        createEl("img", {
           src: chrome.runtime.getURL("michiru-logo.png"),
           class: "head-logo",
           alt: "MICHIRU",
         }),
         subEl,
       ),
-      h(
+      createEl(
         "span",
         {},
         ghostBtn,
-        btn("×", () => toggle(false), "icon"),
+        makeButton("×", () => toggle(false), "icon"),
       ),
     ),
     navBar,
     tabsEl,
     statusEl,
     body,
-    ...["n", "s", "e", "w", "ne", "nw", "se", "sw"].map((d) =>
-      h("div", { class: "grip " + d, onpointerdown: (e) => startResize(e, d) }),
+    ...["n", "s", "e", "w", "ne", "nw", "se", "sw"].map((direction) =>
+      createEl("div", { class: "grip " + direction, onpointerdown: (event) => startResize(event, direction) }),
     ),
   );
-  const fab = h(
+  const fab = createEl(
     "button",
     {
       class: "fab",
@@ -78,7 +78,7 @@ export function installShell(c) {
     "旅",
   );
   root.append(
-    h("link", { rel: "stylesheet", href: chrome.runtime.getURL("panel.css") }),
+    createEl("link", { rel: "stylesheet", href: chrome.runtime.getURL("panel.css") }),
     panel,
     fab,
   );
@@ -93,7 +93,7 @@ export function installShell(c) {
     flashTimer = setTimeout(() => (statusEl.hidden = true), 9000);
   }
   function toggle(open) {
-    S.open = open;
+    state.open = open;
     panel.hidden = !open;
     fab.hidden = open;
     if (open) {
@@ -103,5 +103,5 @@ export function installShell(c) {
     }
   }
 
-  Object.assign(c, { host, root, statusEl, body, tabsEl, navBar, subEl, ghostBtn, panel, fab, flashTimer, flash, toggle });
+  Object.assign(ctx, { host, root, statusEl, body, tabsEl, navBar, subEl, ghostBtn, panel, fab, flashTimer, flash, toggle });
 }

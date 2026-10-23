@@ -1,7 +1,7 @@
 // Google マップ上のメンバー希望フロートウィンドウ
 
-export function installPrefsFloat(c) {
-  const { host, makeMsIcon, MS_GROUP_PATH, body, makeSvgIcon, SPOT_ICONS } = c;
+export function installPrefsFloat(ctx) {
+  const { host, makeMsIcon, MS_GROUP_PATH, body, makeSvgIcon, SPOT_ICONS } = ctx;
 
   // ======================= 投票タブ（訪問地点の投票） =======================
   const TRANSPORT_OPTIONS = [
@@ -85,26 +85,26 @@ export function installPrefsFloat(c) {
       shadow.append(wrap);
     }
 
-    function renderContent(prefs, ms) {
+    function renderContent(prefs, members) {
       const body = wrap.querySelector("#pf-body");
       body.innerHTML = "";
-      const rows = ms.filter((x) => prefs[x.key]);
+      const rows = members.filter((member) => prefs[member.key]);
       if (!rows.length) {
-        const p = document.createElement("p");
-        p.className = "pf-empty";
-        p.textContent = "まだ誰も希望を登録していません。";
-        body.append(p);
+        const paragraph = document.createElement("p");
+        paragraph.className = "pf-empty";
+        paragraph.textContent = "まだ誰も希望を登録していません。";
+        body.append(paragraph);
         return;
       }
-      rows.forEach((x) => {
-        const p = prefs[x.key];
-        const div = document.createElement("div");
-        div.className = "pf-member";
+      rows.forEach((member) => {
+        const memberPrefs = prefs[member.key];
+        const wrapper = document.createElement("div");
+        wrapper.className = "pf-member";
 
         const nameEl = document.createElement("div");
         nameEl.className = "pf-name";
-        nameEl.textContent = x.name;
-        div.append(nameEl);
+        nameEl.textContent = member.name;
+        wrapper.append(nameEl);
 
         const budRow = document.createElement("div");
         budRow.className = "pf-row";
@@ -112,7 +112,7 @@ export function installPrefsFloat(c) {
         budLbl.className = "pf-lbl";
         budLbl.textContent = "予算:";
         budRow.append(budLbl);
-        const budOpt = p.budget ? BUDGET_OPTIONS.find((o) => o.value === p.budget) : null;
+        const budOpt = memberPrefs.budget ? BUDGET_OPTIONS.find((option) => option.value === memberPrefs.budget) : null;
         if (budOpt) {
           const chip = document.createElement("span");
           chip.className = "pf-chip";
@@ -124,7 +124,7 @@ export function installPrefsFloat(c) {
           dash.textContent = "—";
           budRow.append(dash);
         }
-        div.append(budRow);
+        wrapper.append(budRow);
 
         const tRow = document.createElement("div");
         tRow.className = "pf-row";
@@ -132,13 +132,13 @@ export function installPrefsFloat(c) {
         tLbl.className = "pf-lbl";
         tLbl.textContent = "交通:";
         tRow.append(tLbl);
-        if (p.transport && p.transport.length) {
-          p.transport.forEach((t) => {
-            const opt = TRANSPORT_OPTIONS.find((o) => o.label === t);
+        if (memberPrefs.transport && memberPrefs.transport.length) {
+          memberPrefs.transport.forEach((transport) => {
+            const transportOption = TRANSPORT_OPTIONS.find((option) => option.label === transport);
             const chip = document.createElement("span");
             chip.className = "pf-chip";
-            if (opt) chip.append(makeSvgIcon(opt.svg, 14));
-            chip.append(document.createTextNode(t));
+            if (transportOption) chip.append(makeSvgIcon(transportOption.svg, 14));
+            chip.append(document.createTextNode(transport));
             tRow.append(chip);
           });
         } else {
@@ -147,7 +147,7 @@ export function installPrefsFloat(c) {
           dash.textContent = "—";
           tRow.append(dash);
         }
-        div.append(tRow);
+        wrapper.append(tRow);
 
         const cRow = document.createElement("div");
         cRow.className = "pf-row";
@@ -155,16 +155,16 @@ export function installPrefsFloat(c) {
         cLbl.className = "pf-lbl";
         cLbl.textContent = "カテゴリ:";
         cRow.append(cLbl);
-        if (p.categories && p.categories.length) {
-          p.categories.forEach((cat) => {
-            const ico = SPOT_ICONS[cat];
+        if (memberPrefs.categories && memberPrefs.categories.length) {
+          memberPrefs.categories.forEach((spotCategory) => {
+            const icon = SPOT_ICONS[spotCategory];
             const chip = document.createElement("span");
             chip.className = "pf-chip";
-            if (ico) {
-              chip.append(makeSvgIcon(ico.svg, 14));
-              chip.append(document.createTextNode(ico.label));
+            if (icon) {
+              chip.append(makeSvgIcon(icon.svg, 14));
+              chip.append(document.createTextNode(icon.label));
             } else {
-              chip.textContent = cat;
+              chip.textContent = spotCategory;
             }
             cRow.append(chip);
           });
@@ -174,28 +174,28 @@ export function installPrefsFloat(c) {
           dash.textContent = "—";
           cRow.append(dash);
         }
-        div.append(cRow);
+        wrapper.append(cRow);
 
-        body.append(div);
+        body.append(wrapper);
       });
     }
 
     return {
-      toggle(prefs, ms) {
+      toggle(prefs, members) {
         ensure();
         if (wrap.style.display !== "none") {
           wrap.style.display = "none";
         } else {
-          renderContent(prefs, ms);
+          renderContent(prefs, members);
           wrap.style.display = "flex";
         }
       },
-      update(prefs, ms) {
+      update(prefs, members) {
         if (!wrap || wrap.style.display === "none") return;
-        renderContent(prefs, ms);
+        renderContent(prefs, members);
       },
     };
   })();
 
-  Object.assign(c, { TRANSPORT_OPTIONS, BUDGET_OPTIONS, prefsFloat });
+  Object.assign(ctx, { TRANSPORT_OPTIONS, BUDGET_OPTIONS, prefsFloat });
 }

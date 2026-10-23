@@ -1,79 +1,79 @@
 // 幹事のローカル保存（chrome.storage.local）と旅行の切り替え
-import { DEF_LOCAL, K, lk } from "../constants.js";
+import { DEF_LOCAL, STORAGE_KEYS, localKey } from "../constants.js";
 
-export function installStorage(c) {
-  const { S, flash, fb, scheduleRender } = c;
-  const render = (...args) => c.render(...args);
-  const updateOverlay = (...args) => c.updateOverlay(...args);
+export function installStorage(ctx) {
+  const { state, flash, callFirebase, scheduleRender } = ctx;
+  const render = (...args) => ctx.render(...args);
+  const updateOverlay = (...args) => ctx.updateOverlay(...args);
 
   // ---------- ローカル保存（幹事のみ使用: 訪問地点・しおり・移動手段など） ----------
-  function applyLocal(v) {
+  function applyLocal(saved) {
     const base = DEF_LOCAL();
-    v = v || {};
-    S.local = {
+    saved = saved || {};
+    state.local = {
       ...base,
-      ...v,
-      settings: { ...base.settings, ...(v.settings || {}) },
+      ...saved,
+      settings: { ...base.settings, ...(saved.settings || {}) },
     };
-    for (const k of Object.keys(S.local.legModes))
-      if (S.local.legModes[k] !== "train") delete S.local.legModes[k];
+    for (const key of Object.keys(state.local.legModes))
+      if (state.local.legModes[key] !== "train") delete state.local.legModes[key];
   }
   async function loadLocal() {
-    if (!S.tripId) {
-      S.local = null;
+    if (!state.tripId) {
+      state.local = null;
       return;
     }
-    const d = await chrome.storage.local.get(lk(S.tripId));
-    applyLocal(d[lk(S.tripId)]);
+    const stored = await chrome.storage.local.get(localKey(state.tripId));
+    applyLocal(stored[localKey(state.tripId)]);
   }
   async function saveLocal() {
-    if (!S.tripId || !S.local) return false;
+    if (!state.tripId || !state.local) return false;
     try {
-      await chrome.storage.local.set({ [lk(S.tripId)]: S.local });
+      await chrome.storage.local.set({ [localKey(state.tripId)]: state.local });
       return true;
-    } catch (e) {
-      flash("保存に失敗しました: " + e.message, "err");
+    } catch (error) {
+      flash("保存に失敗しました: " + error.message, "err");
       return false;
     }
   }
-  async function selectTrip(id) {
-    S.tripId = id || null;
-    S.trip = null;
-    S.events = null;
-    S.regResults = null;
-    S.delResults = null;
-    S.selDel.clear();
-    if (id) await chrome.storage.local.set({ [K.cur]: id });
-    else await chrome.storage.local.remove(K.cur);
+  async function selectTrip(tripId) {
+    state.tripId = tripId || null;
+    state.trip = null;
+    state.events = null;
+    state.regResults = null;
+    state.delResults = null;
+    state.selDel.clear();
+    if (tripId) await chrome.storage.local.set({ [STORAGE_KEYS.cur]: tripId });
+    else await chrome.storage.local.remove(STORAGE_KEYS.cur);
     await loadLocal();
-    fb("watchTrip", { tripId: id || null }); // 開いた旅行を同期（招待された人は、ここで「参加済み」になる）
+    callFirebase("watchTrip", { tripId: tripId || null }); // 開いた旅行を同期（招待された人は、ここで「参加済み」になる）
     render();
   }
 
-  chrome.storage.onChanged.addListener((ch, area) => {
+  chrome.storage.onChanged.addListener((change, area) => {
     if (area !== "local") return;
-    if (ch[K.auth]) S.auth = ch[K.auth].newValue || { state: "signedOut" };
-    if (ch[K.trips]) S.trips = (ch[K.trips].newValue || {}).list || [];
-    if (ch[K.trip]) S.trip = ch[K.trip].newValue || null;
-    if (ch[K.spots]) {
-      const value = ch[K.spots].newValue || {};
-      S.spots = value.list || [];
-      S.spotsError = value.error || "";
+    if (change[STORAGE_KEYS.auth]) state.auth = change[STORAGE_KEYS.auth].newValue || { state: "signedOut" };
+    if (change[STORAGE_KEYS.trips]) state.trips = (change[STORAGE_KEYS.trips].newValue || {}).list || [];
+    if (change[STORAGE_KEYS.trip]) state.trip = change[STORAGE_KEYS.trip].newValue || null;
+    if (change[STORAGE_KEYS.spots]) {
+      const value = change[STORAGE_KEYS.spots].newValue || {};
+      state.spots = value.list || [];
+      state.spotsError = value.error || "";
       updateOverlay();
     }
-    if (ch[K.cur]) {
-      const id = ch[K.cur].newValue || null;
-      if (id !== S.tripId) {
+    if (change[STORAGE_KEYS.cur]) {
+      const newTripId = change[STORAGE_KEYS.cur].newValue || null;
+      if (newTripId !== state.tripId) {
         // 別のタブで旅行が切り替えられた
-        S.tripId = id;
-        if (!(S.trip && S.trip.id === id)) S.trip = null;
+        state.tripId = newTripId;
+        if (!(state.trip && state.trip.id === newTripId)) state.trip = null;
         loadLocal().then(() => scheduleRender(true));
         return;
       }
     }
-    if (S.tripId && ch[lk(S.tripId)]) applyLocal(ch[lk(S.tripId)].newValue);
+    if (state.tripId && change[localKey(state.tripId)]) applyLocal(change[localKey(state.tripId)].newValue);
     scheduleRender(true);
   });
 
-  Object.assign(c, { applyLocal, loadLocal, saveLocal, selectTrip });
+  Object.assign(ctx, { applyLocal, loadLocal, saveLocal, selectTrip });
 }

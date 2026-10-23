@@ -1,23 +1,23 @@
 // 「投票」タブ（候補地点の投票・採用）
 import * as T from "../../lib.js";
 
-export function installVoteTab(c) {
-  const { gate, tripData, me, isOwner, h, BUDGET_OPTIONS, TRANSPORT_OPTIONS, makeSvgIcon, SPOT_CATEGORIES, SPOT_ICONS, prefsFloat, makeMsIcon, MS_GROUP_PATH, act, S, btn, flash, fb, send, signinCard, SPOT_COLORS } = c;
-  const importAdopted = (...args) => c.importAdopted(...args);
-  const render = (...args) => c.render(...args);
+export function installVoteTab(ctx) {
+  const { gate, tripData, currentMember, isOwner, createEl, BUDGET_OPTIONS, TRANSPORT_OPTIONS, makeSvgIcon, SPOT_CATEGORIES, SPOT_ICONS, prefsFloat, makeMsIcon, MS_GROUP_PATH, runAction, state, makeButton, flash, callFirebase, sendMessage, signinCard, SPOT_COLORS } = ctx;
+  const importAdopted = (...args) => ctx.importAdopted(...args);
+  const render = (...args) => ctx.render(...args);
 
   function viewVote() {
-    const g = gate();
-    if (g) return g;
-    const d = tripData(),
-      m = me(),
+    const gateView = gate();
+    if (gateView) return gateView;
+    const trip = tripData(),
+      myMember = currentMember(),
       owner = isOwner();
-    const ms = T.membersOf(d),
-      places = T.placesOf(d),
-      votes = d.votes || {},
-      adopted = d.adopted || {};
-    const ranked = T.rankPlaces(places, ms, votes);
-    const myPrefs = (d.preferences && d.preferences[m.key]) || {};
+    const members = T.membersOf(trip),
+      places = T.placesOf(trip),
+      votes = trip.votes || {},
+      adopted = trip.adopted || {};
+    const ranked = T.rankPlaces(places, members, votes);
+    const myPrefs = (trip.preferences && trip.preferences[myMember.key]) || {};
     let _budget = myPrefs.budget || null;
     let _transport = new Set(myPrefs.transport || []);
     let _prefCategories = new Set(myPrefs.categories || []);
@@ -27,14 +27,14 @@ export function installVoteTab(c) {
     const transportBtns = {};
     const catPrefBtns = {};
 
-    const budgetRow = h("div", { class: "toggle-group" },
+    const budgetRow = createEl("div", { class: "toggle-group" },
       ...BUDGET_OPTIONS.map(({ label, value }) => {
-        const btn2 = h("button", {
+        const btn2 = createEl("button", {
           class: "toggle-btn" + (_budget === value ? " selected" : ""),
           onclick: () => {
             _budget = _budget === value ? null : value;
-            BUDGET_OPTIONS.forEach(({ value: v }) => {
-              budgetBtns[v].classList.toggle("selected", _budget === v);
+            BUDGET_OPTIONS.forEach(({ value: budgetValue }) => {
+              budgetBtns[budgetValue].classList.toggle("selected", _budget === budgetValue);
             });
           },
         }, label);
@@ -42,119 +42,119 @@ export function installVoteTab(c) {
         return btn2;
       })
     );
-    const transportRow = h("div", { class: "cat-grid" },
-      ...TRANSPORT_OPTIONS.map(({ label, svg }) => {
-        const btn2 = h("button", {
+    const transportRow = createEl("div", { class: "cat-grid" },
+      ...TRANSPORT_OPTIONS.map(({ label, svg: iconSvg }) => {
+        const btn2 = createEl("button", {
           class: "cat-btn" + (_transport.has(label) ? " selected" : ""),
           title: label,
           onclick: () => {
             const alreadySelected = _transport.has(label);
             _transport.clear();
             if (!alreadySelected) _transport.add(label);
-            TRANSPORT_OPTIONS.forEach(({ label: l }) => {
-              transportBtns[l].classList.toggle("selected", _transport.has(l));
+            TRANSPORT_OPTIONS.forEach(({ label: transportName }) => {
+              transportBtns[transportName].classList.toggle("selected", _transport.has(transportName));
             });
           },
         },
-          makeSvgIcon(svg),
-          h("span", { class: "cat-label" }, label)
+          makeSvgIcon(iconSvg),
+          createEl("span", { class: "cat-label" }, label)
         );
         transportBtns[label] = btn2;
         return btn2;
       })
     );
-    const catPrefRow = h("div", { class: "cat-grid" },
-      ...SPOT_CATEGORIES.map((cat) => {
-        const { label, svg } = SPOT_ICONS[cat];
-        const btn2 = h("button", {
-          class: "cat-btn" + (_prefCategories.has(cat) ? " selected" : ""),
-          title: cat,
+    const catPrefRow = createEl("div", { class: "cat-grid" },
+      ...SPOT_CATEGORIES.map((spotCategory) => {
+        const { label, svg: iconSvg } = SPOT_ICONS[spotCategory];
+        const btn2 = createEl("button", {
+          class: "cat-btn" + (_prefCategories.has(spotCategory) ? " selected" : ""),
+          title: spotCategory,
           onclick: () => {
             // 単一選択：同じものを押したら解除、違うものを押したら切替
-            const alreadySelected = _prefCategories.has(cat);
+            const alreadySelected = _prefCategories.has(spotCategory);
             _prefCategories.clear();
-            if (!alreadySelected) _prefCategories.add(cat);
-            SPOT_CATEGORIES.forEach((c) => {
-              catPrefBtns[c].classList.toggle("selected", _prefCategories.has(c));
+            if (!alreadySelected) _prefCategories.add(spotCategory);
+            SPOT_CATEGORIES.forEach((spotCategory) => {
+              catPrefBtns[spotCategory].classList.toggle("selected", _prefCategories.has(spotCategory));
             });
           },
         },
-          makeSvgIcon(svg),
-          h("span", { class: "cat-label" }, label),
+          makeSvgIcon(iconSvg),
+          createEl("span", { class: "cat-label" }, label),
         );
-        catPrefBtns[cat] = btn2;
+        catPrefBtns[spotCategory] = btn2;
         return btn2;
       })
     );
 
     // 他メンバーの希望まとめ表示
     const prefSummary = (() => {
-      const prefs = d.preferences || {};
-      const rows = ms
-        .filter((x) => prefs[x.key])
-        .map((x) => {
-          const p = prefs[x.key];
-          const budgetLabel = p.budget
-            ? (BUDGET_OPTIONS.find((o) => o.value === p.budget) || {}).label || "`¥`" + p.budget
+      const prefs = trip.preferences || {};
+      const rows = members
+        .filter((member) => prefs[member.key])
+        .map((member) => {
+          const memberPrefs = prefs[member.key];
+          const budgetLabel = memberPrefs.budget
+            ? (BUDGET_OPTIONS.find((option) => option.value === memberPrefs.budget) || {}).label || "`¥`" + memberPrefs.budget
             : "—";
-          const transLabel = (p.transport && p.transport.length)
-            ? p.transport.map((t) => {
-                const opt = TRANSPORT_OPTIONS.find((o) => o.label === t);
-                return opt
-                  ? `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" style="vertical-align:middle;margin:0 1px" title="${t}">${opt.svg}</svg>`
-                  : t;
+          const transLabel = (memberPrefs.transport && memberPrefs.transport.length)
+            ? memberPrefs.transport.map((transport) => {
+                const transportOption = TRANSPORT_OPTIONS.find((option) => option.label === transport);
+                return transportOption
+                  ? `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" style="vertical-align:middle;margin:0 1px" title="${transport}">${transportOption.svg}</svg>`
+                  : transport;
               }).join("")
             : "—";
-          const catLabel = (p.categories && p.categories.length)
-            ? p.categories.map((cat) => {
-                const ico = SPOT_ICONS[cat];
-                if (!ico) return cat;
-                return `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" style="vertical-align:middle;margin:0 1px" title="${cat}">${ico.svg}</svg>`;
+          const catLabel = (memberPrefs.categories && memberPrefs.categories.length)
+            ? memberPrefs.categories.map((spotCategory) => {
+                const icon = SPOT_ICONS[spotCategory];
+                if (!icon) return spotCategory;
+                return `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" style="vertical-align:middle;margin:0 1px" title="${spotCategory}">${icon.svg}</svg>`;
               }).join("")
             : "—";
-          const li = h("li", {},
-            h("b", {}, x.name),
+          const listItem = createEl("li", {},
+            createEl("b", {}, member.name),
           );
-          const detail = h("span", { class: "muted pref-summary-detail" });
+          const detail = createEl("span", { class: "muted pref-summary-detail" });
           detail.innerHTML = `　予算: ${budgetLabel}　交通: ${transLabel}　カテゴリ: ${catLabel}`;
-          li.append(detail);
-          return li;
+          listItem.append(detail);
+          return listItem;
         });
       return rows.length
-        ? h("ul", { class: "list" }, ...rows)
-        : h("p", { class: "muted" }, "まだ誰も希望を登録していません。");
+        ? createEl("ul", { class: "list" }, ...rows)
+        : createEl("p", { class: "muted" }, "まだ誰も希望を登録していません。");
     })();
 
-    const memberPrefsToggle = h("button", {
+    const memberPrefsToggle = createEl("button", {
       class: "member-prefs-toggle",
       onclick: () => {
-        prefsFloat.toggle(d.preferences || {}, ms);
+        prefsFloat.toggle(trip.preferences || {}, members);
       },
     }, makeMsIcon(MS_GROUP_PATH, 18), " メンバーの希望");
 
     // ---- 行きたい場所：最大3件の入力リスト ----
     const MAX_WISH_PLACES = 3;
     // 自分が登録済みの候補地点
-    const myPlaces = places.filter((p) => p.addedBy === m.key);
+    const myPlaces = places.filter((wishPlace) => wishPlace.addedBy === myMember.key);
     const placeInputs = []; // { row, input, removeBtn } ← 新規追加用
-    const placeList = h("div", { class: "wish-place-list" });
+    const placeList = createEl("div", { class: "wish-place-list" });
 
     // 既存地点の表示（編集フォーム内）
-    const existingPlaceList = h("div", { class: "wish-place-list" });
+    const existingPlaceList = createEl("div", { class: "wish-place-list" });
     function buildExistingPlaceRows() {
       existingPlaceList.innerHTML = "";
-      myPlaces.forEach((p) => {
-        const row = h("div", { class: "wish-place-row wish-place-existing" },
-          h("span", { class: "wish-place-name" }, p.name),
-          h("button", {
+      myPlaces.forEach((wishPlace) => {
+        const row = createEl("div", { class: "wish-place-row wish-place-existing" },
+          createEl("span", { class: "wish-place-name" }, wishPlace.name),
+          createEl("button", {
             type: "button",
             class: "wish-place-remove",
             title: "削除",
             onclick: async () => {
-              if (!confirm(`「${p.name}」を候補地点から削除します。よろしいですか？`)) return;
-              await act("removePlace", { tripId: S.tripId, placeId: p.id }, "候補地点を削除しました");
-              const idx = myPlaces.findIndex((x) => x.id === p.id);
-              if (idx !== -1) myPlaces.splice(idx, 1);
+              if (!confirm(`「${wishPlace.name}」を候補地点から削除します。よろしいですか？`)) return;
+              await runAction("removePlace", { tripId: state.tripId, placeId: wishPlace.id }, "候補地点を削除しました");
+              const index = myPlaces.findIndex((wishPlace) => wishPlace.id === wishPlace.id);
+              if (index !== -1) myPlaces.splice(index, 1);
               buildExistingPlaceRows();
               updateAddBtn();
             },
@@ -166,32 +166,32 @@ export function installVoteTab(c) {
     buildExistingPlaceRows();
 
     function makePlaceInput(autoName) {
-      const inp = h("input", {
+      const nameInput = createEl("input", {
         type: "text",
         placeholder: "地点名（空欄なら現在ページから自動取得）",
         maxlength: 60,
         value: autoName || "",
         class: "wish-place-input",
       });
-      const removeBtn = h("button", {
+      const removeBtn = createEl("button", {
         type: "button",
         class: "wish-place-remove",
         title: "削除",
         onclick: () => {
-          const idx = placeInputs.findIndex((e) => e.row === row);
-          if (idx !== -1) placeInputs.splice(idx, 1);
+          const index = placeInputs.findIndex((entry) => entry.row === row);
+          if (index !== -1) placeInputs.splice(index, 1);
           row.remove();
           updateAddBtn();
         },
       }, "×");
-      const row = h("div", { class: "wish-place-row" }, inp, removeBtn);
-      placeInputs.push({ row, input: inp, removeBtn });
+      const row = createEl("div", { class: "wish-place-row" }, nameInput, removeBtn);
+      placeInputs.push({ row, input: nameInput, removeBtn });
       placeList.appendChild(row);
       updateAddBtn();
-      return { row, input: inp };
+      return { row, input: nameInput };
     }
 
-    const addPlaceBtn = h("button", {
+    const addPlaceBtn = createEl("button", {
       type: "button",
       class: "wish-place-add",
       onclick: () => {
@@ -202,7 +202,7 @@ export function installVoteTab(c) {
         }
       },
     },
-      h("span", {}, "+"),
+      createEl("span", {}, "+"),
       " 行きたい場所を追加",
     );
 
@@ -225,7 +225,7 @@ export function installVoteTab(c) {
 
     function buildPrefView() {
       const budgetLabel = myPrefs.budget
-        ? (BUDGET_OPTIONS.find((o) => o.value === myPrefs.budget) || {}).label || myPrefs.budget
+        ? (BUDGET_OPTIONS.find((option) => option.value === myPrefs.budget) || {}).label || myPrefs.budget
         : "未設定";
       const transportLabel = (myPrefs.transport && myPrefs.transport.length)
         ? myPrefs.transport[0]
@@ -233,41 +233,41 @@ export function installVoteTab(c) {
       const categoryLabel = (myPrefs.categories && myPrefs.categories.length)
         ? myPrefs.categories[0]
         : "未設定";
-      const transportOpt = TRANSPORT_OPTIONS.find((o) => o.label === transportLabel);
+      const transportOpt = TRANSPORT_OPTIONS.find((option) => option.label === transportLabel);
       const catIcon = SPOT_ICONS[categoryLabel];
 
       const locationOnIcon = () => makeMsIcon('<path d="M480-480q33 0 56.5-23.5T560-560q0-33-23.5-56.5T480-640q-33 0-56.5 23.5T400-560q0 33 23.5 56.5T480-480Zm0 294q122-112 181-203.5T720-560q0-117-77.5-194.5T480-832q-85 0-162.5 77.5T240-560q0 71 59 162.5T480-186Z"/>', 16);
       const placeViewRows = myPlaces.length > 0
-        ? myPlaces.map((p) =>
-            h("div", { class: "pref-view-row" },
-              h("span", { class: "pref-view-label" }, ""),
-              h("span", { class: "pref-view-value pref-view-place" }, locationOnIcon(), p.name),
+        ? myPlaces.map((wishPlace) =>
+            createEl("div", { class: "pref-view-row" },
+              createEl("span", { class: "pref-view-label" }, ""),
+              createEl("span", { class: "pref-view-value pref-view-place" }, locationOnIcon(), wishPlace.name),
             )
           )
-        : [h("div", { class: "pref-view-row" },
-            h("span", { class: "pref-view-label" }, ""),
-            h("span", { class: "pref-view-value" }, "未設定"),
+        : [createEl("div", { class: "pref-view-row" },
+            createEl("span", { class: "pref-view-label" }, ""),
+            createEl("span", { class: "pref-view-value" }, "未設定"),
           )];
 
-      return h("div", { class: "pref-view" },
-        h("div", { class: "pref-view-row pref-view-section-label" },
-          h("span", { class: "pref-view-label pref-view-section-title" }, "あなたの希望"),
+      return createEl("div", { class: "pref-view" },
+        createEl("div", { class: "pref-view-row pref-view-section-label" },
+          createEl("span", { class: "pref-view-label pref-view-section-title" }, "あなたの希望"),
         ),
         ...placeViewRows,
-        h("div", { class: "pref-view-row" },
-          h("span", { class: "pref-view-label" }, "予算"),
-          h("span", { class: "pref-view-value" }, budgetLabel),
+        createEl("div", { class: "pref-view-row" },
+          createEl("span", { class: "pref-view-label" }, "予算"),
+          createEl("span", { class: "pref-view-value" }, budgetLabel),
         ),
-        h("div", { class: "pref-view-row" },
-          h("span", { class: "pref-view-label" }, "交通手段"),
-          h("span", { class: "pref-view-value" },
+        createEl("div", { class: "pref-view-row" },
+          createEl("span", { class: "pref-view-label" }, "交通手段"),
+          createEl("span", { class: "pref-view-value" },
             transportOpt ? makeSvgIcon(transportOpt.svg) : null,
             " " + transportLabel,
           ),
         ),
-        h("div", { class: "pref-view-row" },
-          h("span", { class: "pref-view-label" }, "カテゴリ"),
-          h("span", { class: "pref-view-value" },
+        createEl("div", { class: "pref-view-row" },
+          createEl("span", { class: "pref-view-label" }, "カテゴリ"),
+          createEl("span", { class: "pref-view-value" },
             catIcon ? makeSvgIcon(catIcon.svg) : null,
             " " + (catIcon ? catIcon.label : categoryLabel),
           ),
@@ -276,8 +276,8 @@ export function installVoteTab(c) {
     }
 
     // フォームと表示ビューを切り替えるコンテナ
-    const prefFormWrap = h("div", {});
-    const prefViewWrap = h("div", {});
+    const prefFormWrap = createEl("div", {});
+    const prefViewWrap = createEl("div", {});
     let _editMode = !hasMyPrefs; // 未登録なら最初からフォーム表示
 
     function showPrefForm() {
@@ -292,42 +292,42 @@ export function installVoteTab(c) {
       prefViewWrap.innerHTML = "";
       prefViewWrap.appendChild(buildPrefView());
       prefViewWrap.appendChild(
-        btn("希望を変更する", showPrefForm, "small")
+        makeButton("希望を変更する", showPrefForm, "small")
       );
     }
 
     // フォーム内容をprefFormWrapにセット
-    prefFormWrap.appendChild(h("div", { class: "form-label" }, "行きたい場所（最大3件）"));
+    prefFormWrap.appendChild(createEl("div", { class: "form-label" }, "行きたい場所（最大3件）"));
     prefFormWrap.appendChild(existingPlaceList);
     prefFormWrap.appendChild(placeList);
     prefFormWrap.appendChild(addPlaceBtn);
-    prefFormWrap.appendChild(h("div", { class: "form-label" }, "予算（一人あたり目安）"));
+    prefFormWrap.appendChild(createEl("div", { class: "form-label" }, "予算（一人あたり目安）"));
     prefFormWrap.appendChild(budgetRow);
-    prefFormWrap.appendChild(h("div", { class: "form-label" }, "希望カテゴリ"));
+    prefFormWrap.appendChild(createEl("div", { class: "form-label" }, "希望カテゴリ"));
     prefFormWrap.appendChild(catPrefRow);
-    prefFormWrap.appendChild(h("div", { class: "form-label" }, "希望の交通手段"));
+    prefFormWrap.appendChild(createEl("div", { class: "form-label" }, "希望の交通手段"));
     prefFormWrap.appendChild(transportRow);
-    prefFormWrap.appendChild(btn("希望を登録", async () => {
+    prefFormWrap.appendChild(makeButton("希望を登録", async () => {
       // 地点登録
-      const ll = T.extractLatLng(location.href);
+      const latLng = T.extractLatLng(location.href);
       let addedCount = 0;
       let skipCount = 0;
       for (const { input } of placeInputs) {
         const name = input.value.trim() || T.extractPlaceName(location.href);
         if (!name) continue;
-        if (!ll) { skipCount++; continue; }
+        if (!latLng) { skipCount++; continue; }
         if (places.length + addedCount >= T.MAX_CANDIDATE_PLACES) {
           flash(`候補地点は最大 ${T.MAX_CANDIDATE_PLACES} 件です`, "err");
           break;
         }
-        await act("addPlace", { tripId: S.tripId, place: { name, lat: ll.lat, lng: ll.lng } }, null);
+        await runAction("addPlace", { tripId: state.tripId, place: { name, lat: latLng.lat, lng: latLng.lng } }, null);
         addedCount++;
       }
       if (skipCount > 0 && addedCount === 0) {
         return flash("Google マップで場所を選択した状態でページを開いてから登録してください。", "err");
       }
-      await act("setPreferences", {
-        tripId: S.tripId,
+      await runAction("setPreferences", {
+        tripId: state.tripId,
         prefs: {
           budget: _budget,
           transport: [..._transport],
@@ -356,83 +356,83 @@ export function installVoteTab(c) {
       showPrefForm();
     } else {
       prefViewWrap.appendChild(buildPrefView());
-      prefViewWrap.appendChild(btn("希望を変更する", showPrefForm, "small"));
+      prefViewWrap.appendChild(makeButton("希望を変更する", showPrefForm, "small"));
       prefFormWrap.style.display = "none";
     }
 
-    const secPrefs = h("section", {},
-      h("h3", {}, "旅行の希望を登録"),
+    const secPrefs = createEl("section", {},
+      createEl("h3", {}, "旅行の希望を登録"),
       prefFormWrap,
       prefViewWrap,
       memberPrefsToggle,
     );
-    const secList = h(
+    const secList = createEl(
       "section",
       {},
-      h("h3", {}, "候補地点（得票数の多い順）"),
+      createEl("h3", {}, "候補地点（得票数の多い順）"),
       ranked.length
-        ? h(
+        ? createEl(
             "div",
             { class: "place-card-list" },
-            ranked.map(({ place: p, voters }) => {
-              const mine = !!(votes[m.key] && votes[m.key][p.id]);
-              const mapsUrl = (p.lat != null && p.lng != null)
-                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}&center=${p.lat},${p.lng}`
-                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}`;
+            ranked.map(({ place: wishPlace, voters }) => {
+              const mine = !!(votes[myMember.key] && votes[myMember.key][wishPlace.id]);
+              const mapsUrl = (wishPlace.lat != null && wishPlace.lng != null)
+                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(wishPlace.name)}&center=${wishPlace.lat},${wishPlace.lng}`
+                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(wishPlace.name)}`;
               const openInCurrentTab = (url) => { window.open(url, "_blank"); };
-              return h(
+              return createEl(
                 "div",
-                { class: "place-card" + (adopted[p.id] ? " adopted" : "") },
-                h(
+                { class: "place-card" + (adopted[wishPlace.id] ? " adopted" : "") },
+                createEl(
                   "div",
                   {
                     class: "place-card__header",
                     onclick: () => openInCurrentTab(mapsUrl),
                     title: "Google マップで開く",
                   },
-                  h(
+                  createEl(
                     "div",
                     { class: "place-card__title-row" },
-                    h("span", { class: "place-card__name" }, p.name),
-                    adopted[p.id]
-                      ? h("span", { class: "badge ok" }, "採用")
+                    createEl("span", { class: "place-card__name" }, wishPlace.name),
+                    adopted[wishPlace.id]
+                      ? createEl("span", { class: "badge ok" }, "採用")
                       : null,
-                    h(
+                    createEl(
                       "span",
                       { class: "place-card__map-icon" },
-                      h("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "currentColor" },
-                        h("path", { d: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" }),
+                      createEl("svg", { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "16", height: "16", fill: "currentColor" },
+                        createEl("path", { d: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" }),
                       ),
                     ),
                   ),
-                  h(
+                  createEl(
                     "div",
                     { class: "place-card__meta" },
-                    h("span", { class: "muted" }, `追加: ${p.addedByName || "—"}`),
-                    h("span", { class: "place-card__votes" }, `${voters.length} 票`),
+                    createEl("span", { class: "muted" }, `追加: ${wishPlace.addedByName || "—"}`),
+                    createEl("span", { class: "place-card__votes" }, `${voters.length} 票`),
                   ),
                   voters.length
-                    ? h("div", { class: "place-card__voters muted" }, "投票: " + voters.join("、"))
-                    : h("div", { class: "place-card__voters muted" }, "投票: まだありません"),
+                    ? createEl("div", { class: "place-card__voters muted" }, "投票: " + voters.join("、"))
+                    : createEl("div", { class: "place-card__voters muted" }, "投票: まだありません"),
                 ),
-                h(
+                createEl(
                   "div",
                   { class: "place-card__actions" },
-                  h(
+                  createEl(
                     "label",
                     { class: "inline" },
-                    h("input", {
+                    createEl("input", {
                       type: "checkbox",
                       checked: mine,
-                      onchange: (e) =>
-                        act(
+                      onchange: (event) =>
+                        runAction(
                           "setVote",
                           {
-                            tripId: S.tripId,
-                            placeId: p.id,
-                            on: e.target.checked,
+                            tripId: state.tripId,
+                            placeId: wishPlace.id,
+                            on: event.target.checked,
                           },
-                          e.target.checked
+                          event.target.checked
                             ? "行きたい場所に投票しました"
                             : "投票を取り消しました",
                         ),
@@ -440,21 +440,21 @@ export function installVoteTab(c) {
                     "行きたい",
                   ),
                   owner
-                    ? h(
+                    ? createEl(
                         "label",
                         { class: "inline" },
-                        h("input", {
+                        createEl("input", {
                           type: "checkbox",
-                          checked: !!adopted[p.id],
-                          onchange: (e) =>
-                            act(
+                          checked: !!adopted[wishPlace.id],
+                          onchange: (event) =>
+                            runAction(
                               "setAdopted",
                               {
-                                tripId: S.tripId,
-                                placeId: p.id,
-                                on: e.target.checked,
+                                tripId: state.tripId,
+                                placeId: wishPlace.id,
+                                on: event.target.checked,
                               },
-                              e.target.checked
+                              event.target.checked
                                 ? "採用しました"
                                 : "採用を取り消しました",
                             ),
@@ -462,18 +462,18 @@ export function installVoteTab(c) {
                         "採用（幹事）",
                       )
                     : null,
-                  p.addedBy === m.key || owner
-                    ? btn(
+                  wishPlace.addedBy === myMember.key || owner
+                    ? makeButton(
                         "削除",
                         async () => {
                           if (
                             confirm(
-                              `候補地点「${p.name}」を削除します。よろしいですか？`,
+                              `候補地点「${wishPlace.name}」を削除します。よろしいですか？`,
                             )
                           )
-                            await act(
+                            await runAction(
                               "removePlace",
-                              { tripId: S.tripId, placeId: p.id },
+                              { tripId: state.tripId, placeId: wishPlace.id },
                               "候補地点を削除しました",
                             );
                         },
@@ -484,65 +484,65 @@ export function installVoteTab(c) {
               );
             }),
           )
-        : h("p", { class: "muted" }, "候補地点がまだありません。"),
+        : createEl("p", { class: "muted" }, "候補地点がまだありません。"),
       owner
-        ? h(
+        ? createEl(
             "div",
             {},
-            btn(
+            makeButton(
               "採用した地点を訪問地点リストに取り込む",
               importAdopted,
               "primary",
             ),
 
           )
-        : h("p", { class: "muted" }, "採用する地点は幹事が選びます。"),
+        : createEl("p", { class: "muted" }, "採用する地点は幹事が選びます。"),
     );
 
     // ---- AIスポット提案セクション ----
-    const aiResultsEl = h("div", { class: "ai-results" });
+    const aiResultsEl = createEl("div", { class: "ai-results" });
 
     function buildAiResults() {
       aiResultsEl.innerHTML = "";
-      if (S.aiSuggesting) {
-        aiResultsEl.appendChild(h("p", { class: "muted" }, "✨ AIがスポットを考えています…"));
+      if (state.aiSuggesting) {
+        aiResultsEl.appendChild(createEl("p", { class: "muted" }, "✨ AIがスポットを考えています…"));
         return;
       }
-      if (S.aiError) {
-        aiResultsEl.appendChild(h("p", { class: "warn" }, S.aiError));
+      if (state.aiError) {
+        aiResultsEl.appendChild(createEl("p", { class: "warn" }, state.aiError));
       }
-      if (!S.aiResults || !S.aiResults.length) return;
-      S.aiResults.forEach((spot) => {
+      if (!state.aiResults || !state.aiResults.length) return;
+      state.aiResults.forEach((spot) => {
         let _added = false;
-        const addedBadge = h("span", { class: "badge ok", hidden: true }, "追加済み");
-        const addBtn = h("button", {
+        const addedBadge = createEl("span", { class: "badge ok", hidden: true }, "追加済み");
+        const addBtn = createEl("button", {
           class: "btn small",
           type: "button",
           onclick: async () => {
             if (_added) return;
-            const r = await fb("addPlace", {
-              tripId: S.tripId,
+            const addResult = await callFirebase("addPlace", {
+              tripId: state.tripId,
               place: { name: spot.name, lat: spot.lat, lng: spot.lng },
             });
-            if (r.ok) {
+            if (addResult.ok) {
               _added = true;
               addBtn.disabled = true;
               addBtn.textContent = "追加済み";
               addedBadge.hidden = false;
             } else {
-              flash(r.error || "追加に失敗しました", "err");
+              flash(addResult.error || "追加に失敗しました", "err");
             }
           },
         }, "候補に追加");
         aiResultsEl.appendChild(
-          h("div", { class: "ai-spot-card" },
-            h("div", { class: "ai-spot-header" },
-              h("span", { class: "ai-spot-name" }, spot.name),
-              spot.category ? h("span", { class: "badge" }, spot.category) : null,
+          createEl("div", { class: "ai-spot-card" },
+            createEl("div", { class: "ai-spot-header" },
+              createEl("span", { class: "ai-spot-name" }, spot.name),
+              spot.category ? createEl("span", { class: "badge" }, spot.category) : null,
               addedBadge,
             ),
-            spot.area ? h("div", { class: "ai-spot-meta" }, "📍 " + spot.area) : null,
-            spot.reason ? h("div", { class: "ai-spot-reason" }, spot.reason) : null,
+            spot.area ? createEl("div", { class: "ai-spot-meta" }, "📍 " + spot.area) : null,
+            spot.reason ? createEl("div", { class: "ai-spot-reason" }, spot.reason) : null,
             addBtn,
           )
         );
@@ -550,36 +550,36 @@ export function installVoteTab(c) {
     }
     buildAiResults();
 
-    const suggestBtn = h("button", {
+    const suggestBtn = createEl("button", {
       class: "btn primary",
       type: "button",
       onclick: async () => {
-        S.aiSuggesting = true;
-        S.aiResults = null;
-        S.aiError = "";
+        state.aiSuggesting = true;
+        state.aiResults = null;
+        state.aiError = "";
         buildAiResults();
         suggestBtn.disabled = true;
-        const r = await send({
+        const sendResult = await sendMessage({
           type: "gemini:suggest",
-          preferences: d.preferences || {},
-          tripName: (d.meta && d.meta.name) || "旅行",
+          preferences: trip.preferences || {},
+          tripName: (trip.meta && trip.meta.name) || "旅行",
         });
-        S.aiSuggesting = false;
+        state.aiSuggesting = false;
         suggestBtn.disabled = false;
-        if (r.ok) {
-          S.aiResults = r.spots || [];
-          S.aiError = r.spots && r.spots.length ? "" : "スポットが取得できませんでした。もう一度お試しください。";
+        if (sendResult.ok) {
+          state.aiResults = sendResult.spots || [];
+          state.aiError = sendResult.spots && sendResult.spots.length ? "" : "スポットが取得できませんでした。もう一度お試しください。";
         } else {
-          S.aiResults = null;
-          S.aiError = r.error || "提案に失敗しました";
+          state.aiResults = null;
+          state.aiError = sendResult.error || "提案に失敗しました";
         }
         buildAiResults();
       },
     }, "✨ AIがスポットを提案");
 
-    const secAI = h("section", {},
-      h("h3", {}, "✨ AIスポット提案"),
-      h("p", { class: "muted" }, "メンバーの希望をもとに、AIがおすすめスポットを5件提案します。"),
+    const secAI = createEl("section", {},
+      createEl("h3", {}, "✨ AIスポット提案"),
+      createEl("p", { class: "muted" }, "メンバーの希望をもとに、AIがおすすめスポットを5件提案します。"),
       suggestBtn,
       aiResultsEl,
     );
@@ -588,27 +588,27 @@ export function installVoteTab(c) {
   }
 
   // ======================= 全体共有スポットカタログ =======================
-  const spotDistance = (a, b) => {
-    const r = 6371000,
-      rad = Math.PI / 180;
-    const dLat = (b.lat - a.lat) * rad,
-      dLng = (b.lng - a.lng) * rad;
-    const q =
+  const spotDistance = (from, to) => {
+    const earthRadius = 6371000,
+      degToRad = Math.PI / 180;
+    const dLat = (to.lat - from.lat) * degToRad,
+      dLng = (to.lng - from.lng) * degToRad;
+    const haversineTerm =
       Math.sin(dLat / 2) ** 2 +
-      Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
-    return 2 * r * Math.asin(Math.sqrt(q));
+      Math.cos(from.lat * degToRad) * Math.cos(to.lat * degToRad) * Math.sin(dLng / 2) ** 2;
+    return 2 * earthRadius * Math.asin(Math.sqrt(haversineTerm));
   };
   const spotMapUrl = (spot) =>
     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${spot.name} ${spot.lat},${spot.lng}`)}`;
   function spotStars(rating, size = 14) {
-    return h(
+    return createEl(
       "span",
       { class: "spot-stars", "aria-label": `${rating} / 5` },
-      ...Array.from({ length: 5 }, (_, i) =>
-        h(
+      ...Array.from({ length: 5 }, (_, index) =>
+        createEl(
           "span",
           {
-            style: `font-size:${size}px;color:${i < rating ? "#fbbc04" : "#dadce0"}`,
+            style: `font-size:${size}px;color:${index < rating ? "#fbbc04" : "#dadce0"}`,
           },
           "★",
         ),
@@ -616,12 +616,12 @@ export function installVoteTab(c) {
     );
   }
   function viewSpots() {
-    if (S.auth.state !== "signedIn") return [signinCard()];
-    if (S.spots === null && !S.spotsError)
+    if (state.auth.state !== "signedIn") return [signinCard()];
+    if (state.spots === null && !state.spotsError)
       return [
-        h("p", { class: "muted" }, "おすすめスポットを読み込んでいます…"),
+        createEl("p", { class: "muted" }, "おすすめスポットを読み込んでいます…"),
       ];
-    const spots = S.spots || [];
+    const spots = state.spots || [];
     const currentPlaceName = () => {
       const heading =
         document.querySelector("h1.DUwDvf") ||
@@ -661,39 +661,39 @@ export function installVoteTab(c) {
       },
     };
     function makeSvgIcon(svgPath) {
-      const ns = "http://www.w3.org/2000/svg";
-      const svg = document.createElementNS(ns, "svg");
-      svg.setAttribute("viewBox", "0 0 24 24");
-      svg.setAttribute("width", "22");
-      svg.setAttribute("height", "22");
-      svg.setAttribute("fill", "currentColor");
-      svg.innerHTML = svgPath;
-      return svg;
+      const svgNamespace = "http://www.w3.org/2000/svg";
+      const svgElement = document.createElementNS(svgNamespace, "svg");
+      svgElement.setAttribute("viewBox", "0 0 24 24");
+      svgElement.setAttribute("width", "22");
+      svgElement.setAttribute("height", "22");
+      svgElement.setAttribute("fill", "currentColor");
+      svgElement.innerHTML = svgPath;
+      return svgElement;
     }
     let _categoryValue = "";
     const catBtns = {};
-    const catGrid = h(
+    const catGrid = createEl(
       "div",
       { class: "cat-grid" },
-      ...SPOT_CATEGORIES.map((cat) => {
-        const { label, svg } = SPOT_ICONS[cat];
-        const btn_ = h(
+      ...SPOT_CATEGORIES.map((spotCategory) => {
+        const { label, svg: iconSvg } = SPOT_ICONS[spotCategory];
+        const btn_ = createEl(
           "button",
           {
             type: "button",
             class: "cat-btn",
-            title: cat,
+            title: spotCategory,
             onclick: () => {
-              _categoryValue = _categoryValue === cat ? "" : cat;
-              SPOT_CATEGORIES.forEach((c) => {
-                catBtns[c].classList.toggle("selected", c === _categoryValue);
+              _categoryValue = _categoryValue === spotCategory ? "" : spotCategory;
+              SPOT_CATEGORIES.forEach((spotCategory) => {
+                catBtns[spotCategory].classList.toggle("selected", spotCategory === _categoryValue);
               });
             },
           },
-          makeSvgIcon(svg),
-          h("span", { class: "cat-label" }, label),
+          makeSvgIcon(iconSvg),
+          createEl("span", { class: "cat-label" }, label),
         );
-        catBtns[cat] = btn_;
+        catBtns[spotCategory] = btn_;
         return btn_;
       }),
     );
@@ -702,42 +702,42 @@ export function installVoteTab(c) {
         return _categoryValue;
       },
     };
-    const description = h("textarea", {
+    const description = createEl("textarea", {
       rows: 3,
       maxlength: 500,
       placeholder: "レビュー（任意、500文字以内）",
     });
-    const recommendation = h("textarea", {
+    const recommendation = createEl("textarea", {
       rows: 2,
       maxlength: 50,
       placeholder: "一言コメント（任意、50文字以内）",
     });
-    const author = h("input", {
+    const author = createEl("input", {
       type: "text",
       maxlength: 40,
       placeholder: "表示名（任意）",
-      value: S.auth.name || "",
+      value: state.auth.name || "",
     });
     let rating = 0;
-    const ratingButtons = h("div", { class: "spot-rating" });
+    const ratingButtons = createEl("div", { class: "spot-rating" });
     function paintRating() {
       ratingButtons.replaceChildren(
-        ...Array.from({ length: 5 }, (_, i) =>
-          h(
+        ...Array.from({ length: 5 }, (_, index) =>
+          createEl(
             "button",
             {
               type: "button",
               class: "spot-rate-button",
-              title: `${i + 1}つ星`,
-              "aria-pressed": rating === i + 1,
+              title: `${index + 1}つ星`,
+              "aria-pressed": rating === index + 1,
               onclick: () => {
-                rating = rating === i + 1 ? 0 : i + 1;
+                rating = rating === index + 1 ? 0 : index + 1;
                 paintRating();
               },
             },
-            h(
+            createEl(
               "span",
-              { style: `color:${i < rating ? "#fbbc04" : "#dadce0"}` },
+              { style: `color:${index < rating ? "#fbbc04" : "#dadce0"}` },
               "★",
             ),
           ),
@@ -747,20 +747,20 @@ export function installVoteTab(c) {
     paintRating();
     const current = T.extractLatLng(location.href);
     const nearby = current
-      ? spots.filter((s) => spotDistance(current, s) < 100)
+      ? spots.filter((nearbySpot) => spotDistance(current, nearbySpot) < 100)
       : [];
-    const form = h(
+    const form = createEl(
       "section",
       {},
-      h("h3", {}, "おすすめスポットを共有"),
+      createEl("h3", {}, "おすすめスポットを共有"),
 
-      S.spotsError ? h("p", { class: "warn" }, S.spotsError) : null,
-      h("div", {}, h("div", { class: "form-label" }, "カテゴリ"), catGrid),
-      h("label", {}, "レビュー", description),
-      h("label", {}, "一言コメント", recommendation),
-      h("label", {}, "評価（必須）", h("div", { class: "row" }, ratingButtons)),
-      h("label", {}, "表示名", author),
-      btn(
+      state.spotsError ? createEl("p", { class: "warn" }, state.spotsError) : null,
+      createEl("div", {}, createEl("div", { class: "form-label" }, "カテゴリ"), catGrid),
+      createEl("label", {}, "レビュー", description),
+      createEl("label", {}, "一言コメント", recommendation),
+      createEl("label", {}, "評価（必須）", createEl("div", { class: "row" }, ratingButtons)),
+      createEl("label", {}, "表示名", author),
+      makeButton(
         "現在の場所を登録",
         async () => {
           const point = T.extractLatLng(location.href);
@@ -778,9 +778,9 @@ export function installVoteTab(c) {
           if (!SPOT_CATEGORIES.includes(category.value))
             return flash("カテゴリを選択してください。", "err");
           if (!rating) return flash("評価（星）を選択してください。", "err");
-          if (spots.some((s) => spotDistance(point, s) < 50))
+          if (spots.some((nearbySpot) => spotDistance(point, nearbySpot) < 50))
             return flash("50m以内に登録済みのスポットがあります。", "err");
-          const result = await fb("addSpot", {
+          const result = await callFirebase("addSpot", {
             spot: {
               name,
               ...point,
@@ -807,30 +807,30 @@ export function installVoteTab(c) {
       ),
     );
 
-    const myEmail = me() && me().email;
+    const myEmail = currentMember() && currentMember().email;
     const rows = (items) =>
       items.map((spot) => {
         const color = SPOT_COLORS[spot.category] || SPOT_COLORS["その他"];
         const canDelete = spot.registeredByEmail === myEmail;
-        const details = h(
+        const details = createEl(
           "div",
           { class: "spot-details", hidden: true },
-          h(
+          createEl(
             "div",
             { class: "muted" },
             `${(+spot.lat).toFixed(5)}, ${(+spot.lng).toFixed(5)}　${spot.registeredBy || "匿名"}　${spot.registeredAt ? new Date(+spot.registeredAt).toLocaleDateString("ja-JP") : ""}`,
           ),
           spot.description
-            ? h("p", { class: "spot-text" }, spot.description)
+            ? createEl("p", { class: "spot-text" }, spot.description)
             : null,
           spot.recommendation
-            ? h(
+            ? createEl(
                 "p",
                 { class: "spot-recommendation" },
                 "💬 " + spot.recommendation,
               )
             : null,
-          h(
+          createEl(
             "a",
             {
               href: spotMapUrl(spot),
@@ -840,24 +840,24 @@ export function installVoteTab(c) {
             "Google マップで開く",
           ),
         );
-        return h(
+        return createEl(
           "li",
           {},
-          h(
+          createEl(
             "div",
             { class: "line" },
-            h(
+            createEl(
               "button",
               {
                 type: "button",
                 class: "spot-expand",
-                onclick: (e) => {
+                onclick: (event) => {
                   details.hidden = !details.hidden;
-                  e.currentTarget.classList.toggle("open", !details.hidden);
+                  event.currentTarget.classList.toggle("open", !details.hidden);
                 },
               },
-              h("b", {}, spot.name),
-              h(
+              createEl("b", {}, spot.name),
+              createEl(
                 "span",
                 {
                   class: "spot-cat",
@@ -868,7 +868,7 @@ export function installVoteTab(c) {
               spotStars(+spot.rating),
             ),
             canDelete
-              ? btn(
+              ? makeButton(
                   "削除",
                   async () => {
                     if (
@@ -877,7 +877,7 @@ export function installVoteTab(c) {
                       )
                     )
                       return;
-                    const result = await fb("deleteSpot", { spotId: spot.id });
+                    const result = await callFirebase("deleteSpot", { spotId: spot.id });
                     if (!result.ok)
                       return flash(
                         "削除できませんでした: " + result.error,
@@ -892,21 +892,21 @@ export function installVoteTab(c) {
           details,
         );
       });
-    const list = h(
+    const list = createEl(
       "section",
       {},
-      h("h3", {}, `共有スポット（最新${spots.length}件を表示）`),
+      createEl("h3", {}, `共有スポット（最新${spots.length}件を表示）`),
       spots.length
-        ? h("ul", { class: "list" }, ...rows(spots))
-        : h("p", { class: "muted" }, "共有スポットはまだありません。"),
+        ? createEl("ul", { class: "list" }, ...rows(spots))
+        : createEl("p", { class: "muted" }, "共有スポットはまだありません。"),
     );
     let nearbyOpen = false;
-    const nearbyList = h(
+    const nearbyList = createEl(
       "ul",
       { class: "list", hidden: true },
       ...rows(nearby),
     );
-    const nearbyToggle = h(
+    const nearbyToggle = createEl(
       "h3",
       {
         class: "nearby-toggle",
@@ -919,10 +919,10 @@ export function installVoteTab(c) {
       `この場所の近くのレビュー（${nearby.length}件）`,
     );
     const nearbySection = nearby.length
-      ? h("section", {}, nearbyToggle, nearbyList)
+      ? createEl("section", {}, nearbyToggle, nearbyList)
       : null;
     return [form, nearbySection, list];
   }
 
-  Object.assign(c, { viewVote, spotDistance, spotMapUrl, spotStars, viewSpots });
+  Object.assign(ctx, { viewVote, spotDistance, spotMapUrl, spotStars, viewSpots });
 }

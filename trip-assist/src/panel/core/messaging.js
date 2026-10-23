@@ -1,74 +1,74 @@
 // 再描画の制御・拡張機能内メッセージ・Firebase 操作（offscreen 経由）
 
-export function installMessaging(c) {
-  const { S, root, flash } = c;
-  const render = (...args) => c.render(...args);
+export function installMessaging(ctx) {
+  const { state, root, flash } = ctx;
+  const render = (...args) => ctx.render(...args);
 
   // ---------- 再描画（他のメンバーの更新で入力中の欄を壊さない） ----------
-  S.dirty = false;
+  state.dirty = false;
   const editing = () => {
-    const a = root.activeElement;
+    const activeElement = root.activeElement;
     return (
-      !!a &&
-      ["SELECT", "INPUT", "TEXTAREA"].includes(a.tagName) &&
-      !["checkbox", "radio", "button"].includes(a.type)
+      !!activeElement &&
+      ["SELECT", "INPUT", "TEXTAREA"].includes(activeElement.tagName) &&
+      !["checkbox", "radio", "button"].includes(activeElement.type)
     );
   };
   function scheduleRender(remote = false) {
-    if (!S.open) return;
+    if (!state.open) return;
     if (remote && editing()) {
-      S.dirty = true;
+      state.dirty = true;
       return;
     }
     render();
   }
   root.addEventListener("focusout", () => {
-    if (S.dirty)
+    if (state.dirty)
       setTimeout(() => {
         if (!editing()) render();
       }, 0);
   });
 
   // ---------- 拡張機能内メッセージ ----------
-  async function send(msg) {
+  async function sendMessage(msg) {
     try {
-      const r = await chrome.runtime.sendMessage(msg);
-      if (!r) throw new Error("応答がありません");
-      return r;
-    } catch (e) {
-      const m = String(e.message || e);
+      const result = await chrome.runtime.sendMessage(msg);
+      if (!result) throw new Error("応答がありません");
+      return result;
+    } catch (error) {
+      const message = String(error.message || error);
       return {
         ok: false,
-        error: /context invalidated/i.test(m)
+        error: /context invalidated/i.test(message)
           ? "拡張機能が更新されました。ページを再読み込みしてください。"
-          : m,
+          : message,
       };
     }
   }
   // Firebase 操作（offscreen.js が処理）。offscreen が無い場合は作り直して 1 回だけ再試行する
   const NO_RECEIVER =
     /Receiving end does not exist|Could not establish connection|message port closed|応答がありません/i;
-  async function fb(op, args = {}) {
-    let r = await send({ type: "fb:" + op, ...args });
-    if (!r.ok && NO_RECEIVER.test(r.error || "")) {
-      await send({ type: "app:ensure" });
-      await new Promise((res) => setTimeout(res, 400));
-      r = await send({ type: "fb:" + op, ...args });
-      if (!r.ok && NO_RECEIVER.test(r.error || "")) {
-        r = {
+  async function callFirebase(operation, args = {}) {
+    let result = await sendMessage({ type: "fb:" + operation, ...args });
+    if (!result.ok && NO_RECEIVER.test(result.error || "")) {
+      await sendMessage({ type: "app:ensure" });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      result = await sendMessage({ type: "fb:" + operation, ...args });
+      if (!result.ok && NO_RECEIVER.test(result.error || "")) {
+        result = {
           ok: false,
           error:
             "Firebase との接続を開始できませんでした。拡張機能を再読み込みして、もう一度お試しください。",
         };
       }
     }
-    return r;
+    return result;
   }
-  async function act(op, args, okMsg) {
-    const r = await fb(op, args);
-    flash(r.ok ? okMsg : r.error, r.ok ? "ok" : "err");
-    return r;
+  async function runAction(operation, args, okMsg) {
+    const result = await callFirebase(operation, args);
+    flash(result.ok ? okMsg : result.error, result.ok ? "ok" : "err");
+    return result;
   }
 
-  Object.assign(c, { editing, scheduleRender, send, NO_RECEIVER, fb, act });
+  Object.assign(ctx, { editing, scheduleRender, sendMessage, NO_RECEIVER, callFirebase, runAction });
 }

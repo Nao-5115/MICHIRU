@@ -1,58 +1,58 @@
 // タブ定義と画面の描画
-import { K } from "../constants.js";
+import { STORAGE_KEYS } from "../constants.js";
 
-export function installRender(c) {
-  const { S, clearNav, isDirPage, loadLocal, toggle, send, fb, updateOverlay } = c;
+export function installRender(ctx) {
+  const { state, clearNav, isDirPage, loadLocal, toggle, sendMessage, callFirebase, updateOverlay } = ctx;
 
   // 起動: 保存済みの状態を読み込み、offscreen（Firebase 接続）を確実に起動する。
   // ルート案内への遷移後（または元の画面への復帰後）はパネルを自動で再表示して状態を復元する
   async function boot() {
-    const d = await chrome.storage.local.get([
-      K.cur,
-      K.nav,
-      K.auth,
-      K.trips,
-      K.trip,
-      K.spots,
+    const stored = await chrome.storage.local.get([
+      STORAGE_KEYS.cur,
+      STORAGE_KEYS.nav,
+      STORAGE_KEYS.auth,
+      STORAGE_KEYS.trips,
+      STORAGE_KEYS.trip,
+      STORAGE_KEYS.spots,
     ]);
-    S.auth = d[K.auth] || { state: "unknown" };
-    S.trips = (d[K.trips] && d[K.trips].list) || [];
-    S.trip = d[K.trip] || null;
-    const spotState = d[K.spots];
-    S.spots = spotState ? spotState.list || [] : null;
-    S.spotsError = (spotState && spotState.error) || "";
-    S.tripId = d[K.cur] || null;
-    S.nav = d[K.nav] || null;
+    state.auth = stored[STORAGE_KEYS.auth] || { state: "unknown" };
+    state.trips = (stored[STORAGE_KEYS.trips] && stored[STORAGE_KEYS.trips].list) || [];
+    state.trip = stored[STORAGE_KEYS.trip] || null;
+    const spotState = stored[STORAGE_KEYS.spots];
+    state.spots = spotState ? spotState.list || [] : null;
+    state.spotsError = (spotState && spotState.error) || "";
+    state.tripId = stored[STORAGE_KEYS.cur] || null;
+    state.nav = stored[STORAGE_KEYS.nav] || null;
     let reopen = false;
-    if (S.nav) {
-      if (!S.nav.ts || Date.now() - S.nav.ts > 12 * 3600 * 1000)
+    if (state.nav) {
+      if (!state.nav.ts || Date.now() - state.nav.ts > 12 * 3600 * 1000)
         await clearNav(); // 古い遷移記録は破棄
       else {
-        if (S.nav.tripId) {
-          S.tripId = S.nav.tripId;
-          await chrome.storage.local.set({ [K.cur]: S.tripId });
+        if (state.nav.tripId) {
+          state.tripId = state.nav.tripId;
+          await chrome.storage.local.set({ [STORAGE_KEYS.cur]: state.tripId });
         }
-        S.tab = [
+        state.tab = [
           "trip",
           "schedule",
           "vote",
           "route",
           "register",
           "spots",
-        ].includes(S.nav.tab)
-          ? S.nav.tab
+        ].includes(state.nav.tab)
+          ? state.nav.tab
           : "route";
-        S.pendingScroll = S.nav.scroll || 0;
-        if (S.nav.back || !isDirPage()) await clearNav(); // 元の画面に戻った → 復元して終了
+        state.pendingScroll = state.nav.scroll || 0;
+        if (state.nav.back || !isDirPage()) await clearNav(); // 元の画面に戻った → 復元して終了
         reopen = true;
       }
     }
     await loadLocal();
     if (reopen) toggle(true);
-    await send({ type: "app:ensure" });
-    fb("watchTrip", { tripId: S.tripId });
+    await sendMessage({ type: "app:ensure" });
+    callFirebase("watchTrip", { tripId: state.tripId });
     updateOverlay();
   }
 
-  Object.assign(c, { boot });
+  Object.assign(ctx, { boot });
 }

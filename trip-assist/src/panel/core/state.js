@@ -1,8 +1,8 @@
 // 共有状態（S）と、スポット分類・色・アイコンなどの定数
 
-export function installState(c) {
+export function installState(ctx) {
 
-  const S = {
+  const state = {
     tab: "trip",
     open: false,
     auth: { state: "unknown" },
@@ -27,7 +27,7 @@ export function installState(c) {
     aiError: "",
     mailOnInvite: true,
   };
-  const L = () => S.local;
+  const getLocal = () => state.local;
   const SPOT_CATEGORIES = [
     "観光スポット",
     "飲食店",
@@ -56,5 +56,5 @@ export function installState(c) {
     "その他":     { label: "その他", svg: '<path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>' },
   };
 
-  Object.assign(c, { S, L, SPOT_CATEGORIES, SPOT_COLORS, SPOT_ICONS });
+  Object.assign(ctx, { state, getLocal, SPOT_CATEGORIES, SPOT_COLORS, SPOT_ICONS });
 }

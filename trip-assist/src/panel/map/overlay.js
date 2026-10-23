@@ -1,55 +1,55 @@
 // Google マップ上の共有スポットマーカー・ポップアップ・採用地点の取り込み
 import * as T from "../../lib.js";
-import { rid } from "../constants.js";
+import { randomId } from "../constants.js";
 
-export function installOverlay(c) {
-  const { spotLayer, h, spotMapUrl, S, SPOT_COLORS, spotStars, tripData, flash, L, saveLocal } = c;
-  const render = (...args) => c.render(...args);
+export function installOverlay(ctx) {
+  const { spotLayer, createEl, spotMapUrl, state, SPOT_COLORS, spotStars, tripData, flash, getLocal, saveLocal } = ctx;
+  const render = (...args) => ctx.render(...args);
   let activeSpotPopup = null;
   function closeSpotPopup() {
     spotLayer
       .querySelectorAll(".tripassist-spot-popup")
-      .forEach((el) => el.remove());
+      .forEach((element) => element.remove());
     activeSpotPopup = null;
   }
-  function mercatorY(lat) {
-    const sin = Math.sin(
-      (Math.max(-85.0511, Math.min(85.0511, lat)) * Math.PI) / 180,
+  function mercatorY(latitude) {
+    const sinLat = Math.sin(
+      (Math.max(-85.0511, Math.min(85.0511, latitude)) * Math.PI) / 180,
     );
-    return Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI);
+    return Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI);
   }
   function mapViewFromUrl() {
-    const m = location.href.match(
+    const match = location.href.match(
       /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(\d+(?:\.\d+)?)z/,
     );
-    return m ? { lat: +m[1], lng: +m[2], zoom: +m[3] } : null;
+    return match ? { lat: +match[1], lng: +match[2], zoom: +match[3] } : null;
   }
   function spotScreenPoint(spot, view) {
     const scale = 256 * 2 ** view.zoom;
-    const dx = ((spot.lng - view.lng) / 360) * scale;
-    const dy = (mercatorY(view.lat) - mercatorY(spot.lat)) * scale;
-    return { x: window.innerWidth / 2 + dx, y: window.innerHeight / 2 + dy };
+    const deltaX = ((spot.lng - view.lng) / 360) * scale;
+    const deltaY = (mercatorY(view.lat) - mercatorY(spot.lat)) * scale;
+    return { x: window.innerWidth / 2 + deltaX, y: window.innerHeight / 2 + deltaY };
   }
-  function showSpotPopup(spot, x, y) {
+  function showSpotPopup(spot, screenX, screenY) {
     if (activeSpotPopup === spot.id) {
       closeSpotPopup();
       return;
     }
     closeSpotPopup();
     activeSpotPopup = spot.id;
-    const popup = h("div", { class: "tripassist-spot-popup" });
+    const popup = createEl("div", { class: "tripassist-spot-popup" });
     const date = spot.registeredAt
       ? new Date(spot.registeredAt).toLocaleDateString("ja-JP")
       : "";
     const mapUrl = spotMapUrl(spot);
     const left = Math.max(
       8,
-      Math.min(x + 18, window.innerWidth - (S.open ? 390 : 280)),
+      Math.min(screenX + 18, window.innerWidth - (state.open ? 390 : 280)),
     );
     popup.style.left = `${left}px`;
-    popup.style.top = `${Math.max(8, Math.min(y - 36, window.innerHeight - 260))}px`;
+    popup.style.top = `${Math.max(8, Math.min(screenY - 36, window.innerHeight - 260))}px`;
     popup.append(
-      h(
+      createEl(
         "button",
         {
           type: "button",
@@ -59,11 +59,11 @@ export function installOverlay(c) {
         },
         "×",
       ),
-      h("h4", {}, spot.name),
-      h(
+      createEl("h4", {}, spot.name),
+      createEl(
         "div",
         {},
-        h(
+        createEl(
           "span",
           {
             class: "spot-cat",
@@ -74,10 +74,10 @@ export function installOverlay(c) {
         " ",
         spotStars(+spot.rating),
       ),
-      spot.description ? h("p", {}, spot.description) : null,
-      spot.recommendation ? h("p", {}, `💬 ${spot.recommendation}`) : null,
-      h("p", {}, `${spot.registeredBy || "匿名"}${date ? ` ・ ${date}` : ""}`),
-      h(
+      spot.description ? createEl("p", {}, spot.description) : null,
+      spot.recommendation ? createEl("p", {}, `💬 ${spot.recommendation}`) : null,
+      createEl("p", {}, `${spot.registeredBy || "匿名"}${date ? ` ・ ${date}` : ""}`),
+      createEl(
         "a",
         { href: mapUrl, target: "_blank", rel: "noopener noreferrer" },
         "Google マップで開く",
@@ -88,42 +88,42 @@ export function installOverlay(c) {
   function updateOverlay() {
     spotLayer
       .querySelectorAll(".tripassist-spot-marker")
-      .forEach((el) => el.remove());
+      .forEach((element) => element.remove());
     const view = mapViewFromUrl();
-    if (!view || view.zoom < 14 || !S.spots) {
+    if (!view || view.zoom < 14 || !state.spots) {
       closeSpotPopup();
       return;
     }
-    for (const spot of S.spots) {
+    for (const spot of state.spots) {
       if (!Number.isFinite(+spot.lat) || !Number.isFinite(+spot.lng)) continue;
-      const { x, y } = spotScreenPoint(spot, view);
+      const { x: screenX, y: screenY } = spotScreenPoint(spot, view);
       if (
-        x < -50 ||
-        x > window.innerWidth + 50 ||
-        y < -50 ||
-        y > window.innerHeight + 50
+        screenX < -50 ||
+        screenX > window.innerWidth + 50 ||
+        screenY < -50 ||
+        screenY > window.innerHeight + 50
       )
         continue;
       const color = SPOT_COLORS[spot.category] || "#616161";
       const stars = "★".repeat(
         Math.max(0, Math.min(5, Math.round(+spot.rating))),
       );
-      const marker = h("div", {
+      const marker = createEl("div", {
         class: "tripassist-spot-marker",
         title: `${spot.name}\n${spot.category}　${stars}`,
-        onclick: (e) => {
-          e.stopPropagation();
-          showSpotPopup(spot, x, y);
+        onclick: (event) => {
+          event.stopPropagation();
+          showSpotPopup(spot, screenX, screenY);
         },
       });
-      marker.style.left = `${x}px`;
-      marker.style.top = `${y}px`;
-      const callout = h(
+      marker.style.left = `${screenX}px`;
+      marker.style.top = `${screenY}px`;
+      const callout = createEl(
         "div",
         { class: "tripassist-spot-callout" },
-        h("div", { class: "tripassist-spot-name" }, spot.name),
+        createEl("div", { class: "tripassist-spot-name" }, spot.name),
         spot.recommendation
-          ? h("div", { class: "tripassist-spot-rec" }, spot.recommendation)
+          ? createEl("div", { class: "tripassist-spot-rec" }, spot.recommendation)
           : null,
       );
       callout.style.setProperty("--sc", color);
@@ -146,25 +146,25 @@ export function installOverlay(c) {
   let mapDrag = null;
   document.addEventListener(
     "mousedown",
-    (e) => {
+    (event) => {
       if (
         mapViewFromUrl() &&
-        S.spots &&
-        e.target.closest("#tripassist-host") === null
+        state.spots &&
+        event.target.closest("#tripassist-host") === null
       )
-        mapDrag = { x: e.clientX, y: e.clientY };
+        mapDrag = { x: event.clientX, y: event.clientY };
     },
     true,
   );
   document.addEventListener(
     "mousemove",
-    (e) => {
+    (event) => {
       if (!mapDrag) return;
-      const dx = e.clientX - mapDrag.x,
-        dy = e.clientY - mapDrag.y;
-      spotLayer.querySelectorAll(".tripassist-spot-marker").forEach((el) => {
-        el.style.left = `${parseFloat(el.style.left) + dx}px`;
-        el.style.top = `${parseFloat(el.style.top) + dy}px`;
+      const deltaX = event.clientX - mapDrag.x,
+        deltaY = event.clientY - mapDrag.y;
+      spotLayer.querySelectorAll(".tripassist-spot-marker").forEach((element) => {
+        element.style.left = `${parseFloat(element.style.left) + deltaX}px`;
+        element.style.top = `${parseFloat(element.style.top) + deltaY}px`;
       });
     },
     true,
@@ -182,32 +182,32 @@ export function installOverlay(c) {
   );
 
   async function importAdopted() {
-    const d = tripData(),
-      adopted = d.adopted || {};
-    const picked = T.placesOf(d).filter((p) => adopted[p.id]);
+    const trip = tripData(),
+      adopted = trip.adopted || {};
+    const picked = T.placesOf(trip).filter((place) => adopted[place.id]);
     if (!picked.length)
       return flash(
         "採用した地点がありません。「採用」にチェックを入れてください。",
         "err",
       );
     let added = 0,
-      dup = 0;
-    for (const p of picked) {
-      if (L().places.some((x) => T.samePoint(x, p))) {
-        dup++;
+      duplicateCount = 0;
+    for (const place of picked) {
+      if (getLocal().places.some((existing) => T.samePoint(existing, place))) {
+        duplicateCount++;
         continue;
       }
-      if (L().places.length >= T.MAX_LOCAL_PLACES) {
+      if (getLocal().places.length >= T.MAX_LOCAL_PLACES) {
         flash(`訪問地点は最大 ${T.MAX_LOCAL_PLACES} 件までです`, "err");
         break;
       }
-      L().places.push({ id: rid(), name: p.name, lat: +p.lat, lng: +p.lng });
+      getLocal().places.push({ id: randomId(), name: place.name, lat: +place.lat, lng: +place.lng });
       added++;
     }
     await saveLocal();
-    if (added || !dup)
+    if (added || !duplicateCount)
       flash(
-        `${added} 件を訪問地点リストに取り込みました${dup ? `（${dup} 件は登録済み）` : ""}`,
+        `${added} 件を訪問地点リストに取り込みました${duplicateCount ? `（${duplicateCount} 件は登録済み）` : ""}`,
       );
     else flash("採用した地点は、すべて訪問地点リストに登録済みです");
     render();
@@ -215,36 +215,36 @@ export function installOverlay(c) {
 
   // ======================= ルートタブ（幹事のローカル） =======================
   // 訪問順 = L().places の並び。しおり・ルートリンクは常にこの並びから再計算される
-  const modeOf = (a, b) =>
-    L().legModes[a.id + ">" + b.id] || L().legModes[b.id + ">" + a.id] || "car";
+  const modeOf = (from, to) =>
+    getLocal().legModes[from.id + ">" + to.id] || getLocal().legModes[to.id + ">" + from.id] || "car";
   function currentItinerary() {
-    if (!L().places.length) return null;
-    const st = L().settings;
-    return T.buildItinerary(L().places, {
-      startMin: T.parseTime(st.startTime),
-      speeds: { car: st.speedCar, train: st.speedTrain },
-      detours: { car: st.detourCar, train: st.detourTrain },
-      defaultStay: st.defaultStay,
-      stays: st.stays,
+    if (!getLocal().places.length) return null;
+    const settings = getLocal().settings;
+    return T.buildItinerary(getLocal().places, {
+      startMin: T.parseTime(settings.startTime),
+      speeds: { car: settings.speedCar, train: settings.speedTrain },
+      detours: { car: settings.detourCar, train: settings.detourTrain },
+      defaultStay: settings.defaultStay,
+      stays: settings.stays,
       modeOf,
     });
   }
   // 区間の移動手段は「2 地点の組み合わせ」に紐づけて保持（電車のみ保存、未設定は車）
   function pruneLegModes() {
-    const ids = new Set(L().places.map((p) => p.id));
-    for (const k of Object.keys(L().legModes)) {
-      const [x, y] = k.split(">");
-      if (!ids.has(x) || !ids.has(y)) delete L().legModes[k];
+    const placeIds = new Set(getLocal().places.map((place) => place.id));
+    for (const key of Object.keys(getLocal().legModes)) {
+      const [fromKey, toKey] = key.split(">");
+      if (!placeIds.has(fromKey) || !placeIds.has(toKey)) delete getLocal().legModes[key];
     }
-    const keys = Object.keys(L().legModes);
+    const keys = Object.keys(getLocal().legModes);
     if (keys.length > 40) {
-      const adj = new Set(),
-        pl = L().places;
-      for (let i = 1; i < pl.length; i++) {
-        adj.add(pl[i - 1].id + ">" + pl[i].id);
-        adj.add(pl[i].id + ">" + pl[i - 1].id);
+      const adjacent = new Set(),
+        places = getLocal().places;
+      for (let index = 1; index < places.length; index++) {
+        adjacent.add(places[index - 1].id + ">" + places[index].id);
+        adjacent.add(places[index].id + ">" + places[index - 1].id);
       }
-      for (const k of keys) if (!adj.has(k)) delete L().legModes[k];
+      for (const key of keys) if (!adjacent.has(key)) delete getLocal().legModes[key];
     }
   }
   async function placesChanged() {
@@ -254,16 +254,16 @@ export function installOverlay(c) {
   }
 
   async function movePlace(fromId, toId, after) {
-    const moving = L().places.find((x) => x.id === fromId);
-    const arr = L().places.filter((x) => x.id !== fromId);
-    const idx = arr.findIndex((x) => x.id === toId);
-    if (!moving || idx < 0) return;
-    arr.splice(after ? idx + 1 : idx, 0, moving);
-    if (arr.every((x, i) => x.id === L().places[i].id)) return;
-    L().places = arr;
+    const moving = getLocal().places.find((place) => place.id === fromId);
+    const remaining = getLocal().places.filter((place) => place.id !== fromId);
+    const index = remaining.findIndex((place) => place.id === toId);
+    if (!moving || index < 0) return;
+    remaining.splice(after ? index + 1 : index, 0, moving);
+    if (remaining.every((place, index) => place.id === getLocal().places[index].id)) return;
+    getLocal().places = remaining;
     await placesChanged();
     flash("並べ替えました。しおりの時刻とルートリンクを更新しました。");
   }
 
-  Object.assign(c, { activeSpotPopup, closeSpotPopup, mercatorY, mapViewFromUrl, spotScreenPoint, showSpotPopup, updateOverlay, overlayHref, mapDrag, importAdopted, modeOf, currentItinerary, pruneLegModes, placesChanged, movePlace });
+  Object.assign(ctx, { activeSpotPopup, closeSpotPopup, mercatorY, mapViewFromUrl, spotScreenPoint, showSpotPopup, updateOverlay, overlayHref, mapDrag, importAdopted, modeOf, currentItinerary, pruneLegModes, placesChanged, movePlace });
 }

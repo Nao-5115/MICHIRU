@@ -9,10 +9,10 @@ const GMAIL_SEND_URL =
 
 // ---------- offscreen ドキュメント ----------
 async function ensureOffscreen() {
-  const ctx = await chrome.runtime.getContexts({
+  const offscreenContexts = await chrome.runtime.getContexts({
     contextTypes: ["OFFSCREEN_DOCUMENT"],
   });
-  if (ctx.length) return;
+  if (offscreenContexts.length) return;
   try {
     await chrome.offscreen.createDocument({
       url: OFFSCREEN_URL,
@@ -20,8 +20,8 @@ async function ensureOffscreen() {
       justification:
         "Firebase Realtime Database への常時接続とログイン状態の保持（Service Worker では接続を維持できないため）",
     });
-  } catch (e) {
-    if (!/single offscreen/i.test(String(e && e.message))) throw e; // 同時に作成された場合は無視
+  } catch (error) {
+    if (!/single offscreen/i.test(String(error && error.message))) throw error; // 同時に作成された場合は無視
   }
 }
 chrome.runtime.onStartup.addListener(() => ensureOffscreen().catch(() => {}));
@@ -30,27 +30,27 @@ chrome.runtime.onInstalled.addListener(() => ensureOffscreen().catch(() => {}));
 // ---------- OAuth ----------
 function getToken(interactive) {
   return new Promise((resolve, reject) => {
-    const cid = (chrome.runtime.getManifest().oauth2 || {}).client_id || "";
-    if (!cid || cid.includes("YOUR_CLIENT_ID")) {
+    const clientId = (chrome.runtime.getManifest().oauth2 || {}).client_id || "";
+    if (!clientId || clientId.includes("YOUR_CLIENT_ID")) {
       return reject(
         new Error(
           "manifest.json の oauth2.client_id が未設定です。README の手順で設定して、ビルドし直してください。",
         ),
       );
     }
-    chrome.identity.getAuthToken({ interactive }, (t) => {
-      if (chrome.runtime.lastError || !t) {
-        const m = chrome.runtime.lastError
+    chrome.identity.getAuthToken({ interactive }, (token) => {
+      if (chrome.runtime.lastError || !token) {
+        const message = chrome.runtime.lastError
           ? chrome.runtime.lastError.message
           : "トークンを取得できません";
-        return reject(new Error("Google 認証に失敗しました: " + m));
+        return reject(new Error("Google 認証に失敗しました: " + message));
       }
-      resolve(typeof t === "string" ? t : t.token);
+      resolve(typeof token === "string" ? token : token.token);
     });
   });
 }
 const removeToken = (token) =>
-  new Promise((r) => chrome.identity.removeCachedAuthToken({ token }, r));
+  new Promise((resolve) => chrome.identity.removeCachedAuthToken({ token }, resolve));
 const clearAuthTokenCache = () =>
   new Promise((resolve, reject) => {
     chrome.identity.clearAllCachedAuthTokens(() => {
@@ -61,34 +61,34 @@ const clearAuthTokenCache = () =>
   });
 
 // ---------- Google Calendar API ----------
-async function api(url, opt = {}, tokenState = null) {
+async function api(url, options = {}, tokenState = null) {
   let token = tokenState ? tokenState.token : await getToken(false);
   for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await fetch(url, {
-      ...opt,
+    const response = await fetch(url, {
+      ...options,
       headers: {
-        ...(opt.headers || {}),
+        ...(options.headers || {}),
         Authorization: "Bearer " + token,
         "Content-Type": "application/json",
       },
     });
-    if (res.status === 401 && attempt === 0) {
+    if (response.status === 401 && attempt === 0) {
       await removeToken(token);
       token = await getToken(false);
       if (tokenState) tokenState.token = token;
       continue;
     }
-    if (!res.ok) {
+    if (!response.ok) {
       let detail = "";
       try {
-        detail = (await res.json()).error.message || "";
+        detail = (await response.json()).error.message || "";
       } catch (_) {}
-      const err = new Error(`Calendar API エラー (${res.status}) ${detail}`);
-      err.status = res.status;
-      throw err;
+      const apiError = new Error(`Calendar API エラー (${response.status}) ${detail}`);
+      apiError.status = response.status;
+      throw apiError;
     }
-    if (res.status === 204) return null; // DELETE 成功は本文なし
-    return res.json();
+    if (response.status === 204) return null; // DELETE 成功は本文なし
+    return response.json();
   }
 }
 
@@ -100,18 +100,18 @@ async function createEvents(events) {
   const results = [];
   for (const { event, sendUpdates } of events) {
     try {
-      const su = SEND_UPDATES.has(sendUpdates) ? sendUpdates : "none";
+      const safeSendUpdates = SEND_UPDATES.has(sendUpdates) ? sendUpdates : "none";
       const created = await api(
-        `${EVENTS_URL}?sendUpdates=${su}`,
+        `${EVENTS_URL}?sendUpdates=${safeSendUpdates}`,
         { method: "POST", body: JSON.stringify(event) },
         tokenState,
       );
       results.push({ ok: true, id: created.id });
-    } catch (e) {
-      const error = String((e && e.message) || e);
+    } catch (caught) {
+      const error = String((caught && caught.message) || caught);
       results.push({ ok: false, error });
       if (/認証|client_id|401|403/.test(error)) {
-        for (let i = results.length; i < events.length; i++)
+        for (let index = results.length; index < events.length; index++)
           results.push({ ok: false, error });
         break;
       }
@@ -121,13 +121,13 @@ async function createEvents(events) {
 }
 
 // ---------- Gmail 送信 ----------
-const utf8b64 = (s) => {
+const utf8b64 = (text) => {
   let bin = "";
-  new TextEncoder().encode(s).forEach((b) => (bin += String.fromCharCode(b)));
+  new TextEncoder().encode(text).forEach((byte) => (bin += String.fromCharCode(byte)));
   return btoa(bin);
 };
-const toB64Url = (s) =>
-  utf8b64(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const toB64Url = (text) =>
+  utf8b64(text).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 async function sendMail({ to, subject, body }) {
   // ヘッダインジェクション対策（改行・空白を含む宛先はNG）
@@ -159,23 +159,23 @@ async function sendMail({ to, subject, body }) {
 async function listEvents(timeMin, timeMax) {
   const items = [];
   let pageToken = "";
-  for (let i = 0; i < 4; i++) {
-    const p = new URLSearchParams({
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const params = new URLSearchParams({
       singleEvents: "true",
       orderBy: "startTime",
       maxResults: "250",
       timeMin,
       timeMax,
     });
-    if (pageToken) p.set("pageToken", pageToken);
-    const data = await api(`${EVENTS_URL}?${p}`);
-    for (const e of data.items || []) {
-      if (e.status === "cancelled") continue;
+    if (pageToken) params.set("pageToken", pageToken);
+    const data = await api(`${EVENTS_URL}?${params}`);
+    for (const event of data.items || []) {
+      if (event.status === "cancelled") continue;
       items.push({
-        summary: e.summary || "(タイトルなし)",
-        start: e.start,
-        end: e.end,
-        transparency: e.transparency || "opaque",
+        summary: event.summary || "(タイトルなし)",
+        start: event.start,
+        end: event.end,
+        transparency: event.transparency || "opaque",
       });
     }
     pageToken = data.nextPageToken;
@@ -185,15 +185,15 @@ async function listEvents(timeMin, timeMax) {
 }
 
 // この拡張機能が登録して記録した予定か（全旅行のローカル記録を調べる）
-async function isOurEvent(id) {
-  if (typeof id !== "string" || !id) return false;
+async function isOurEvent(eventId) {
+  if (typeof eventId !== "string" || !eventId) return false;
   const all = await chrome.storage.local.get(null);
   return Object.entries(all).some(
-    ([k, v]) =>
-      k.startsWith("local:") &&
-      v &&
-      Array.isArray(v.events) &&
-      v.events.some((e) => e.id === id),
+    ([key, value]) =>
+      key.startsWith("local:") &&
+      value &&
+      Array.isArray(value.events) &&
+      value.events.some((event) => event.id === eventId),
   );
 }
 
@@ -215,21 +215,21 @@ async function callGeminiAPI(prompt) {
   // 503 のときは最大3回、指数バックオフでリトライ
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) {
-      await new Promise((r) => setTimeout(r, 2000 * attempt)); // 2s, 4s
+      await new Promise((resolve) => setTimeout(resolve, 2000 * attempt)); // 2s, 4s
     }
-    const res = await fetch(url, {
+    const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
     });
-    if (res.status === 503) {
+    if (response.status === 503) {
       if (attempt < 2) continue; // リトライ
     }
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(`Gemini API エラー (${res.status}): ${(err.error || {}).message || ""}`);
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      throw new Error(`Gemini API エラー (${response.status}): ${(errorBody.error || {}).message || ""}`);
     }
-    const data = await res.json();
+    const data = await response.json();
     return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
   }
   throw new Error("Gemini API エラー (503): サーバーが混雑しています。しばらく待ってから再度お試しください。");
@@ -237,12 +237,12 @@ async function callGeminiAPI(prompt) {
 
 async function geocodePlace(name) {
   const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(name)}&language=ja&region=jp&key=${MAPS_API_KEY}`;
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  const data = await res.json();
+  const response = await fetch(url);
+  if (!response.ok) return null;
+  const data = await response.json();
   if (data.status !== "OK" || !data.results?.[0]) return null;
-  const loc = data.results[0].geometry.location;
-  return { lat: loc.lat, lng: loc.lng };
+  const location = data.results[0].geometry.location;
+  return { lat: location.lat, lng: location.lng };
 }
 
 async function suggestSpotsWithGemini({ preferences, tripName }) {
@@ -250,11 +250,11 @@ async function suggestSpotsWithGemini({ preferences, tripName }) {
   const prefEntries = Object.entries(preferences || {});
   const prefSummary = prefEntries.length === 0
     ? "特に指定なし"
-    : prefEntries.map(([, p]) => {
+    : prefEntries.map(([, prefs]) => {
         const parts = [];
-        if (p.budget) parts.push(`予算: ${budgetLabels[p.budget] || p.budget + "円"}`);
-        if (p.transport?.length) parts.push(`交通手段: ${p.transport.join("・")}`);
-        if (p.categories?.length) parts.push(`希望カテゴリ: ${p.categories.join("・")}`);
+        if (prefs.budget) parts.push(`予算: ${budgetLabels[prefs.budget] || prefs.budget + "円"}`);
+        if (prefs.transport?.length) parts.push(`交通手段: ${prefs.transport.join("・")}`);
+        if (prefs.categories?.length) parts.push(`希望カテゴリ: ${prefs.categories.join("・")}`);
         return parts.length ? parts.join(", ") : "特に指定なし";
       }).join("\n");
 
@@ -288,8 +288,8 @@ ${prefSummary}
     console.log("[MICHIRU] match:", match ? match[0].slice(0, 200) : null);
     spots = match ? JSON.parse(match[0]) : [];
     console.log("[MICHIRU] parsed spots:", spots);
-  } catch (e) {
-    console.error("[MICHIRU] parse error:", e);
+  } catch (error) {
+    console.error("[MICHIRU] parse error:", error);
     throw new Error("Gemini の回答をパースできませんでした。もう一度お試しください。");
   }
 
@@ -299,8 +299,8 @@ ${prefSummary}
     let lat = null, lng = null;
     if (MAPS_API_KEY) {
       try {
-        const geo = await geocodePlace(`${spot.name} ${spot.area || ""}`);
-        if (geo) { lat = geo.lat; lng = geo.lng; }
+        const geocoded = await geocodePlace(`${spot.name} ${spot.area || ""}`);
+        if (geocoded) { lat = geocoded.lat; lng = geocoded.lng; }
       } catch (_) {}
     }
     results.push({ name: spot.name, category: spot.category || "その他", area: spot.area || "", reason: spot.reason || "", lat, lng });
@@ -310,51 +310,51 @@ ${prefSummary}
 
 // ---------- メッセージ ----------
 // app:* / auth:* / cal:* をここで処理する。fb:* は offscreen.js が処理するので何も返さない。
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (sender.id !== chrome.runtime.id || !msg || typeof msg.type !== "string")
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (sender.id !== chrome.runtime.id || !message || typeof message.type !== "string")
     return false;
-  const t = msg.type;
-  if (!/^(app|auth|cal|gemini|mail):/.test(t) && !LEGACY_TYPES.has(t)) return false;
+  const type = message.type;
+  if (!/^(app|auth|cal|gemini|mail):/.test(type) && !LEGACY_TYPES.has(type)) return false;
   (async () => {
     try {
-      if (t === "app:ensure") {
+      if (type === "app:ensure") {
         await ensureOffscreen();
         sendResponse({ ok: true });
-      } else if (t === "app:publish") {
+      } else if (type === "app:publish") {
         // offscreen は chrome.storage を使えないため、ここで保存する
-        if (typeof msg.key !== "string" || !msg.key.startsWith("fb:"))
+        if (typeof message.key !== "string" || !message.key.startsWith("fb:"))
           throw new Error("不正なキーです");
-        await chrome.storage.local.set({ [msg.key]: msg.value });
+        await chrome.storage.local.set({ [message.key]: message.value });
         sendResponse({ ok: true });
-      } else if (t === "app:get") {
-        const keys = (msg.keys || []).filter((k) => k === "app:currentTripId");
+      } else if (type === "app:get") {
+        const keys = (message.keys || []).filter((key) => key === "app:currentTripId");
         sendResponse({
           ok: true,
           values: await chrome.storage.local.get(keys),
         });
-      } else if (t === "auth:token") {
-        if (msg.refresh) await clearAuthTokenCache();
-        sendResponse({ ok: true, token: await getToken(!!msg.interactive) });
-      } else if (t === "auth:clear") {
-        if (msg.token) await removeToken(msg.token);
+      } else if (type === "auth:token") {
+        if (message.refresh) await clearAuthTokenCache();
+        sendResponse({ ok: true, token: await getToken(!!message.interactive) });
+      } else if (type === "auth:clear") {
+        if (message.token) await removeToken(message.token);
         sendResponse({ ok: true });
-      } else if (t === "cal:list" || t === "listEvents") {
+      } else if (type === "cal:list" || type === "listEvents") {
         sendResponse({
           ok: true,
-          items: await listEvents(msg.timeMin, msg.timeMax),
+          items: await listEvents(message.timeMin, message.timeMax),
         });
-      } else if (t === "cal:create" || t === "createEvent") {
-        const su = SEND_UPDATES.has(msg.sendUpdates) ? msg.sendUpdates : "none";
-        const e = await api(`${EVENTS_URL}?sendUpdates=${su}`, {
+      } else if (type === "cal:create" || type === "createEvent") {
+        const sendUpdatesMode = SEND_UPDATES.has(message.sendUpdates) ? message.sendUpdates : "none";
+        const createdEvent = await api(`${EVENTS_URL}?sendUpdates=${sendUpdatesMode}`, {
           method: "POST",
-          body: JSON.stringify(msg.event),
+          body: JSON.stringify(message.event),
         });
-        sendResponse({ ok: true, id: e.id, link: e.htmlLink });
-      } else if (t === "cal:createBatch") {
-        sendResponse({ ok: true, results: await createEvents(msg.events) });
-      } else if (t === "cal:delete" || t === "deleteEvent") {
+        sendResponse({ ok: true, id: createdEvent.id, link: createdEvent.htmlLink });
+      } else if (type === "cal:createBatch") {
+        sendResponse({ ok: true, results: await createEvents(message.events) });
+      } else if (type === "cal:delete" || type === "deleteEvent") {
         // この拡張機能が登録して記録した予定のみ削除可能（記録のない eventId は拒否）
-        const eventId = msg.eventId;
+        const eventId = message.eventId;
         if (!(await isOurEvent(eventId))) {
           sendResponse({
             ok: false,
@@ -362,33 +362,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           });
           return;
         }
-        const su = msg.notify ? "all" : "none"; // ゲストがいる予定は、キャンセル通知メールを送る
+        const sendUpdatesMode = message.notify ? "all" : "none"; // ゲストがいる予定は、キャンセル通知メールを送る
         await api(
-          `${EVENTS_URL}/${encodeURIComponent(eventId)}?sendUpdates=${su}`,
+          `${EVENTS_URL}/${encodeURIComponent(eventId)}?sendUpdates=${sendUpdatesMode}`,
           { method: "DELETE" },
         );
         sendResponse({ ok: true });
-      } else if (t === "app:navigateTab") {
+      } else if (type === "app:navigateTab") {
         // 拡張機能以外のアクティブタブを探してナビゲート。なければ新規タブを作成
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        const target = tabs.find((tb) => !tb.url?.startsWith("chrome-extension://"));
+        const target = tabs.find((tab) => !tab.url?.startsWith("chrome-extension://"));
         if (target) {
-          await chrome.tabs.update(target.id, { url: msg.url });
+          await chrome.tabs.update(target.id, { url: message.url });
         } else {
-          await chrome.tabs.create({ url: msg.url, active: true });
+          await chrome.tabs.create({ url: message.url, active: true });
         }
         sendResponse({ ok: true });
-      } else if (t === "gemini:suggest") {
-        const spots = await suggestSpotsWithGemini(msg);
+      } else if (type === "gemini:suggest") {
+        const spots = await suggestSpotsWithGemini(message);
         sendResponse({ ok: true, spots });
-      } else if (t === "mail:send") {
-        await sendMail(msg);
+      } else if (type === "mail:send") {
+        await sendMail(message);
         sendResponse({ ok: true });
       } else {
         sendResponse({ ok: false, error: "不明なリクエストです" });
       }
-    } catch (err) {
-      sendResponse({ ok: false, error: err.message, status: err.status });
+    } catch (error) {
+      sendResponse({ ok: false, error: error.message, status: error.status });
     }
   })();
   return true;

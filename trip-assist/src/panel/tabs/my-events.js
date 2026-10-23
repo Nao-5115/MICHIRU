@@ -1,7 +1,7 @@
 // 登録済みカレンダー予定の一覧と削除
 
-export function installMyEvents(c) {
-  const { viewTrip, viewSchedule, viewVote, viewRoute, viewRegister, viewSpots, S, body, tripData, subEl, isOwner, tabsEl, h, navBar, isDirPage, btn, goBack, clearNav } = c;
+export function installMyEvents(ctx) {
+  const { viewTrip, viewSchedule, viewVote, viewRoute, viewRegister, viewSpots, state, body, tripData, subEl, isOwner, tabsEl, createEl, navBar, isDirPage, makeButton, goBack, clearNav } = ctx;
 
   // ======================= 描画・起動 =======================
   const TABS = [
@@ -13,21 +13,21 @@ export function installMyEvents(c) {
     ["spots", "スポット", viewSpots],
   ];
   function render() {
-    if (!S.open) return;
-    S.dirty = false;
+    if (!state.open) return;
+    state.dirty = false;
     const keep = body.scrollTop;
-    const d = tripData();
+    const trip = tripData();
     subEl.textContent =
-      d && d.meta ? `／ ${d.meta.name}${isOwner() ? "（幹事）" : ""}` : "";
+      trip && trip.meta ? `／ ${trip.meta.name}${isOwner() ? "（幹事）" : ""}` : "";
     tabsEl.replaceChildren(
-      ...TABS.map(([k, label]) =>
-        h(
+      ...TABS.map(([key, label]) =>
+        createEl(
           "button",
           {
-            class: "tab" + (S.tab === k ? " active" : ""),
+            class: "tab" + (state.tab === key ? " active" : ""),
             type: "button",
             onclick: () => {
-              S.tab = k;
+              state.tab = key;
               render();
             },
           },
@@ -35,14 +35,14 @@ export function installMyEvents(c) {
         ),
       ),
     );
-    const view = TABS.find(([k]) => k === S.tab)[2];
+    const view = TABS.find(([key]) => key === state.tab)[2];
     body.replaceChildren(...view().filter(Boolean));
-    navBar.hidden = !(S.nav && isDirPage());
+    navBar.hidden = !(state.nav && isDirPage());
     if (!navBar.hidden) {
       navBar.replaceChildren(
-        h("span", {}, "ルート案内を表示中"),
-        btn("← 元の画面に戻る", goBack, "small primary"),
-        btn(
+        createEl("span", {}, "ルート案内を表示中"),
+        makeButton("← 元の画面に戻る", goBack, "small primary"),
+        makeButton(
           "閉じる",
           async () => {
             await clearNav();
@@ -52,11 +52,11 @@ export function installMyEvents(c) {
         ),
       );
     }
-    if (S.pendingScroll !== null) {
-      body.scrollTop = S.pendingScroll;
-      S.pendingScroll = null;
+    if (state.pendingScroll !== null) {
+      body.scrollTop = state.pendingScroll;
+      state.pendingScroll = null;
     } else body.scrollTop = keep;
   }
 
-  Object.assign(c, { TABS, render });
+  Object.assign(ctx, { TABS, render });
 }

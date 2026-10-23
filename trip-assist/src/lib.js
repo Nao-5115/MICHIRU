@@ -14,112 +14,112 @@ export const ESTIMATE_NOTE =
 export const LIMIT_WARNING = "経由地の表示上限に達しました";
 
 // ---------- メンバー / メールアドレス ----------
-export const normalizeEmail = (s) =>
-  String(s || "")
+export const normalizeEmail = (email) =>
+  String(email || "")
     .trim()
     .toLowerCase();
 // Realtime Database のキーに使えない文字（. # $ [ ] /）を含むアドレスは扱わない
-export const isValidEmail = (s) => {
-  const e = normalizeEmail(s);
+export const isValidEmail = (email) => {
+  const normalized = normalizeEmail(email);
   return (
-    e.length <= 254 &&
-    /^[^\s@#$\[\]\/]+@[^\s@#$\[\]\/]+\.[^\s@#$\[\]\/]+$/.test(e)
+    normalized.length <= 254 &&
+    /^[^\s@#$\[\]\/]+@[^\s@#$\[\]\/]+\.[^\s@#$\[\]\/]+$/.test(normalized)
   );
 };
 // '.' は ',' に置き換える（セキュリティルール側も同じ変換: toLowerCase().replace('.', ',')）
-export const emailKey = (s) => normalizeEmail(s).replace(/\./g, ",");
-export const memberLabel = (m) => m.displayName || m.email;
+export const emailKey = (email) => normalizeEmail(email).replace(/\./g, ",");
+export const memberLabel = (member) => member.displayName || member.email;
 export const shortName = (email, displayName) =>
   displayName || String(email || "").split("@")[0];
 
 // ---------- 日付 ----------
-export function addDays(s, n) {
-  const d = new Date(s + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
+export function addDays(dateStr, days) {
+  const date = new Date(dateStr + "T00:00:00Z");
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
-export function fmtDate(s) {
-  const d = new Date(s + "T00:00:00");
-  return `${d.getMonth() + 1}/${d.getDate()}(${"日月火水木金土"[d.getDay()]})`;
+export function fmtDate(dateStr) {
+  const date = new Date(dateStr + "T00:00:00");
+  return `${date.getMonth() + 1}/${date.getDate()}(${"日月火水木金土"[date.getDay()]})`;
 }
-export const fmtRange = (c) =>
-  c.s === c.e ? fmtDate(c.s) : `${fmtDate(c.s)}〜${fmtDate(c.e)}`;
-export const isDate = (s) => DATE_RE.test(s);
+export const fmtRange = (candidate) =>
+  candidate.s === candidate.e ? fmtDate(candidate.s) : `${fmtDate(candidate.s)}〜${fmtDate(candidate.e)}`;
+export const isDate = (value) => DATE_RE.test(value);
 
 // 候補日と既存予定の重なり判定
 export function conflicts(cand, events) {
-  const cs = new Date(cand.s + "T00:00:00");
-  const ce = new Date(addDays(cand.e, 1) + "T00:00:00");
-  return events.filter((ev) => {
-    if (ev.transparency === "transparent") return false;
-    const s = new Date(ev.start.dateTime || ev.start.date + "T00:00:00");
-    const e = new Date(ev.end.dateTime || ev.end.date + "T00:00:00");
-    return s < ce && e > cs;
+  const startDate = new Date(cand.s + "T00:00:00");
+  const endDate = new Date(addDays(cand.e, 1) + "T00:00:00");
+  return events.filter((event) => {
+    if (event.transparency === "transparent") return false;
+    const start = new Date(event.start.dateTime || event.start.date + "T00:00:00");
+    const end = new Date(event.end.dateTime || event.end.date + "T00:00:00");
+    return start < endDate && end > startDate;
   });
 }
 
 // 登録済み予定（{start, end, allDay}）の表示用文字列。終日予定の end は排他的終了日
-export function fmtEventWhen(r) {
-  if (r.allDay) {
-    const e = addDays(r.end, -1);
-    return r.start === e
-      ? fmtDate(r.start)
-      : `${fmtDate(r.start)}〜${fmtDate(e)}`;
+export function fmtEventWhen(event) {
+  if (event.allDay) {
+    const endDay = addDays(event.end, -1);
+    return event.start === endDay
+      ? fmtDate(event.start)
+      : `${fmtDate(event.start)}〜${fmtDate(endDay)}`;
   }
-  const sd = r.start.slice(0, 10),
-    ed = r.end.slice(0, 10);
-  return `${fmtDate(sd)} ${r.start.slice(11, 16)}〜${ed === sd ? "" : fmtDate(ed) + " "}${r.end.slice(11, 16)}`;
+  const startDate = event.start.slice(0, 10),
+    endDate = event.end.slice(0, 10);
+  return `${fmtDate(startDate)} ${event.start.slice(11, 16)}〜${endDate === startDate ? "" : fmtDate(endDate) + " "}${event.end.slice(11, 16)}`;
 }
 
 // ---------- Firebase のスナップショット → 配列 ----------
 export const entriesOf = (obj) =>
-  Object.entries(obj || {}).map(([id, v]) => ({ id, ...v }));
+  Object.entries(obj || {}).map(([id, value]) => ({ id, ...value }));
 export const membersOf = (data) =>
   Object.entries((data && data.members) || {})
-    .map(([key, m]) => ({ key, ...m }))
+    .map(([key, member]) => ({ key, ...member }))
     .sort(
-      (a, b) =>
-        (a.role === "owner" ? -1 : 0) - (b.role === "owner" ? -1 : 0) ||
-        (a.invitedAt || 0) - (b.invitedAt || 0),
+      (first, second) =>
+        (first.role === "owner" ? -1 : 0) - (second.role === "owner" ? -1 : 0) ||
+        (first.invitedAt || 0) - (second.invitedAt || 0),
     );
 export const datesOf = (data) =>
-  entriesOf(data && data.dates).sort((a, b) => a.s.localeCompare(b.s));
+  entriesOf(data && data.dates).sort((first, second) => first.s.localeCompare(second.s));
 export const placesOf = (data) => entriesOf(data && data.places);
 
 // ---------- 集計 ----------
 // 出欠: 1=○, 2=△, 0=×。参加可能人数（○）が多い順、同数なら△が多い順、さらに日付順
 export function rankDates(dates, members, answers) {
   return dates
-    .map((d) => {
-      const r = { date: d, yes: [], maybe: [], no: [], none: [] };
-      for (const m of members) {
-        const a = answers && answers[m.key] ? answers[m.key][d.id] : undefined;
-        (a === 1 ? r.yes : a === 2 ? r.maybe : a === 0 ? r.no : r.none).push(
-          memberLabel(m),
+    .map((date) => {
+      const row = { date: date, yes: [], maybe: [], no: [], none: [] };
+      for (const member of members) {
+        const answer = answers && answers[member.key] ? answers[member.key][date.id] : undefined;
+        (answer === 1 ? row.yes : answer === 2 ? row.maybe : answer === 0 ? row.no : row.none).push(
+          memberLabel(member),
         );
       }
-      return r;
+      return row;
     })
     .sort(
-      (a, b) =>
-        b.yes.length - a.yes.length ||
-        b.maybe.length - a.maybe.length ||
-        a.date.s.localeCompare(b.date.s),
+      (first, second) =>
+        second.yes.length - first.yes.length ||
+        second.maybe.length - first.maybe.length ||
+        first.date.s.localeCompare(second.date.s),
     );
 }
 // 候補地点: 得票数の多い順（同数なら追加が早い順）。誰が投票したかも返す
 export function rankPlaces(places, members, votes) {
   return places
-    .map((p) => ({
-      place: p,
+    .map((place) => ({
+      place: place,
       voters: members
-        .filter((m) => votes && votes[m.key] && votes[m.key][p.id] === true)
+        .filter((member) => votes && votes[member.key] && votes[member.key][place.id] === true)
         .map(memberLabel),
     }))
     .sort(
-      (a, b) =>
-        b.voters.length - a.voters.length ||
-        (a.place.addedAt || 0) - (b.place.addedAt || 0),
+      (first, second) =>
+        second.voters.length - first.voters.length ||
+        (first.place.addedAt || 0) - (second.place.addedAt || 0),
     );
 }
 
@@ -130,24 +130,24 @@ export function extractLatLng(href) {
   try {
     url = decodeURIComponent(href);
   } catch (_) {}
-  let m,
+  let match,
     last = null;
-  const re = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/g; // 場所そのものの座標（優先）
-  while ((m = re.exec(url))) last = m;
+  const coordinatePattern = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/g; // 場所そのものの座標（優先）
+  while ((match = coordinatePattern.exec(url))) last = match;
   if (last && okLL(+last[1], +last[2])) return { lat: +last[1], lng: +last[2] };
-  m = url.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/); // 地図の中心座標
-  if (m && okLL(+m[1], +m[2])) return { lat: +m[1], lng: +m[2] };
-  m = url.match(
+  match = url.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/); // 地図の中心座標
+  if (match && okLL(+match[1], +match[2])) return { lat: +match[1], lng: +match[2] };
+  match = url.match(
     /[?&](?:q|ll|query|destination)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/,
   );
-  if (m && okLL(+m[1], +m[2])) return { lat: +m[1], lng: +m[2] };
+  if (match && okLL(+match[1], +match[2])) return { lat: +match[1], lng: +match[2] };
   return null;
 }
 // /maps/place/<場所名>/@lat,lng,zoom... の <場所名> を取り出す。無ければ null
 export function extractPlaceName(href) {
-  const m = href.match(/\/maps\/place\/([^/@?#]+)/);
-  if (!m) return null;
-  let name = m[1].replace(/\+/g, " "); // + は空白に戻してからデコード（%2B はそのまま + になる）
+  const match = href.match(/\/maps\/place\/([^/@?#]+)/);
+  if (!match) return null;
+  let name = match[1].replace(/\+/g, " "); // + は空白に戻してからデコード（%2B はそのまま + になる）
   try {
     name = decodeURIComponent(name);
   } catch (_) {}
@@ -155,49 +155,49 @@ export function extractPlaceName(href) {
   if (!name || /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(name)) return null; // 座標だけの名前は場所名とみなさない
   return name;
 }
-export const samePoint = (a, b) =>
-  Math.abs(a.lat - b.lat) < 1e-5 && Math.abs(a.lng - b.lng) < 1e-5;
+export const samePoint = (first, second) =>
+  Math.abs(first.lat - second.lat) < 1e-5 && Math.abs(first.lng - second.lng) < 1e-5;
 
 // ---------- 距離・訪問順 ----------
-export function haversine(a, b) {
-  const R = 6371,
-    rad = Math.PI / 180;
-  const dLat = (b.lat - a.lat) * rad,
-    dLng = (b.lng - a.lng) * rad;
-  const x =
+export function haversine(from, to) {
+  const EARTH_RADIUS_KM = 6371,
+    degToRad = Math.PI / 180;
+  const dLat = (to.lat - from.lat) * degToRad,
+    dLng = (to.lng - from.lng) * degToRad;
+  const haversineTerm =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(x));
+    Math.cos(from.lat * degToRad) * Math.cos(to.lat * degToRad) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(haversineTerm));
 }
 export const BRUTE_FORCE_MAX = 9; // これ以下は総当たり（最大 8! 通り）。超えたら最近傍法 + 2-opt
-function pathLen(order, D) {
-  let s = 0;
-  for (let i = 1; i < order.length; i++) s += D[order[i - 1]][order[i]];
-  return s;
+function pathLen(order, distances) {
+  let total = 0;
+  for (let index = 1; index < order.length; index++) total += distances[order[index - 1]][order[index]];
+  return total;
 }
 // 出発地点 start を固定した開路の最短順（インデックス配列）を返す
 export function optimize(pts, start = 0) {
-  const n = pts.length;
-  const D = pts.map((a) => pts.map((b) => haversine(a, b)));
-  const rest = [...Array(n).keys()].filter((i) => i !== start);
-  if (n <= 2) return [start, ...rest];
-  if (n <= BRUTE_FORCE_MAX) {
+  const count = pts.length;
+  const distances = pts.map((fromPoint) => pts.map((toPoint) => haversine(fromPoint, toPoint)));
+  const rest = [...Array(count).keys()].filter((index) => index !== start);
+  if (count <= 2) return [start, ...rest];
+  if (count <= BRUTE_FORCE_MAX) {
     let best = null,
       bestLen = Infinity;
-    const dfs = (path, used, len) => {
-      if (len >= bestLen) return;
-      if (path.length === n) {
+    const dfs = (path, used, distance) => {
+      if (distance >= bestLen) return;
+      if (path.length === count) {
         best = path.slice();
-        bestLen = len;
+        bestLen = distance;
         return;
       }
-      for (const i of rest) {
-        if (used.has(i)) continue;
-        used.add(i);
-        path.push(i);
-        dfs(path, used, len + D[path[path.length - 2]][i]);
+      for (const index of rest) {
+        if (used.has(index)) continue;
+        used.add(index);
+        path.push(index);
+        dfs(path, used, distance + distances[path[path.length - 2]][index]);
         path.pop();
-        used.delete(i);
+        used.delete(index);
       }
     };
     dfs([start], new Set([start]), 0);
@@ -207,25 +207,25 @@ export function optimize(pts, start = 0) {
   const left = new Set(rest);
   while (left.size) {
     const cur = order[order.length - 1];
-    let bi = -1,
-      bd = Infinity;
-    for (const i of left)
-      if (D[cur][i] < bd) {
-        bd = D[cur][i];
-        bi = i;
+    let bestIndex = -1,
+      bestDistance = Infinity;
+    for (const index of left)
+      if (distances[cur][index] < bestDistance) {
+        bestDistance = distances[cur][index];
+        bestIndex = index;
       }
-    order.push(bi);
-    left.delete(bi);
+    order.push(bestIndex);
+    left.delete(bestIndex);
   }
   let improved = true;
   while (improved) {
     improved = false;
-    for (let i = 1; i < n - 1; i++) {
-      for (let j = i + 1; j < n; j++) {
+    for (let startIndex = 1; startIndex < count - 1; startIndex++) {
+      for (let endIndex = startIndex + 1; endIndex < count; endIndex++) {
         const cand = order
-          .slice(0, i)
-          .concat(order.slice(i, j + 1).reverse(), order.slice(j + 1));
-        if (pathLen(cand, D) < pathLen(order, D) - 1e-9) {
+          .slice(0, startIndex)
+          .concat(order.slice(startIndex, endIndex + 1).reverse(), order.slice(endIndex + 1));
+        if (pathLen(cand, distances) < pathLen(order, distances) - 1e-9) {
           order = cand;
           improved = true;
         }
@@ -237,14 +237,14 @@ export function optimize(pts, start = 0) {
 
 // ---------- しおり ----------
 export function parseTime(hhmm) {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || "");
-  return m ? Math.min(+m[1], 23) * 60 + Math.min(+m[2], 59) : 9 * 60;
+  const match = /^(\d{1,2}):(\d{2})$/.exec(hhmm || "");
+  return match ? Math.min(+match[1], 23) * 60 + Math.min(+match[2], 59) : 9 * 60;
 }
-export function fmtTime(min) {
-  const day = Math.floor(min / 1440),
-    m = min % 1440;
-  const t = `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-  return day > 0 ? `${t}(+${day}日)` : t;
+export function fmtTime(minutes) {
+  const day = Math.floor(minutes / 1440),
+    minuteOfDay = minutes % 1440;
+  const text = `${String(Math.floor(minuteOfDay / 60)).padStart(2, "0")}:${String(minuteOfDay % 60).padStart(2, "0")}`;
+  return day > 0 ? `${text}(+${day}日)` : text;
 }
 // places: 訪問順の地点配列 / speeds, detours: {car, train} / modeOf(前の地点, 次の地点) → 'car' | 'train'
 export function buildItinerary(
@@ -254,32 +254,32 @@ export function buildItinerary(
   const rows = [];
   let totalKm = 0,
     totalRoadKm = 0;
-  places.forEach((p, i) => {
+  places.forEach((place, index) => {
     let arrive = startMin,
-      km = 0,
+      distanceKm = 0,
       roadKm = 0,
       travel = 0,
       mode = null,
       detour = 1;
-    if (i > 0) {
-      mode = modeOf ? modeOf(places[i - 1], p) : "car";
+    if (index > 0) {
+      mode = modeOf ? modeOf(places[index - 1], place) : "car";
       if (!MODE_LABEL[mode]) mode = "car";
-      const v = speeds && speeds[mode] > 0 ? speeds[mode] : DEFAULT_SPEED[mode];
+      const speed = speeds && speeds[mode] > 0 ? speeds[mode] : DEFAULT_SPEED[mode];
       detour = detours && detours[mode] >= 1 ? detours[mode] : DEFAULT_DETOUR;
-      km = haversine(places[i - 1], p);
-      roadKm = km * detour;
-      travel = Math.max(1, Math.round((roadKm / v) * 60));
-      arrive = rows[i - 1].depart + travel;
-      totalKm += km;
+      distanceKm = haversine(places[index - 1], place);
+      roadKm = distanceKm * detour;
+      travel = Math.max(1, Math.round((roadKm / speed) * 60));
+      arrive = rows[index - 1].depart + travel;
+      totalKm += distanceKm;
       totalRoadKm += roadKm;
     }
-    const stay = Number.isFinite(stays[p.id]) ? stays[p.id] : defaultStay;
+    const stay = Number.isFinite(stays[place.id]) ? stays[place.id] : defaultStay;
     rows.push({
-      place: p,
+      place: place,
       arrive,
       stay,
       depart: arrive + stay,
-      km,
+      km: distanceKm,
       roadKm,
       travel,
       mode,
@@ -290,17 +290,17 @@ export function buildItinerary(
 }
 
 // ---------- Google Maps URLs（API キー不要） ----------
-const ll = (p) => `${p.lat},${p.lng}`;
+const formatLatLng = (point) => `${point.lat},${point.lng}`;
 const travelmode = (mode) => (mode === "train" ? "transit" : "driving");
 
 // 区間（2 地点）。waypoints は使わない
 export function mapsDirUrl(from, to, mode) {
-  const p = new URLSearchParams(); // カンマは %2C にエンコードされる
-  p.set("api", "1");
-  p.set("origin", ll(from));
-  p.set("destination", ll(to));
-  p.set("travelmode", travelmode(mode));
-  return "https://www.google.com/maps/dir/?" + p.toString();
+  const params = new URLSearchParams(); // カンマは %2C にエンコードされる
+  params.set("api", "1");
+  params.set("origin", formatLatLng(from));
+  params.set("destination", formatLatLng(to));
+  params.set("travelmode", travelmode(mode));
+  return "https://www.google.com/maps/dir/?" + params.toString();
 }
 
 export const isMobile = () =>
@@ -315,21 +315,21 @@ export const isMobile = () =>
 export function mapsDirAllUrl(places, mode, mobile = false) {
   if (!places || places.length < 2) return null;
   const maxWaypoints = mobile ? 3 : 9;
-  const build = (n) => {
-    const p = new URLSearchParams(); // `|` は %7C、`,` は %2C にエンコードされる
-    p.set("api", "1");
-    p.set("origin", ll(places[0]));
-    p.set("destination", ll(places[n - 1]));
-    if (n > 2)
-      p.set(
+  const build = (count) => {
+    const params = new URLSearchParams(); // `|` は %7C、`,` は %2C にエンコードされる
+    params.set("api", "1");
+    params.set("origin", formatLatLng(places[0]));
+    params.set("destination", formatLatLng(places[count - 1]));
+    if (count > 2)
+      params.set(
         "waypoints",
         places
-          .slice(1, n - 1)
-          .map(ll)
+          .slice(1, count - 1)
+          .map(formatLatLng)
           .join("|"),
       );
-    p.set("travelmode", travelmode(mode));
-    return "https://www.google.com/maps/dir/?" + p.toString();
+    params.set("travelmode", travelmode(mode));
+    return "https://www.google.com/maps/dir/?" + params.toString();
   };
   let used = Math.min(places.length, maxWaypoints + 2);
   let url = build(used);
@@ -344,8 +344,8 @@ export function mapsDirAllUrl(places, mode, mobile = false) {
 }
 
 // ---------- カレンダー予定の description（HTML） ----------
-export const escapeHtml = (s) =>
-  String(s)
+export const escapeHtml = (text) =>
+  String(text)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -359,20 +359,20 @@ export function itineraryHtml(
   const out = [`<b>${escapeHtml(title)}</b>`];
   if (dateText) out.push(escapeHtml(dateText));
   out.push("");
-  rows.forEach((r, i) => {
-    if (i > 0) {
-      const prev = rows[i - 1];
-      let line = `　↓ ${MODE_LABEL[r.mode]}で約${r.travel}分（${fmtTime(prev.depart)}出発 → ${fmtTime(r.arrive)}到着）`;
+  rows.forEach((row, index) => {
+    if (index > 0) {
+      const prev = rows[index - 1];
+      let line = `　↓ ${MODE_LABEL[row.mode]}で約${row.travel}分（${fmtTime(prev.depart)}出発 → ${fmtTime(row.arrive)}到着）`;
       if (withLegLinks)
-        line += ` <a href="${escapeHtml(mapsDirUrl(prev.place, r.place, r.mode))}">この区間のルート案内</a>`;
+        line += ` <a href="${escapeHtml(mapsDirUrl(prev.place, row.place, row.mode))}">この区間のルート案内</a>`;
       out.push(line);
     }
     out.push(
-      `<b>${i + 1}. ${escapeHtml(r.place.name)}</b> ${fmtTime(r.arrive)}到着 → ${fmtTime(r.depart)}出発（滞在${r.stay}分）`,
+      `<b>${index + 1}. ${escapeHtml(row.place.name)}</b> ${fmtTime(row.arrive)}到着 → ${fmtTime(row.depart)}出発（滞在${row.stay}分）`,
     );
   });
   const whole = mapsDirAllUrl(
-    rows.map((r) => r.place),
+    rows.map((row) => row.place),
     wholeMode,
     true,
   ); // スマホで開く前提で、モバイルの上限(3件)に合わせる

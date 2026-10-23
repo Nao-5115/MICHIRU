@@ -1,14 +1,14 @@
 // 「スポット」タブ（全体共有スポットのカタログ）
 
-export function installSpotsTab(c) {
+export function installSpotsTab(ctx) {
 
   // ---------- Google マップ上の共有スポットマーカー ----------
   const spotLayer = (() => {
-    let el = document.getElementById("tripassist-spot-layer");
-    if (!el) {
-      el = document.createElement("div");
-      el.id = "tripassist-spot-layer";
-      document.documentElement.append(el);
+    let element = document.getElementById("tripassist-spot-layer");
+    if (!element) {
+      element = document.createElement("div");
+      element.id = "tripassist-spot-layer";
+      document.documentElement.append(element);
     }
     if (!document.getElementById("tripassist-spot-style")) {
       const style = document.createElement("style");
@@ -51,8 +51,8 @@ export function installSpotsTab(c) {
       `;
       document.head.append(style);
     }
-    return el;
+    return element;
   })();
 
-  Object.assign(c, { spotLayer });
+  Object.assign(ctx, { spotLayer });
 }

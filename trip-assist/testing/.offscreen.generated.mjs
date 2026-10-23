@@ -123,7 +123,10 @@ function startSpotsWatch() {
     (snap) => {
       const list = Object.entries(snap.val() || {})
         .map(([id, value]) => ({ id, ...value }))
-        .sort((first, second) => (+second.registeredAt || 0) - (+first.registeredAt || 0));
+        .sort(
+          (first, second) =>
+            (+second.registeredAt || 0) - (+first.registeredAt || 0),
+        );
       publish("fb:spots", { list, ts: Date.now() });
     },
     (error) =>
@@ -185,7 +188,9 @@ const handlers = {
       refresh: true,
     });
     if (!response || !response.ok)
-      throw new Error((response && response.error) || "Google 認証に失敗しました");
+      throw new Error(
+        (response && response.error) || "Google 認証に失敗しました",
+      );
     try {
       await signInWithCredential(
         auth,
@@ -369,7 +374,10 @@ const handlers = {
   async setAnswer({ tripId, dateId, v: answer }) {
     // v: 1=○ 2=△ 0=× / null=未回答
     const currentUser = user();
-    const answerRef = ref(db, path("trips", tripId, "answers", currentUser.key, dateId));
+    const answerRef = ref(
+      db,
+      path("trips", tripId, "answers", currentUser.key, dateId),
+    );
     if (answer === null || answer === undefined) await remove(answerRef);
     else await set(answerRef, answer);
     return {};
@@ -398,7 +406,10 @@ const handlers = {
   },
   async setVote({ tripId, placeId, on: enabled }) {
     const currentUser = user();
-    const voteRef = ref(db, path("trips", tripId, "votes", currentUser.key, placeId));
+    const voteRef = ref(
+      db,
+      path("trips", tripId, "votes", currentUser.key, placeId),
+    );
     if (enabled) await set(voteRef, true);
     else await remove(voteRef);
     return {};
@@ -412,7 +423,10 @@ const handlers = {
   },
   async setPreferences({ tripId, prefs }) {
     const currentUser = user();
-    const prefsRef = ref(db, path("trips", tripId, "preferences", currentUser.key));
+    const prefsRef = ref(
+      db,
+      path("trips", tripId, "preferences", currentUser.key),
+    );
     await set(prefsRef, {
       budget: prefs.budget !== undefined ? prefs.budget : null,
       transport: Array.isArray(prefs.transport) ? prefs.transport : [],
@@ -469,7 +483,9 @@ async function init() {
       type: "app:get",
       keys: ["app:currentTripId"],
     });
-    wantTripId = (response && response.values && response.values["app:currentTripId"]) || null;
+    wantTripId =
+      (response && response.values && response.values["app:currentTripId"]) ||
+      null;
   } catch (_) {}
 
   onAuthStateChanged(
@@ -494,7 +510,10 @@ async function init() {
         state: "signedIn",
         uid: user.uid,
         email: normalizeEmail(user.email),
-        name: shortName(normalizeEmail(user.email), user.displayName).slice(0, 60),
+        name: shortName(normalizeEmail(user.email), user.displayName).slice(
+          0,
+          60,
+        ),
       });
       startTripsWatch(user);
       startSpotsWatch();

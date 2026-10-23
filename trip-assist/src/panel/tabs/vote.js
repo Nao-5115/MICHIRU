@@ -415,6 +415,7 @@ export function installVoteTab(ctx) {
                     ? createEl("div", { class: "place-card__voters muted" }, "投票: " + voters.join("、"))
                     : createEl("div", { class: "place-card__voters muted" }, "投票: まだありません"),
                 ),
+                reviewBlock(wishPlace.name, wishPlace.lat, wishPlace.lng),
                 createEl(
                   "div",
                   { class: "place-card__actions" },
@@ -499,6 +500,48 @@ export function installVoteTab(ctx) {
         : createEl("p", { class: "muted" }, "採用する地点は幹事が選びます。"),
     );
 
+    // ---- 口コミ要約（ボタンを押したときだけ取得・要約） ----
+    function reviewBlock(name, lat, lng) {
+      const summaryEl = createEl("div", { class: "review-summary" });
+      const summaryButton = createEl("button", { class: "btn small", type: "button" }, "レビュー要約を見る");
+      summaryButton.onclick = async () => {
+        summaryButton.disabled = true;
+        summaryEl.className = "review-summary";
+        summaryEl.textContent = "口コミを要約しています…";
+        const result = await sendMessage({ type: "review:summarize", name, lat, lng });
+        summaryButton.disabled = false;
+        if (result.ok) {
+          summaryEl.textContent = "💬 " + result.summary;
+          summaryButton.textContent = "再要約";
+        } else {
+          summaryEl.className = "review-summary warn";
+          summaryEl.textContent = result.error || "要約に失敗しました";
+        }
+      };
+      return createEl("div", { class: "review-block" }, summaryButton, summaryEl);
+    }
+
+    // ---- 口コミ要約のAPIキー設定（Places API キーは任意。未入力なら .env の MAPS_KEY を使用） ----
+    const placesKeyInput = createEl("input", {
+      type: "password",
+      autocomplete: "off",
+      placeholder: "AIza…（変更するときだけ入力）",
+    });
+    const keyBox = createEl("details", { class: "review-keys" },
+      createEl("summary", {}, "口コミ要約のAPIキー設定"),
+      createEl("p", { class: "muted" }, "キーはこの端末の拡張機能内にだけ保存されます。未入力の場合は、ビルド時に設定された Maps キーを使います。"),
+      createEl("label", {}, "Google Places API キー（任意）", placesKeyInput),
+      makeButton("キーを保存", async () => {
+        const result = await sendMessage({ type: "settings:save", placesKey: placesKeyInput.value });
+        if (result.ok) {
+          placesKeyInput.value = "";
+          flash("APIキーを保存しました");
+        } else {
+          flash(result.error || "保存に失敗しました", "err");
+        }
+      }, "small"),
+    );
+
     // ---- AIスポット提案セクション ----
     const aiResultsEl = createEl("div", { class: "ai-results" });
 
@@ -543,6 +586,7 @@ export function installVoteTab(ctx) {
             ),
             spot.area ? createEl("div", { class: "ai-spot-meta" }, "📍 " + spot.area) : null,
             spot.reason ? createEl("div", { class: "ai-spot-reason" }, spot.reason) : null,
+            reviewBlock(spot.name, spot.lat, spot.lng),
             addBtn,
           )
         );
@@ -582,6 +626,7 @@ export function installVoteTab(ctx) {
       createEl("p", { class: "muted" }, "メンバーの希望をもとに、AIがおすすめスポットを5件提案します。"),
       suggestBtn,
       aiResultsEl,
+      keyBox,
     );
 
     return [secPrefs, secAI, secList];

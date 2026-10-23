@@ -418,7 +418,7 @@ async function summarizeReviews({ name, lat, lng }) {
   const { placesKey } = await getReviewSettings();
   if (!placesKey)
     throw new Error(
-      "Google Places API キーが未設定です。「口コミ要約のAPIキー設定」で入力するか、.env の MAPS_KEY を設定してビルドし直してください。",
+      "Google Places API キーが未設定です。.env の MAPS_KEY を設定してビルドし直してください。",
     );
   if (!GEMINI_API_KEY)
     throw new Error(

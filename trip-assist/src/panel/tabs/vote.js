@@ -521,27 +521,6 @@ export function installVoteTab(ctx) {
       return createEl("div", { class: "review-block" }, summaryButton, summaryEl);
     }
 
-    // ---- 口コミ要約のAPIキー設定（Places API キーは任意。未入力なら .env の MAPS_KEY を使用） ----
-    const placesKeyInput = createEl("input", {
-      type: "password",
-      autocomplete: "off",
-      placeholder: "AIza…（変更するときだけ入力）",
-    });
-    const keyBox = createEl("details", { class: "review-keys" },
-      createEl("summary", {}, "口コミ要約のAPIキー設定"),
-      createEl("p", { class: "muted" }, "キーはこの端末の拡張機能内にだけ保存されます。未入力の場合は、ビルド時に設定された Maps キーを使います。"),
-      createEl("label", {}, "Google Places API キー（任意）", placesKeyInput),
-      makeButton("キーを保存", async () => {
-        const result = await sendMessage({ type: "settings:save", placesKey: placesKeyInput.value });
-        if (result.ok) {
-          placesKeyInput.value = "";
-          flash("APIキーを保存しました");
-        } else {
-          flash(result.error || "保存に失敗しました", "err");
-        }
-      }, "small"),
-    );
-
     // ---- AIスポット提案セクション ----
     const aiResultsEl = createEl("div", { class: "ai-results" });
 
@@ -626,7 +605,6 @@ export function installVoteTab(ctx) {
       createEl("p", { class: "muted" }, "メンバーの希望をもとに、AIがおすすめスポットを5件提案します。"),
       suggestBtn,
       aiResultsEl,
-      keyBox,
     );
 
     return [secPrefs, secAI, secList];

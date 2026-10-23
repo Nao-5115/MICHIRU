@@ -805,6 +805,7 @@ tr.sel { background: var(--ok-bg); }
 
 /* ===== 登録済み希望の表示ビュー ===== */
 .pref-view {
+  color: var(--muted);
   background: var(--card);
   border: 1.5px solid var(--line);
   border-radius: 10px;
@@ -821,11 +822,12 @@ tr.sel { background: var(--ok-bg); }
   font-size: 13px;
 }
 .pref-view-label {
-  color: var(--muted-fg, #888);
+  color: var(--muted);
   min-width: 60px;
   font-size: 12px;
 }
 .pref-view-value {
+  color: var(--muted);
   display: flex;
   align-items: center;
   gap: 4px;

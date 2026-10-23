@@ -926,3 +926,12 @@ tr.sel { background: var(--ok-bg); }
   color: var(--text);
   font-style: italic;
 }
+
+/* ===== 口コミ要約 ===== */
+.review-block { margin: 6px 0 4px; }
+.review-summary { margin-top: 4px; font-size: 12px; line-height: 1.5; color: var(--fg); }
+.review-summary.warn { color: #c5221f; }
+.review-keys { margin: 8px 0; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.review-keys summary { cursor: pointer; font-size: 0.85em; color: var(--muted); }
+.review-keys label { display: block; font-size: 12px; margin: 6px 0; }
+.review-keys input { display: block; width: 100%; box-sizing: border-box; margin-top: 2px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }

@@ -310,11 +310,100 @@ ${prefSummary}
 
 // ---------- メッセージ ----------
 // app:* / auth:* / cal:* をここで処理する。fb:* は offscreen.js が処理するので何も返さない。
+// ---------- 口コミ要約（Google Places API → Gemini API） ----------
+const PLACES_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText";
+const REVIEW_CACHE_MS = 7 * 24 * 60 * 60 * 1000; // 要約は7日間キャッシュ（API 利用料の節約）
+
+async function getReviewSettings() {
+  const v = await chrome.storage.local.get(["settings:placesKey"]);
+  return { placesKey: v["settings:placesKey"] || MAPS_API_KEY || "" };
+}
+
+// Places API（New）の searchText で地点を探し、口コミを取得する
+async function fetchPlaceReviews(name, lat, lng, key) {
+  const body = { textQuery: name, languageCode: "ja", maxResultCount: 1 };
+  if (typeof lat === "number" && typeof lng === "number") {
+    body.locationBias = {
+      circle: { center: { latitude: lat, longitude: lng }, radius: 500 },
+    };
+  }
+  const res = await fetch(PLACES_SEARCH_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": key,
+      "X-Goog-FieldMask":
+        "places.displayName,places.rating,places.userRatingCount,places.reviews",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      `Places API エラー (${res.status}): ${(err.error || {}).message || ""}`,
+    );
+  }
+  const data = await res.json();
+  const place = data.places && data.places[0];
+  if (!place) return null;
+  const reviews = (place.reviews || [])
+    .map((r) => ({ rating: r.rating, text: (r.text && r.text.text) || "" }))
+    .filter((r) => r.text);
+  return {
+    placeName: (place.displayName && place.displayName.text) || name,
+    reviews,
+  };
+}
+
+// Gemini API で口コミを一言コメントに要約する（既存の callGeminiAPI を利用）
+async function summarizeReviewsWithGemini(placeName, reviews) {
+  const list = reviews
+    .map((r, i) => `${i + 1}. (★${r.rating ?? "?"}) ${r.text.slice(0, 300)}`)
+    .join("\n");
+  const prompt = `以下は「${placeName}」の Google マップの口コミです。
+
+${list}
+
+この場所の評判を、日本語で1文（60文字程度）の一言コメントにまとめてください。良い点と注意点があれば両方含めてください。一言コメントだけを返してください。`;
+  const text = (await callGeminiAPI(prompt)).trim();
+  if (!text) throw new Error("要約を取得できませんでした。もう一度お試しください。");
+  return text;
+}
+
+async function summarizeReviews({ name, lat, lng }) {
+  if (typeof name !== "string" || !name.trim())
+    throw new Error("地点名がありません");
+  const { placesKey } = await getReviewSettings();
+  if (!placesKey)
+    throw new Error(
+      "Google Places API キーが未設定です。「口コミ要約のAPIキー設定」で入力するか、.env の MAPS_KEY を設定してビルドし直してください。",
+    );
+  if (!GEMINI_API_KEY)
+    throw new Error(
+      "Gemini API キーが未設定です。.env の GEMINI_KEY を設定してビルドし直してください。",
+    );
+  const cacheKey = `review:summary:${name.trim()}:${lat ?? ""}:${lng ?? ""}`;
+  const cached = (await chrome.storage.local.get(cacheKey))[cacheKey];
+  if (cached && Date.now() - cached.at < REVIEW_CACHE_MS)
+    return { summary: cached.summary, count: cached.count, cached: true };
+  const place = await fetchPlaceReviews(name.trim(), lat, lng, placesKey);
+  if (!place || !place.reviews.length)
+    return { summary: "口コミがまだありません。", count: 0, cached: false };
+  const summary = await summarizeReviewsWithGemini(
+    place.placeName,
+    place.reviews,
+  );
+  await chrome.storage.local.set({
+    [cacheKey]: { summary, count: place.reviews.length, at: Date.now() },
+  });
+  return { summary, count: place.reviews.length, cached: false };
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id || !msg || typeof msg.type !== "string")
     return false;
   const t = msg.type;
-  if (!/^(app|auth|cal|gemini|mail):/.test(t) && !LEGACY_TYPES.has(t)) return false;
+  if (!/^(app|auth|cal|gemini|mail|review|settings):/.test(t) && !LEGACY_TYPES.has(t)) return false;
   (async () => {
     try {
       if (t === "app:ensure") {
@@ -381,6 +470,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       } else if (t === "gemini:suggest") {
         const spots = await suggestSpotsWithGemini(msg);
         sendResponse({ ok: true, spots });
+      } else if (t === "settings:save") {
+        const patch = {};
+        if (typeof msg.placesKey === "string" && msg.placesKey.trim())
+          patch["settings:placesKey"] = msg.placesKey.trim();
+        if (Object.keys(patch).length) await chrome.storage.local.set(patch);
+        sendResponse({ ok: true });
+      } else if (t === "review:summarize") {
+        sendResponse({ ok: true, ...(await summarizeReviews(msg)) });
       } else if (t === "mail:send") {
         await sendMail(msg);
         sendResponse({ ok: true });

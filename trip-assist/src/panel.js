@@ -1623,6 +1623,7 @@ function main() {
                     ? h("div", { class: "place-card__voters muted" }, "投票: " + voters.join("、"))
                     : h("div", { class: "place-card__voters muted" }, "投票: まだありません"),
                 ),
+                reviewBlock(p.name, p.lat, p.lng),
                 h(
                   "div",
                   { class: "place-card__actions" },
@@ -1707,6 +1708,48 @@ function main() {
         : h("p", { class: "muted" }, "採用する地点は幹事が選びます。"),
     );
 
+    // ---- 口コミ要約（ボタンを押したときだけ取得・要約） ----
+    function reviewBlock(name, lat, lng) {
+      const out = h("div", { class: "review-summary" });
+      const b = h("button", { class: "btn small", type: "button" }, "レビュー要約を見る");
+      b.onclick = async () => {
+        b.disabled = true;
+        out.className = "review-summary";
+        out.textContent = "口コミを要約しています…";
+        const r = await send({ type: "review:summarize", name, lat, lng });
+        b.disabled = false;
+        if (r.ok) {
+          out.textContent = "💬 " + r.summary;
+          b.textContent = "再要約";
+        } else {
+          out.className = "review-summary warn";
+          out.textContent = r.error || "要約に失敗しました";
+        }
+      };
+      return h("div", { class: "review-block" }, b, out);
+    }
+
+    // ---- 口コミ要約のAPIキー設定（Places API キーは任意。未入力なら .env の MAPS_KEY を使用） ----
+    const placesKeyInput = h("input", {
+      type: "password",
+      autocomplete: "off",
+      placeholder: "AIza…（変更するときだけ入力）",
+    });
+    const keyBox = h("details", { class: "review-keys" },
+      h("summary", {}, "口コミ要約のAPIキー設定"),
+      h("p", { class: "muted" }, "キーはこの端末の拡張機能内にだけ保存されます。未入力の場合は、ビルド時に設定された Maps キーを使います。"),
+      h("label", {}, "Google Places API キー（任意）", placesKeyInput),
+      btn("キーを保存", async () => {
+        const r = await send({ type: "settings:save", placesKey: placesKeyInput.value });
+        if (r.ok) {
+          placesKeyInput.value = "";
+          flash("APIキーを保存しました");
+        } else {
+          flash(r.error || "保存に失敗しました", "err");
+        }
+      }, "small"),
+    );
+
     // ---- AIスポット提案セクション ----
     const aiResultsEl = h("div", { class: "ai-results" });
 
@@ -1751,6 +1794,7 @@ function main() {
             ),
             spot.area ? h("div", { class: "ai-spot-meta" }, "📍 " + spot.area) : null,
             spot.reason ? h("div", { class: "ai-spot-reason" }, spot.reason) : null,
+            reviewBlock(spot.name, spot.lat, spot.lng),
             addBtn,
           )
         );
@@ -1790,6 +1834,7 @@ function main() {
       h("p", { class: "muted" }, "メンバーの希望をもとに、AIがおすすめスポットを5件提案します。"),
       suggestBtn,
       aiResultsEl,
+      keyBox,
     );
 
     return [secPrefs, secAI, secList];

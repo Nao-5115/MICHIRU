@@ -410,6 +410,9 @@ ${list}
 }
 
 async function summarizeReviews({ name, lat, lng }) {
+  // 開発用ビルド（npm run build:dev）だけ、表示確認用の固定テキストを返す（本番ビルドでは除かれる）
+  if (process.env.NODE_ENV === "development")
+    return { summary: "たくさん遊ぶところがあって時間を潰せる！", count: 0, cached: false };
   if (typeof name !== "string" || !name.trim())
     throw new Error("地点名がありません");
   const { placesKey } = await getReviewSettings();

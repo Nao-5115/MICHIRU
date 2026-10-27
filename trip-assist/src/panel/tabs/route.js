@@ -6,6 +6,9 @@ export function installRouteTab(ctx) {
   const { state, body, flash, getLocal, saveLocal, createEl, root, movePlace, makeButton, placesChanged, gate, currentItinerary, tripData, currentMember, sendMessage } = ctx;
   const render = (...args) => ctx.render(...args);
 
+  // 直前の自動最適化の前の訪問順（元に戻す用）。旅行が変わったら無効になる
+  let orderBeforeOptimize = null;
+
   // ルート案内リンク: 現在のタブ内で遷移（遷移前の URL と画面状態を保存してから）
   const isDirPage = () => location.pathname.startsWith("/maps/dir");
   async function openRoute(event, url) {
@@ -346,12 +349,36 @@ export function installRouteTab(ctx) {
         async () => {
           if (getLocal().places.length < 2)
             return flash("地点を 2 件以上登録してください", "err");
+          if (
+            !confirm(
+              "現在の訪問順を、自動の最適順に置き換えます。よろしいですか？\n（直前の順序は「最適化の前の順序に戻す」で戻せます）",
+            )
+          )
+            return;
+          // 元に戻せるよう、最適化の前の順序（地点ID）を保存する
+          orderBeforeOptimize = { tripId: state.tripId, ids: getLocal().places.map((place) => place.id) };
           getLocal().places = T.optimize(getLocal().places, 0).map((index) => getLocal().places[index]); // 先頭の地点を出発地点として固定
           await placesChanged();
           flash("先頭の地点を出発地点として、訪問順を最適化しました");
         },
         "primary",
       ),
+      orderBeforeOptimize && orderBeforeOptimize.tripId === state.tripId
+        ? makeButton(
+            "最適化の前の順序に戻す",
+            async () => {
+              const snapshot = orderBeforeOptimize;
+              orderBeforeOptimize = null;
+              const byId = new Map(getLocal().places.map((place) => [place.id, place]));
+              const restored = snapshot.ids.map((id) => byId.get(id)).filter(Boolean);
+              const added = getLocal().places.filter((place) => !snapshot.ids.includes(place.id));
+              getLocal().places = [...restored, ...added];
+              await placesChanged();
+              flash("最適化の前の訪問順に戻しました");
+            },
+            "small",
+          )
+        : null,
     );
     const itinerary = currentItinerary();
     const sec3 = itinerary

@@ -13,6 +13,13 @@ export function installCommon(ctx) {
       {},
       createEl("h3", {}, "サインイン"),
       auth.state === "error" ? createEl("p", { class: "warn" }, auth.error) : null,
+      auth.state === "error"
+        ? createEl(
+            "p",
+            { class: "muted" },
+            "サインインできない場合は、このGoogleアカウントが管理者（幹事）によってテストユーザーに追加されているか確認してください。サインイン時には、Gmail の送信を含む権限の確認画面が表示されます。",
+          )
+        : null,
       auth.state === "unknown"
         ? createEl(
             "p",

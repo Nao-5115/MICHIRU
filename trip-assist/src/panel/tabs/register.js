@@ -198,7 +198,7 @@ export function installRegisterTab(ctx) {
                     !response.ok && (response.status === 404 || response.status === 410);
                   if (response.ok || gone) {
                     // 成功、またはカレンダー側で削除済み → 記録を整理
-                    getLocal().events = getLocal().events.filter((event) => event.id !== event.id);
+                    getLocal().events = getLocal().events.filter((saved) => saved.id !== event.id);
                     state.selDel.delete(event.id);
                     state.delResults.push({
                       ok: true,

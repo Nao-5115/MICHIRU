@@ -105,14 +105,26 @@ export function installTripTab(ctx) {
             }),
           )
         : createEl(
-            "p",
-            { class: "muted" },
-            "参加している旅行はまだありません。新規作成するか、幹事に招待してもらってください。",
+            "section",
+            { class: "onboarding" },
+            createEl("p", { class: "muted" }, "まだ参加している旅行はありません。はじめての方は次の順で進めてください。"),
+            createEl(
+              "ol",
+              { class: "onboarding__steps" },
+              createEl("li", {}, "下の「新しい旅行を作る」で旅行を作成する（あなたが幹事になります）"),
+              createEl("li", {}, "「日程」タブで候補日を追加する"),
+              createEl("li", {}, "旅行を選んだ後、「メンバー」欄で友達を招待する（Googleアカウントのメールアドレス）"),
+            ),
+            createEl("p", { class: "muted" }, "友達に招待された場合は、幹事に招待を送ってもらってください。"),
           ),
-      createEl("h3", { class: "divided" }, "新しい旅行を作る"),
+    );
+    const secCreate = createEl(
+      "section",
+      {},
+      createEl("h3", {}, "新しい旅行を作る"),
       nameIn,
       makeButton(
-        "作成（あなたが幹事になります）",
+        "作成",
         async () => {
           const name = nameIn.value.trim();
           if (!name) return flash("旅行名を入力してください", "err");
@@ -124,7 +136,7 @@ export function installTripTab(ctx) {
         "primary",
       ),
     );
-    return [secUser, secList, viewMembers()];
+    return [secUser, secCreate, secList, viewMembers()];
   }
 
   async function deleteTrip(trip) {
@@ -266,11 +278,6 @@ export function installTripTab(ctx) {
                   await notifyInvite(email, currentTrip.data.meta.name);
               },
               "primary",
-            ),
-            createEl(
-              "p",
-              { class: "muted" },
-              "招待するのは、相手が Google アカウントのサインインに使うメールアドレスです（大文字小文字は区別しません）。相手が拡張機能を開くと、この旅行が自動的に一覧に表示されます。",
             ),
           )
         : createEl("p", { class: "muted" }, "メンバーの招待は幹事のみ行えます。"),

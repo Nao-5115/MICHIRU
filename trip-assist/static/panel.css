@@ -1090,7 +1090,7 @@ tr.sel { background: var(--ok-bg); }
 .cal-day { font-size: 12px; line-height: 1.2; }
 .cal-row { display: flex; flex-wrap: wrap; gap: 2px; }
 .cal-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); box-sizing: border-box; flex-shrink: 0; }
-.cal-dot.maybe { width: 7px; height: 7px; background: var(--card); border: 2px solid var(--muted); }
+.cal-dot.maybe { width: 9px; height: 8px; border-radius: 0; background: var(--muted); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .cal-more { font-size: 10px; color: var(--muted); }
 .cal-pop { position: absolute; left: 0; right: 0; top: 36px; z-index: 5; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-panel); padding: 10px 12px; max-height: 280px; overflow: auto; }
 .cal-pop__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
@@ -1100,3 +1100,10 @@ tr.sel { background: var(--ok-bg); }
 .cal-pop__member { display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 2px 0; }
 .cal-pop__member .muted { margin-left: auto; }
 .cal-pop__actions { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.cal-paint { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cal-paint__btn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--fg); font-size: 12px; cursor: pointer; }
+.cal-paint__btn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-strong); }
+.cal-paint__sym { font-weight: bold; font-size: 14px; }
+.cal-hint { font-size: 11px; color: var(--muted); margin: 4px 0 0; }
+.cal-grid.painting { touch-action: none; user-select: none; }
+.cal-cell.is-drag { outline: 2px dashed var(--accent); outline-offset: -1px; }

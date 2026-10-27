@@ -2,7 +2,7 @@
 import * as T from "../../lib.js";
 
 export function installScheduleTab(ctx) {
-  const { gate, tripData, currentMember, isOwner, createEl, makeButton, flash, runAction, state, refreshEvents, getLocal, saveLocal, warnFor } = ctx;
+  const { gate, tripData, currentMember, isOwner, createEl, makeButton, flash, runAction, callFirebase, state, refreshEvents, getLocal, saveLocal, warnFor } = ctx;
   const render = (...args) => ctx.render(...args);
 
   // ======================= カレンダー表示（候補日をメンバーごとの色で表示） =======================
@@ -19,6 +19,17 @@ export function installScheduleTab(ctx) {
   };
   let calMonth = null;    // 表示中の月（"YYYY-MM"）
   let calSelected = null; // 詳細を開いている日（"YYYY-MM-DD"）
+  let calPaint = null;    // 登録する印（1=○ 2=△ 0=×）。null のときは日付クリックで詳細を開く
+  let calDrag = null;     // ドラッグ中の範囲（押した日・今の日・登録する値）
+  // 押していた指を離したら、選んだ範囲に登録する
+  const endCalDrag = () => {
+    if (!calDrag) return;
+    const drag = calDrag;
+    calDrag = null;
+    drag.finish(drag);
+  };
+  window.addEventListener("pointerup", endCalDrag);
+  window.addEventListener("pointercancel", endCalDrag);
 
   // ======================= 日程タブ（出欠のリアルタイム同期） =======================
   function viewSchedule() {
@@ -90,9 +101,57 @@ export function installScheduleTab(ctx) {
   function buildCalendar(trip, members, dates, myMember, owner) {
     const answers = trip.answers || {};
     const answerOf = (member, date) => (answers[member.key] || {})[date.id];
+    // 候補日以外の日の個人の予定
+    const mark = (member, day) => ((trip.schedules || {})[member.key] || {})[day];
     const colorOf = (member) => MEMBER_COLORS[Math.max(0, members.indexOf(member)) % MEMBER_COLORS.length];
     // その日を含む候補日
     const coveringOn = (day) => dates.filter((date) => date.s <= day && day <= date.e);
+    const cellEls = new Map(); // 日 → セル（ドラッグ中の強調表示に使う）
+    const daysBetween = (a, b) => {
+      const [lo, hi] = a <= b ? [a, b] : [b, a];
+      const out = [];
+      const cur = new Date(lo + "T00:00:00");
+      const end = new Date(hi + "T00:00:00");
+      while (cur <= end) {
+        out.push(ymd(cur.getFullYear(), cur.getMonth() + 1, cur.getDate()));
+        cur.setDate(cur.getDate() + 1);
+      }
+      return out;
+    };
+    const highlightDrag = () => {
+      if (!calDrag) return;
+      const inRange = new Set(daysBetween(calDrag.startDay, calDrag.endDay));
+      for (const [day, el] of cellEls) el.classList.toggle("is-drag", inRange.has(day));
+    };
+    const applyPaint = async (drag) => {
+      const targets = new Map(); // 候補日（その日の出欠）
+      const dayMarks = new Set(); // 候補日以外の日（個人の予定）
+      for (const day of daysBetween(drag.startDay, drag.endDay)) {
+        const covering = coveringOn(day);
+        if (covering.length) for (const date of covering) targets.set(date.id, date);
+        else dayMarks.add(day);
+      }
+      if (!targets.size && !dayMarks.size) return render();
+      let done = 0;
+      let failed = "";
+      for (const date of targets.values()) {
+        const result = await callFirebase("setAnswer", { tripId: state.tripId, dateId: date.id, v: drag.value });
+        if (result.ok) done += 1;
+        else failed = result.error;
+      }
+      for (const day of dayMarks) {
+        const result = await callFirebase("setDayMark", { tripId: state.tripId, day, v: drag.value });
+        if (result.ok) done += 1;
+        else failed = result.error;
+      }
+      if (failed) flash(failed, "err");
+      else
+        flash(
+          drag.value == null ? `${done} 件を取り消しました` : `${ANSWER_LABEL[drag.value]} を ${done} 件に登録しました`,
+          "ok",
+        );
+      render();
+    };
 
     const now = new Date();
     const todayStr = ymd(now.getFullYear(), now.getMonth() + 1, now.getDate());
@@ -119,7 +178,7 @@ export function installScheduleTab(ctx) {
             .map((member) => createEl("span", { class: "cal-dot", title: `${T.memberLabel(member)}：○`, style: `background:${colorOf(member)}` })),
           members
             .filter((member) => answerOf(member, date) === 2)
-            .map((member) => createEl("span", { class: "cal-dot maybe", title: `${T.memberLabel(member)}：△`, style: `border-color:${colorOf(member)}` })),
+            .map((member) => createEl("span", { class: "cal-dot maybe", title: `${T.memberLabel(member)}：△`, style: `background:${colorOf(member)}` })),
         ),
       );
       const classes = ["cal-cell"];
@@ -128,28 +187,57 @@ export function installScheduleTab(ctx) {
       if (day === calSelected) classes.push("is-sel");
       if (dow === 0) classes.push("sun");
       if (dow === 6) classes.push("sat");
+      const personalRow = covering.length
+        ? null
+        : createEl(
+            "div",
+            { class: "cal-row" },
+            members
+              .filter((member) => mark(member, day) === 1)
+              .map((member) => createEl("span", { class: "cal-dot", title: `${T.memberLabel(member)}：○`, style: `background:${colorOf(member)}` })),
+            members
+              .filter((member) => mark(member, day) === 2)
+              .map((member) => createEl("span", { class: "cal-dot maybe", title: `${T.memberLabel(member)}：△`, style: `background:${colorOf(member)}` })),
+          );
       const content = [
         createEl("span", { class: "cal-day" }, String(d)),
         ...rows,
+        personalRow,
         covering.length > 2 ? createEl("span", { class: "cal-more" }, `他 ${covering.length - 2} 件`) : null,
       ];
-      cells.push(
-        covering.length
-          ? createEl(
-              "button",
-              {
-                class: classes.join(" "),
-                type: "button",
-                "aria-label": `${month}月${d}日：候補日 ${covering.length} 件`,
-                onclick: () => {
-                  calSelected = calSelected === day ? null : day;
-                  render();
-                },
-              },
-              ...content,
-            )
-          : createEl("div", { class: classes.join(" ") }, ...content),
+      const cellProps = {
+        class: classes.join(" "),
+        onpointerdown: (event) => {
+          if (calPaint === null || event.button !== 0) return;
+          event.preventDefault();
+          // 押した日の候補日がすべて同じ印なら取り消し、そうでなければ登録する
+          const targets = coveringOn(day);
+          const already = targets.length > 0 ? targets.every((date) => answerOf(myMember, date) === calPaint) : mark(myMember, day) === calPaint;
+          calDrag = { startDay: day, endDay: day, value: already ? null : calPaint, finish: applyPaint };
+          highlightDrag();
+        },
+        onpointerenter: () => {
+          if (!calDrag) return;
+          calDrag.endDay = day;
+          highlightDrag();
+        },
+      };
+      const el = createEl(
+        "button",
+        {
+          ...cellProps,
+          type: "button",
+          "aria-label": covering.length ? `${month}月${d}日：候補日 ${covering.length} 件` : `${month}月${d}日`,
+          onclick: () => {
+            if (calPaint !== null) return; // 印を選んでいる間は詳細を開かない
+            calSelected = calSelected === day ? null : day;
+            render();
+          },
+        },
+        ...content,
       );
+      cellEls.set(day, el);
+      cells.push(el);
     }
     while (cells.length % 7) cells.push(createEl("div", { class: "cal-cell blank" }));
 
@@ -217,6 +305,55 @@ export function installScheduleTab(ctx) {
       );
     };
 
+    // 候補日以外の日の詳細（個人の予定）
+    const personalSection = (day) =>
+      createEl(
+        "div",
+        { class: "cal-pop__cand" },
+        createEl("div", { class: "cal-pop__range" }, "個人の予定（候補日以外）"),
+        members.map((member) => {
+          const value = mark(member, day);
+          return createEl(
+            "div",
+            { class: "cal-pop__member" },
+            createEl("span", { class: "cal-dot", style: `background:${colorOf(member)}` }),
+            createEl("span", {}, T.memberLabel(member)),
+            createEl("span", { class: "muted" }, value == null ? "未登録" : ANSWER_LABEL[value]),
+          );
+        }),
+        createEl(
+          "div",
+          { class: "cal-pop__actions" },
+          createEl(
+            "label",
+            {},
+            "あなたの予定",
+            createEl(
+              "select",
+              {
+                onchange: async (event) => {
+                  const value = event.target.value;
+                  event.target.blur();
+                  await runAction(
+                    "setDayMark",
+                    { tripId: state.tripId, day, v: value === "" ? null : +value },
+                    "予定を更新しました",
+                  );
+                },
+              },
+              [
+                ["", "未登録"],
+                ["1", "○ 参加可"],
+                ["2", "△ 未定"],
+                ["0", "× 不可"],
+              ].map(([value, label]) =>
+                createEl("option", { value, selected: String(mark(myMember, day) ?? "") === value }, label),
+              ),
+            ),
+          ),
+        ),
+      );
+
     // 日付をクリックした時の詳細（候補日ごとに、メンバーの出欠を色つきで表示）
     let popup = null;
     if (calSelected && calSelected.slice(0, 7) === calMonth) {
@@ -271,9 +408,48 @@ export function installScheduleTab(ctx) {
                 candidateActions(date),
               );
             })
-          : createEl("p", { class: "muted" }, "この日を含む候補日はありません。"),
+          : personalSection(calSelected),
       );
     }
+
+    const PAINT_OPTIONS = [
+      [1, "○", "参加可"],
+      [2, "△", "未定"],
+      [0, "×", "不可"],
+    ];
+    const paintBar = createEl(
+      "div",
+      {},
+      createEl(
+        "div",
+        { class: "cal-paint" },
+        ...PAINT_OPTIONS.map(([value, symbol, label]) =>
+          createEl(
+            "button",
+            {
+              class: "cal-paint__btn" + (calPaint === value ? " on" : ""),
+              type: "button",
+              "aria-pressed": String(calPaint === value),
+              onclick: () => {
+                calPaint = calPaint === value ? null : value;
+                calDrag = null;
+                calSelected = null;
+                render();
+              },
+            },
+            createEl("span", { class: "cal-paint__sym" }, symbol),
+            label,
+          ),
+        ),
+      ),
+      createEl(
+        "p",
+        { class: "cal-hint" },
+        calPaint !== null
+          ? "日付をクリック（ドラッグで範囲を選択）すると登録します。同じ印をもう一度押すと取り消します。"
+          : "印を選んでから日付をクリックすると、その日の候補日に出欠を登録できます。",
+      ),
+    );
 
     return createEl(
       "section",
@@ -294,9 +470,10 @@ export function installScheduleTab(ctx) {
           "›",
         ),
       ),
+      paintBar,
       createEl(
         "div",
-        { class: "cal-grid" },
+        { class: "cal-grid" + (calPaint !== null ? " painting" : "") },
         ...["日", "月", "火", "水", "木", "金", "土"].map((label, index) =>
           createEl("div", { class: "cal-dow" + (index === 0 ? " sun" : index === 6 ? " sat" : "") }, label),
         ),

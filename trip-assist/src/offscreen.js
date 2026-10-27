@@ -406,6 +406,16 @@ const handlers = {
     return {};
   },
 
+  // 候補日以外の日の個人の予定（1=○ 2=△ 0=×、null で取り消し）
+  async setDayMark({ tripId, day, v: mark }) {
+    const currentUser = user();
+    need(/^\d{4}-\d{2}-\d{2}$/.test(String(day || "")), "日付の形式が正しくありません");
+    const markRef = ref(db, path("trips", tripId, "schedules", currentUser.key, day));
+    if (mark === null || mark === undefined) await remove(markRef);
+    else await set(markRef, mark);
+    return {};
+  },
+
   async addPlace({ tripId, place }) {
     const currentUser = user();
     const placeId = push(ref(db, path("trips", tripId, "places"))).key;

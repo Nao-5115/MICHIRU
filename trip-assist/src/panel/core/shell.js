@@ -1,7 +1,7 @@
 // パネル本体（Shadow DOM）・ボタン（FAB）・開閉・通知
 
 export function installShell(ctx) {
-  const { createEl, makeButton, state } = ctx;
+  const { createEl, makeButton, state, makeMsIcon } = ctx;
   const applyGhost = (...args) => ctx.applyGhost(...args);
   const saveUi = (...args) => ctx.saveUi(...args);
   const startDrag = (...args) => ctx.startDrag(...args);
@@ -49,11 +49,7 @@ export function installShell(ctx) {
         render();
       },
     },
-    createEl(
-      "svg",
-      { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 -960 960 960", width: "18", height: "18", fill: "currentColor" },
-      createEl("path", { d: "M280-160 80-360l200-200 56 57-103 103h287v80H233l103 103-56 57Zm400-240-56-57 103-103H440v-80h287L624-743l56-57 200 200-200 200Z" }),
-    ),
+    makeMsIcon('<path d="M280-160 80-360l200-200 56 57-103 103h287v80H233l103 103-56 57Zm400-240-56-57 103-103H440v-80h287L624-743l56-57 200 200-200 200Z"/>', 18),
   );
   const panel = createEl(
     "div",

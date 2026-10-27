@@ -202,6 +202,7 @@ h3 {
 
 /* ---------- フォーム ---------- */
 input[type="text"],
+input[type="email"],
 input[type="date"],
 input[type="time"],
 input[type="number"],
@@ -235,6 +236,50 @@ input[type="checkbox"] {
   margin-right: 6px;
   accent-color: var(--accent);
 }
+/* チェックボックス：枠線の箱に、水色の ✓ を CSS で描く（ブラウザ標準の見た目はやめる） */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0 8px 0 0;
+  border: 1px solid #999;
+  border-radius: 4px;
+  background: var(--card);
+  vertical-align: middle;
+  cursor: pointer;
+}
+input[type="checkbox"]::before,
+input[type="checkbox"]::after {
+  content: "";
+  display: block;
+  position: absolute;
+  height: 2.5px;
+  width: 5px;
+  background: #40a9e0;
+  border-radius: 10px;
+  transform: rotate(45deg);
+  left: 3px;
+  top: 9px;
+  opacity: 0;
+}
+input[type="checkbox"]::after {
+  width: 8px;
+  left: 6px;
+  top: 7.5px;
+  transform: rotate(-45deg);
+}
+input[type="checkbox"]:checked::before,
+input[type="checkbox"]:checked::after {
+  opacity: 1;
+}
+input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 label {
   display: block;
   flex: 1;
@@ -434,15 +479,14 @@ tr.sel { background: var(--ok-bg); }
 .list > li.drop-after  { box-shadow: inset 0 -3px 0 var(--accent); }
 
 /* ---------- 旅行の一覧（カード） ----------
-   幅に応じて列数が増える。1枚の最小幅 140px・最大幅 220px。
-   パネルが狭いときは 1 列に、広いときは最大幅のまま左詰めで並ぶ */
+   1枚の最小幅は 140px。ウィンドウの幅に合わせてカードの幅が伸び縮みし、
+   入らなくなると列数が減る（狭いときは 1 列） */
 .trip-grid {
   list-style: none;
   padding: 0;
   margin: 8px 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 220px));
-  justify-content: start;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 1fr));
   gap: 8px;
 }
 .trip-card {
@@ -455,6 +499,13 @@ tr.sel { background: var(--ok-bg); }
   border-radius: 12px;
   background: var(--card);
 }
+.trip-card {
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.trip-card:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+}
 .trip-card.sel {
   border-color: var(--accent);
   background: var(--accent-soft);
@@ -465,13 +516,29 @@ tr.sel { background: var(--ok-bg); }
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
-.trip-card__actions {
+.trip-card__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 6px;
-  margin-top: auto;
-  padding-top: 6px;
+}
+.trip-card__actions {
+  margin-top: 4px;
+}
+.icon-delete {
+  flex-shrink: 0;
+  display: inline-flex;
+  padding: 2px;
+  margin: -2px -2px 0 0;
+  border: none;
+  background: none;
+  color: var(--danger);
+  line-height: 0;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.icon-delete:hover {
+  background: var(--warn-bg);
 }
 
 /* ---------- しおり ---------- */

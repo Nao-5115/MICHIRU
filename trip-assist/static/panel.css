@@ -291,6 +291,10 @@ label.inline {
 .btn.danger:hover {
   background: var(--warn-bg);
 }
+.btn.heart-toggle.on {
+  color: var(--danger);
+  border-color: var(--danger);
+}
 .btn.primary.danger {
   background: var(--danger);
   border-color: var(--danger);
@@ -928,6 +932,6 @@ tr.sel { background: var(--ok-bg); }
 }
 
 /* ===== 口コミ要約 ===== */
-.review-block { margin: 6px 0 4px; }
+.review-block { margin: 6px 0 4px 8px; }
 .review-summary { margin-top: 4px; font-size: 12px; line-height: 1.5; color: var(--fg); }
 .review-summary.warn { color: #c5221f; }

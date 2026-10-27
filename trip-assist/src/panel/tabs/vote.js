@@ -420,25 +420,25 @@ export function installVoteTab(ctx) {
                   "div",
                   { class: "place-card__actions" },
                   createEl(
-                    "label",
-                    { class: "inline" },
-                    createEl("input", {
-                      type: "checkbox",
-                      checked: mine,
-                      onchange: (event) =>
+                    "button",
+                    {
+                      class: "btn small heart-toggle" + (mine ? " on" : ""),
+                      type: "button",
+                      "aria-pressed": String(mine),
+                      onclick: () =>
                         runAction(
                           "setVote",
                           {
                             tripId: state.tripId,
                             placeId: wishPlace.id,
-                            on: event.target.checked,
+                            on: !mine,
                           },
-                          event.target.checked
+                          !mine
                             ? "行きたい場所に投票しました"
                             : "投票を取り消しました",
                         ),
-                    }),
-                    "行きたい",
+                    },
+                    (mine ? "♥ " : "♡ ") + "行きたい",
                   ),
                   owner
                     ? createEl(

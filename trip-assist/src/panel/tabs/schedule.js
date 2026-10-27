@@ -29,14 +29,13 @@ export function installScheduleTab(ctx) {
       owner = isOwner();
     const members = T.membersOf(trip),
       dates = T.datesOf(trip);
-    const ranked = T.rankDates(dates, members, trip.answers || {});
     const startDateInput = createEl("input", { type: "date" }),
       endDateInput = createEl("input", { type: "date" });
-    const secAdd = owner
+    const secAdd = myMember
       ? createEl(
           "section",
           {},
-          createEl("h3", {}, "候補日を追加（幹事）"),
+          createEl("h3", {}, "候補日を追加"),
           createEl(
             "div",
             { class: "row" },
@@ -58,151 +57,37 @@ export function installScheduleTab(ctx) {
           ),
         )
       : null;
-    const secList = createEl(
+    const secCal = dates.length ? buildCalendar(trip, members, dates, myMember, owner) : null;
+    return [secAdd, secCal];
+  }
+
+  // 自分のカレンダーの予定（候補日の期間内）を一覧で表示
+  function calEventList(events) {
+    const pad = (n) => String(n).padStart(2, "0");
+    const whenOf = (event) => {
+      if (event.start.dateTime) {
+        const start = new Date(event.start.dateTime);
+        return `${start.getMonth() + 1}/${start.getDate()} ${pad(start.getHours())}:${pad(start.getMinutes())}`;
+      }
+      return `${event.start.date.slice(5).replace("-", "/")} 終日`;
+    };
+    return createEl(
       "section",
-      {},
-      createEl("h3", {}, "候補日と出欠（参加可能人数の多い順）"),
-      createEl(
-        "p",
-        { class: "muted" },
-        "誰かが出欠を入力すると、全員の画面がすぐに更新されます。",
-      ),
-      createEl(
-        "p",
-        { class: "note" },
-        owner
-          ? "※「この日で確定」は、あなた（幹事）のブラウザにだけ保存されます。メンバーの画面には表示されません。確定日を共有するには「登録」タブでカレンダーに登録してください（招待メールで伝わります）。"
-          : "※確定日は幹事がカレンダーに登録したときに、招待メールで伝わります。",
-      ),
-      createEl(
-        "div",
-        { class: "row" },
-        makeButton("自分のカレンダーの予定を重ねて表示", () => refreshEvents(true)),
-      ),
-      ranked.length
+      { class: "cal-events" },
+      createEl("h3", {}, `自分のカレンダーの予定（${events.length} 件）`),
+      events.length
         ? createEl(
             "ul",
             { class: "list" },
-            ranked.map((candidate) => {
-              const date = candidate.date,
-                mine = ((trip.answers || {})[myMember.key] || {})[date.id];
-              return createEl(
-                "li",
-                { class: getLocal() && getLocal().confirmedId === date.id ? "sel" : "" },
-                createEl(
-                  "div",
-                  { class: "line" },
-                  createEl("b", {}, T.fmtRange(date)),
-                  createEl(
-                    "span",
-                    { class: "counts" },
-                    `○${candidate.yes.length}  △${candidate.maybe.length}  ×${candidate.no.length}`,
-                  ),
-                ),
-                candidate.yes.length
-                  ? createEl("div", { class: "muted" }, "○ " + candidate.yes.join("、"))
-                  : null,
-                candidate.maybe.length
-                  ? createEl("div", { class: "muted" }, "△ " + candidate.maybe.join("、"))
-                  : null,
-                candidate.no.length
-                  ? createEl("div", { class: "muted" }, "× " + candidate.no.join("、"))
-                  : null,
-                candidate.none.length
-                  ? createEl("div", { class: "muted" }, "未回答 " + candidate.none.join("、"))
-                  : null,
-                createEl(
-                  "div",
-                  { class: "row" },
-                  createEl(
-                    "label",
-                    {},
-                    "あなたの出欠",
-                    createEl(
-                      "select",
-                      {
-                        onchange: async (event) => {
-                          const value = event.target.value;
-                          event.target.blur();
-                          await runAction(
-                            "setAnswer",
-                            {
-                              tripId: state.tripId,
-                              dateId: date.id,
-                              v: value === "" ? null : +value,
-                            },
-                            "出欠を更新しました",
-                          );
-                        },
-                      },
-                      [
-                        ["", "未回答"],
-                        ["1", "○ 参加可"],
-                        ["2", "△ 未定"],
-                        ["0", "× 不可"],
-                      ].map(([value, label]) =>
-                        createEl(
-                          "option",
-                          { value: value, selected: String(mine ?? "") === value },
-                          label,
-                        ),
-                      ),
-                    ),
-                  ),
-                  owner
-                    ? createEl(
-                        "div",
-                        {},
-                        makeButton(
-                          getLocal().confirmedId === date.id ? "確定中" : "この日で確定",
-                          async () => {
-                            getLocal().confirmedId = date.id;
-                            await saveLocal();
-                            render();
-                          },
-                          "small",
-                        ),
-                        makeButton(
-                          "削除",
-                          async () => {
-                            if (
-                              !confirm(
-                                `候補日 ${T.fmtRange(date)} を削除します。よろしいですか？`,
-                              )
-                            )
-                              return;
-                            if (getLocal().confirmedId === date.id) {
-                              getLocal().confirmedId = null;
-                              await saveLocal();
-                            }
-                            await runAction(
-                              "removeDate",
-                              { tripId: state.tripId, dateId: date.id },
-                              "候補日を削除しました",
-                            );
-                          },
-                          "small danger",
-                        ),
-                      )
-                    : null,
-                ),
-                warnFor(date),
-              );
-            }),
+            ...events.map((event) =>
+              createEl("li", {}, createEl("b", {}, whenOf(event)), " ", event.summary || "（予定名なし）"),
+            ),
           )
-        : createEl(
-            "p",
-            { class: "muted" },
-            owner
-              ? "候補日がまだありません。上のフォームから追加してください。"
-              : "幹事が候補日を追加するまでお待ちください。",
-          ),
+        : createEl("p", { class: "muted" }, "候補日の期間に予定はありません。"),
     );
-    const secCal = dates.length ? buildCalendar(trip, members, dates) : null;
-    return [secAdd, secCal, secList];
   }
 
-  function buildCalendar(trip, members, dates) {
+  function buildCalendar(trip, members, dates, myMember, owner) {
     const answers = trip.answers || {};
     const answerOf = (member, date) => (answers[member.key] || {})[date.id];
     const colorOf = (member) => MEMBER_COLORS[Math.max(0, members.indexOf(member)) % MEMBER_COLORS.length];
@@ -268,6 +153,70 @@ export function installScheduleTab(ctx) {
     }
     while (cells.length % 7) cells.push(createEl("div", { class: "cal-cell blank" }));
 
+    // 候補日ごとの操作（旧一覧と同じ処理）
+    const candidateActions = (date) => {
+      const mine = answerOf(myMember, date);
+      return createEl(
+        "div",
+        { class: "cal-pop__actions" },
+        createEl(
+          "label",
+          {},
+          "あなたの出欠",
+          createEl(
+            "select",
+            {
+              onchange: async (event) => {
+                const value = event.target.value;
+                event.target.blur();
+                await runAction(
+                  "setAnswer",
+                  { tripId: state.tripId, dateId: date.id, v: value === "" ? null : +value },
+                  "出欠を更新しました",
+                );
+              },
+            },
+            [
+              ["", "未回答"],
+              ["1", "○ 参加可"],
+              ["2", "△ 未定"],
+              ["0", "× 不可"],
+            ].map(([value, label]) =>
+              createEl("option", { value, selected: String(mine ?? "") === value }, label),
+            ),
+          ),
+        ),
+        owner
+          ? createEl(
+              "div",
+              { class: "row" },
+              makeButton(
+                getLocal().confirmedId === date.id ? "確定中" : "この日で確定",
+                async () => {
+                  getLocal().confirmedId = date.id;
+                  await saveLocal();
+                  render();
+                },
+                "small",
+              ),
+              makeButton(
+                "削除",
+                async () => {
+                  if (!confirm(`候補日 ${T.fmtRange(date)} を削除します。よろしいですか？`)) return;
+                  if (getLocal().confirmedId === date.id) {
+                    getLocal().confirmedId = null;
+                    await saveLocal();
+                  }
+                  await runAction("removeDate", { tripId: state.tripId, dateId: date.id }, "候補日を削除しました");
+                },
+                "small danger",
+              ),
+            )
+          : null,
+        warnFor(date),
+      );
+    };
+
     // 日付をクリックした時の詳細（候補日ごとに、メンバーの出欠を色つきで表示）
     let popup = null;
     if (calSelected && calSelected.slice(0, 7) === calMonth) {
@@ -319,6 +268,7 @@ export function installScheduleTab(ctx) {
                     createEl("span", { class: "muted" }, answer == null ? "未回答" : ANSWER_LABEL[answer]),
                   );
                 }),
+                candidateActions(date),
               );
             })
           : createEl("p", { class: "muted" }, "この日を含む候補日はありません。"),
@@ -334,15 +284,23 @@ export function installScheduleTab(ctx) {
         { class: "cal-nav-row" },
         createEl(
           "button",
-          { class: "btn small", type: "button", "aria-label": "前の月", onclick: () => { calMonth = shiftMonth(calMonth, -1); calSelected = null; render(); } },
-          "‹ 前月",
+          { class: "btn small cal-arrow", type: "button", "aria-label": "前の月", onclick: () => { calMonth = shiftMonth(calMonth, -1); calSelected = null; render(); } },
+          "‹",
         ),
         createEl("b", {}, `${year}年${month}月`),
         createEl(
           "button",
-          { class: "btn small", type: "button", "aria-label": "次の月", onclick: () => { calMonth = shiftMonth(calMonth, 1); calSelected = null; render(); } },
-          "次月 ›",
+          { class: "btn small cal-arrow", type: "button", "aria-label": "次の月", onclick: () => { calMonth = shiftMonth(calMonth, 1); calSelected = null; render(); } },
+          "›",
         ),
+      ),
+      createEl(
+        "div",
+        { class: "cal-grid" },
+        ...["日", "月", "火", "水", "木", "金", "土"].map((label, index) =>
+          createEl("div", { class: "cal-dow" + (index === 0 ? " sun" : index === 6 ? " sat" : "") }, label),
+        ),
+        ...cells,
       ),
       createEl(
         "div",
@@ -355,12 +313,10 @@ export function installScheduleTab(ctx) {
       ),
       createEl(
         "div",
-        { class: "cal-grid" },
-        ...["日", "月", "火", "水", "木", "金", "土"].map((label, index) =>
-          createEl("div", { class: "cal-dow" + (index === 0 ? " sun" : index === 6 ? " sat" : "") }, label),
-        ),
-        ...cells,
+        { class: "row" },
+        makeButton("自分のカレンダーの予定を重ねて表示", () => refreshEvents(true)),
       ),
+      state.events ? calEventList(state.events) : null,
       popup,
     );
   }

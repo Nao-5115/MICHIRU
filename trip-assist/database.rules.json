@@ -121,7 +121,7 @@
         },
         "dates": {
           "$dateId": {
-            ".write": "auth != null && auth.token.email_verified === true && root.child('trips').child($tripId).child('meta').child('ownerUid').val() === auth.uid",
+            ".write": "auth != null && auth.token.email_verified === true && (root.child('trips').child($tripId).child('meta').child('ownerUid').val() === auth.uid || (!data.exists() && newData.exists() && root.child('trips').child($tripId).child('members').child(auth.token.email.toLowerCase().replace('.', ',')).exists()))",
             ".validate": "newData.hasChildren(['s', 'e', 'createdAt'])",
             "s": {
               ".validate": "newData.isString() && newData.val().matches(/^\\d{4}-\\d{2}-\\d{2}$/)"

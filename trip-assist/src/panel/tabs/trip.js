@@ -48,44 +48,59 @@ export function installTripTab(ctx) {
       state.trips.length
         ? createEl(
             "ul",
-            { class: "trip-grid" },
+            { class: "trip-list" },
             state.trips.map((trip) => {
               const isMine = trip.ownerEmail === myMember.email;
               return createEl(
                 "li",
                 {
-                  class: "trip-card" + (trip.id === state.tripId ? " sel" : ""),
+                  class: "trip-row" + (trip.id === state.tripId ? " sel" : ""),
                   onclick: () => {
                     if (trip.id !== state.tripId) selectTrip(trip.id);
                   },
                 },
                 createEl(
                   "div",
-                  { class: "trip-card__head" },
-                  createEl("b", { class: "trip-card__name" }, trip.name),
-                  isMine
-                    ? createEl(
-                        "button",
-                        {
-                          class: "icon-delete",
-                          type: "button",
-                          title: "旅行を削除",
-                          "aria-label": "旅行を削除",
-                          onclick: (event) => {
-                            event.stopPropagation(); // カード全体の選択を発火させない
-                            deleteTrip(trip);
+                  { class: "trip-row__info" },
+                  createEl(
+                    "div",
+                    { class: "trip-row__head" },
+                    createEl("b", { class: "trip-row__name" }, trip.name),
+                    isMine
+                      ? createEl(
+                          "button",
+                          {
+                            class: "icon-delete",
+                            type: "button",
+                            title: "旅行を削除",
+                            "aria-label": "旅行を削除",
+                            onclick: (event) => {
+                              event.stopPropagation(); // 行全体の選択を発火させない
+                              deleteTrip(trip);
+                            },
                           },
-                        },
-                        makeMsIcon('<path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/>', 18),
-                      )
-                    : null,
+                          makeMsIcon('<path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/>', 18),
+                        )
+                      : null,
+                  ),
+                  createEl("div", { class: "muted" }, tripDateSummary(trip)),
                 ),
                 createEl(
-                  "div",
-                  { class: "muted" },
-                  isMine ? "幹事: あなた" : `幹事: ${trip.ownerEmail}`,
+                  "button",
+                  {
+                    class: "trip-route-btn",
+                    type: "button",
+                    title: "この旅行のルートを表示",
+                    "aria-label": "この旅行のルートを表示",
+                    onclick: async (event) => {
+                      event.stopPropagation(); // 行の選択と二重に動かさない
+                      state.tab = "route";
+                      await selectTrip(trip.id); // 選択して描画（ルートタブ）
+                    },
+                  },
+                  makeMsIcon('<path d="M320-360h80v-120h140v100l140-140-140-140v100H360q-17 0-28.5 11.5T320-520v160ZM480-80q-15 0-29.5-6T424-104L104-424q-12-12-18-26.5T80-480q0-15 6-29.5t18-26.5l320-320q12-12 26.5-18t29.5-6q15 0 29.5 6t26.5 18l320 320q12 12 18 26.5t6 29.5q0 15-6 29.5T856-424L536-104q-12 12-26.5 18T480-80ZM320-320l160 160 320-320-320-320-320 320 160 160Zm160-160Z"/>', 22),
+                  createEl("span", {}, "ルート"),
                 ),
-                createEl("div", { class: "muted" }, tripDateSummary(trip)),
               );
             }),
           )
@@ -94,7 +109,7 @@ export function installTripTab(ctx) {
             { class: "muted" },
             "参加している旅行はまだありません。新規作成するか、幹事に招待してもらってください。",
           ),
-      createEl("h3", {}, "新しい旅行を作る"),
+      createEl("h3", { class: "divided" }, "新しい旅行を作る"),
       nameIn,
       makeButton(
         "作成（あなたが幹事になります）",
@@ -168,7 +183,7 @@ export function installTripTab(ctx) {
     return createEl(
       "section",
       {},
-      createEl("h3", {}, `メンバー — ${currentTrip.data.meta.name}`),
+      createEl("h3", {}, "メンバー"),
       createEl(
         "ul",
         { class: "list" },
@@ -190,10 +205,9 @@ export function installTripTab(ctx) {
                 {},
                 member.role === "owner"
                   ? createEl("span", { class: "badge" }, "幹事")
-                  : null,
-                member.joinedAt
-                  ? createEl("span", { class: "badge ok" }, "参加済み")
-                  : createEl("span", { class: "badge wait" }, "招待中（未参加）"),
+                  : member.joinedAt
+                    ? createEl("span", { class: "badge ok" }, "参加済み")
+                    : createEl("span", { class: "badge wait" }, "招待中（未参加）"),
                 owner && member.role !== "owner"
                   ? makeButton(
                       "解除",

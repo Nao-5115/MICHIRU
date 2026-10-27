@@ -199,6 +199,11 @@ h3 {
   margin: 14px 0 8px;
   font-size: 15px;
 }
+.divided {
+  margin: 14px 0 8px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
 
 /* ---------- フォーム ---------- */
 input[type="text"],
@@ -478,52 +483,73 @@ tr.sel { background: var(--ok-bg); }
 .list > li.drop-before { box-shadow: inset 0 3px 0 var(--accent); }
 .list > li.drop-after  { box-shadow: inset 0 -3px 0 var(--accent); }
 
-/* ---------- 旅行の一覧（カード） ----------
-   1枚の最小幅は 140px。ウィンドウの幅に合わせてカードの幅が伸び縮みし、
-   入らなくなると列数が減る（狭いときは 1 列） */
-.trip-grid {
+/* ---------- 旅行の選択（リスト・右側にルートボタン） ---------- */
+.trip-list {
   list-style: none;
   padding: 0;
-  margin: 8px 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 1fr));
-  gap: 8px;
+  margin: 6px 0;
 }
-.trip-card {
+.trip-row {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  padding: 10px 12px;
-  border: 1.5px solid var(--line);
-  border-radius: 12px;
-  background: var(--card);
-}
-.trip-card {
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 6px;
+  border-bottom: 1px dashed var(--line);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s;
 }
-.trip-card:hover {
-  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+.trip-row:last-child {
+  border-bottom: none;
 }
-.trip-card.sel {
-  border-color: var(--accent);
+.trip-row:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.trip-row.sel {
   background: var(--accent-soft);
 }
-.trip-card__name {
-  display: block;
-  font-size: 14px;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
+.trip-row__info {
+  min-width: 0;
+  flex: 1;
 }
-.trip-card__head {
+.trip-row__head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 6px;
 }
-.trip-card__actions {
-  margin-top: 4px;
+.trip-row__name {
+  display: block;
+  font-size: 15px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.trip-route-btn {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 64px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.trip-route-btn svg {
+  display: block;
+  width: 48px;
+  height: 48px;
+  padding: 13px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--accent-soft);
+}
+.trip-route-btn:hover svg {
+  filter: brightness(0.95);
 }
 .icon-delete {
   flex-shrink: 0;

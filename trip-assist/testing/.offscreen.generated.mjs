@@ -90,6 +90,26 @@ const need = (hasValue, msg) => {
 };
 
 // ---------- 同期（Firebase → chrome.storage.local へ中継） ----------
+// 旅行一覧の各旅行に、登録済みの候補日（dates）を付けて publish する
+let currentTripList = [];
+async function publishTrips() {
+  const list = await Promise.all(
+    currentTripList.map(async (trip) => {
+      try {
+        const snap = await get(ref(db, path("trips", trip.id, "dates")));
+        const dates = Object.values(snap.val() || {}).map((d) => ({
+          s: d.s,
+          e: d.e || d.s,
+        }));
+        return { ...trip, dates };
+      } catch (_) {
+        return { ...trip, dates: [] };
+      }
+    }),
+  );
+  publish("fb:trips", { list, ts: Date.now() });
+}
+
 function startTripsWatch(user) {
   if (unsubTrips) unsubTrips();
   const key = emailKey(user.email);
@@ -104,7 +124,8 @@ function startTripsWatch(user) {
           invitedAt: value.invitedAt || 0,
         }))
         .sort((first, second) => second.invitedAt - first.invitedAt);
-      publish("fb:trips", { list, ts: Date.now() });
+      currentTripList = list;
+      publishTrips();
     },
     (error) =>
       publish("fb:trips", { list: [], error: humanize(error), ts: Date.now() }),
@@ -123,7 +144,10 @@ function startSpotsWatch() {
     (snap) => {
       const list = Object.entries(snap.val() || {})
         .map(([id, value]) => ({ id, ...value }))
-        .sort((first, second) => (+second.registeredAt || 0) - (+first.registeredAt || 0));
+        .sort(
+          (first, second) =>
+            (+second.registeredAt || 0) - (+first.registeredAt || 0),
+        );
       publish("fb:spots", { list, ts: Date.now() });
     },
     (error) =>
@@ -185,7 +209,9 @@ const handlers = {
       refresh: true,
     });
     if (!response || !response.ok)
-      throw new Error((response && response.error) || "Google 認証に失敗しました");
+      throw new Error(
+        (response && response.error) || "Google 認証に失敗しました",
+      );
     try {
       await signInWithCredential(
         auth,
@@ -358,18 +384,23 @@ const handlers = {
       e: endDate,
       createdAt: serverTimestamp(),
     });
+    await publishTrips();
     return { id: dateId };
   },
   async removeDate({ tripId, dateId }) {
     user();
     await remove(ref(db, path("trips", tripId, "dates", dateId)));
+    await publishTrips();
     return {};
   },
 
   async setAnswer({ tripId, dateId, v: answer }) {
     // v: 1=○ 2=△ 0=× / null=未回答
     const currentUser = user();
-    const answerRef = ref(db, path("trips", tripId, "answers", currentUser.key, dateId));
+    const answerRef = ref(
+      db,
+      path("trips", tripId, "answers", currentUser.key, dateId),
+    );
     if (answer === null || answer === undefined) await remove(answerRef);
     else await set(answerRef, answer);
     return {};
@@ -398,7 +429,10 @@ const handlers = {
   },
   async setVote({ tripId, placeId, on: enabled }) {
     const currentUser = user();
-    const voteRef = ref(db, path("trips", tripId, "votes", currentUser.key, placeId));
+    const voteRef = ref(
+      db,
+      path("trips", tripId, "votes", currentUser.key, placeId),
+    );
     if (enabled) await set(voteRef, true);
     else await remove(voteRef);
     return {};
@@ -412,7 +446,10 @@ const handlers = {
   },
   async setPreferences({ tripId, prefs }) {
     const currentUser = user();
-    const prefsRef = ref(db, path("trips", tripId, "preferences", currentUser.key));
+    const prefsRef = ref(
+      db,
+      path("trips", tripId, "preferences", currentUser.key),
+    );
     await set(prefsRef, {
       budget: prefs.budget !== undefined ? prefs.budget : null,
       transport: Array.isArray(prefs.transport) ? prefs.transport : [],
@@ -469,7 +506,9 @@ async function init() {
       type: "app:get",
       keys: ["app:currentTripId"],
     });
-    wantTripId = (response && response.values && response.values["app:currentTripId"]) || null;
+    wantTripId =
+      (response && response.values && response.values["app:currentTripId"]) ||
+      null;
   } catch (_) {}
 
   onAuthStateChanged(
@@ -494,7 +533,10 @@ async function init() {
         state: "signedIn",
         uid: user.uid,
         email: normalizeEmail(user.email),
-        name: shortName(normalizeEmail(user.email), user.displayName).slice(0, 60),
+        name: shortName(normalizeEmail(user.email), user.displayName).slice(
+          0,
+          60,
+        ),
       });
       startTripsWatch(user);
       startSpotsWatch();

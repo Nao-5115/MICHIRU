@@ -90,6 +90,26 @@ const need = (hasValue, msg) => {
 };
 
 // ---------- 同期（Firebase → chrome.storage.local へ中継） ----------
+// 旅行一覧の各旅行に、登録済みの候補日（dates）を付けて publish する
+let currentTripList = [];
+async function publishTrips() {
+  const list = await Promise.all(
+    currentTripList.map(async (trip) => {
+      try {
+        const snap = await get(ref(db, path("trips", trip.id, "dates")));
+        const dates = Object.values(snap.val() || {}).map((d) => ({
+          s: d.s,
+          e: d.e || d.s,
+        }));
+        return { ...trip, dates };
+      } catch (_) {
+        return { ...trip, dates: [] };
+      }
+    }),
+  );
+  publish("fb:trips", { list, ts: Date.now() });
+}
+
 function startTripsWatch(user) {
   if (unsubTrips) unsubTrips();
   const key = emailKey(user.email);
@@ -104,7 +124,8 @@ function startTripsWatch(user) {
           invitedAt: value.invitedAt || 0,
         }))
         .sort((first, second) => second.invitedAt - first.invitedAt);
-      publish("fb:trips", { list, ts: Date.now() });
+      currentTripList = list;
+      publishTrips();
     },
     (error) =>
       publish("fb:trips", { list: [], error: humanize(error), ts: Date.now() }),
@@ -363,11 +384,13 @@ const handlers = {
       e: endDate,
       createdAt: serverTimestamp(),
     });
+    await publishTrips();
     return { id: dateId };
   },
   async removeDate({ tripId, dateId }) {
     user();
     await remove(ref(db, path("trips", tripId, "dates", dateId)));
+    await publishTrips();
     return {};
   },
 

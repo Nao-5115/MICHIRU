@@ -36,6 +36,25 @@ export function installShell(ctx) {
   );
   ghostBtn.title = "離れたら半透明（オン/オフ）";
   ghostBtn.setAttribute("aria-label", "半透明モードの切り替え");
+  // 旅行切り替え（Material Symbols: swap_horiz）。押すと「旅行」タブ（旅行の一覧）を開く
+  const switchBtn = createEl(
+    "button",
+    {
+      class: "btn icon head-switch",
+      type: "button",
+      title: "旅行を切り替える",
+      "aria-label": "旅行を切り替える",
+      onclick: () => {
+        state.tab = "trip";
+        render();
+      },
+    },
+    createEl(
+      "svg",
+      { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 -960 960 960", width: "18", height: "18", fill: "currentColor" },
+      createEl("path", { d: "M280-160 80-360l200-200 56 57-103 103h287v80H233l103 103-56 57Zm400-240-56-57 103-103H440v-80h287L624-743l56-57 200 200-200 200Z" }),
+    ),
+  );
   const panel = createEl(
     "div",
     { class: "panel", hidden: true },
@@ -51,6 +70,7 @@ export function installShell(ctx) {
           alt: "MICHIRU",
         }),
         subEl,
+        switchBtn,
       ),
       createEl(
         "span",

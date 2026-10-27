@@ -102,8 +102,15 @@
 }
 .head-left {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.head-switch {
+  flex-shrink: 0;
+  padding: 2px 4px;
+  line-height: 0;
 }
 .head-logo {
   height: 28px;
@@ -291,6 +298,10 @@ label.inline {
 .btn.danger:hover {
   background: var(--warn-bg);
 }
+.btn.icon-delete {
+  padding: 6px 8px;
+  line-height: 0;
+}
 .btn.primary.danger {
   background: var(--danger);
   border-color: var(--danger);
@@ -421,6 +432,47 @@ tr.sel { background: var(--ok-bg); }
 .list > li.dragging { opacity: 0.4; }
 .list > li.drop-before { box-shadow: inset 0 3px 0 var(--accent); }
 .list > li.drop-after  { box-shadow: inset 0 -3px 0 var(--accent); }
+
+/* ---------- 旅行の一覧（カード） ----------
+   幅に応じて列数が増える。1枚の最小幅 140px・最大幅 220px。
+   パネルが狭いときは 1 列に、広いときは最大幅のまま左詰めで並ぶ */
+.trip-grid {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 220px));
+  justify-content: start;
+  gap: 8px;
+}
+.trip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+.trip-card.sel {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.trip-card__name {
+  display: block;
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.trip-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 6px;
+}
 
 /* ---------- しおり ---------- */
 .timeline { list-style: none; padding: 0; margin: 8px 0; font-variant-numeric: tabular-nums; }

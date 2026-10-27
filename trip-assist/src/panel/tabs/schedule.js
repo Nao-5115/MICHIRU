@@ -442,13 +442,6 @@ export function installScheduleTab(ctx) {
           ),
         ),
       ),
-      createEl(
-        "p",
-        { class: "cal-hint" },
-        calPaint !== null
-          ? "日付をクリック（ドラッグで範囲を選択）すると登録します。同じ印をもう一度押すと取り消します。"
-          : "印を選んでから日付をクリックすると、その日の候補日に出欠を登録できます。",
-      ),
     );
 
     return createEl(

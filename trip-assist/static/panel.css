@@ -1104,6 +1104,5 @@ tr.sel { background: var(--ok-bg); }
 .cal-paint__btn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--fg); font-size: 12px; cursor: pointer; }
 .cal-paint__btn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-strong); }
 .cal-paint__sym { font-weight: bold; font-size: 14px; }
-.cal-hint { font-size: 11px; color: var(--muted); margin: 4px 0 0; }
 .cal-grid.painting { touch-action: none; user-select: none; }
 .cal-cell.is-drag { outline: 2px dashed var(--accent); outline-offset: -1px; }

@@ -77,6 +77,35 @@ export function installPrefsFloat(ctx) {
       closeBtn.title = "閉じる";
       closeBtn.onclick = () => { wrap.style.display = "none"; };
       head.append(closeBtn);
+      // 見出しバーをつかんで移動できるようにする（× ボタンでは移動しない）
+      head.style.cursor = "move";
+      head.style.userSelect = "none";
+      head.style.touchAction = "none";
+      head.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || (event.target.closest && event.target.closest("#pf-close"))) return;
+        const rect = wrap.getBoundingClientRect();
+        const offsetX = event.clientX - rect.left;
+        const offsetY = event.clientY - rect.top;
+        head.setPointerCapture(event.pointerId);
+        const move = (moveEvent) => {
+          const maxLeft = Math.max(0, window.innerWidth - rect.width);
+          const maxTop = Math.max(0, window.innerHeight - rect.height);
+          const left = Math.min(Math.max(0, moveEvent.clientX - offsetX), maxLeft);
+          const top = Math.min(Math.max(0, moveEvent.clientY - offsetY), maxTop);
+          wrap.style.left = left + "px";
+          wrap.style.top = top + "px";
+          wrap.style.right = "auto";
+          wrap.style.bottom = "auto";
+        };
+        const stop = () => {
+          head.removeEventListener("pointermove", move);
+          head.removeEventListener("pointerup", stop);
+          head.removeEventListener("pointercancel", stop);
+        };
+        head.addEventListener("pointermove", move);
+        head.addEventListener("pointerup", stop);
+        head.addEventListener("pointercancel", stop);
+      });
 
       const body = document.createElement("div");
       body.id = "pf-body";

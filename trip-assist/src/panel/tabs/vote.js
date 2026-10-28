@@ -88,13 +88,11 @@ export function installVoteTab(ctx) {
       })
     );
 
-    // 他メンバーの希望まとめ表示
+    // 他メンバーの希望まとめ表示（全メンバーの名前・希望・行きたい場所を表示）
     const prefSummary = (() => {
       const prefs = trip.preferences || {};
-      const rows = members
-        .filter((member) => prefs[member.key])
-        .map((member) => {
-          const memberPrefs = prefs[member.key];
+      const rows = members.map((member) => {
+          const memberPrefs = prefs[member.key] || {};
           const budgetLabel = memberPrefs.budget
             ? (BUDGET_OPTIONS.find((option) => option.value === memberPrefs.budget) || {}).label || "`¥`" + memberPrefs.budget
             : "—";
@@ -113,23 +111,35 @@ export function installVoteTab(ctx) {
                 return `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" style="vertical-align:middle;margin:0 1px" title="${spotCategory}">${icon.svg}</svg>`;
               }).join("")
             : "—";
+          const wishNames = places
+            .filter((wishPlace) => wishPlace.addedBy === member.key)
+            .map((wishPlace) => wishPlace.name);
           const listItem = createEl("li", {},
-            createEl("b", {}, member.name),
+            createEl("b", {}, T.memberLabel(member)),
           );
           const detail = createEl("span", { class: "muted pref-summary-detail" });
           detail.innerHTML = `　予算: ${budgetLabel}　交通: ${transLabel}　カテゴリ: ${catLabel}`;
           listItem.append(detail);
+          listItem.append(
+            createEl("div", { class: "muted pref-summary-detail" },
+              "　行きたい場所: " + (wishNames.length ? wishNames.join("、") : "—"),
+            ),
+          );
           return listItem;
         });
       return rows.length
         ? createEl("ul", { class: "list" }, ...rows)
-        : createEl("p", { class: "muted" }, "まだ誰も希望を登録していません。");
+        : createEl("p", { class: "muted" }, "メンバーがいません。");
     })();
 
     const memberPrefsToggle = createEl("button", {
       class: "member-prefs-toggle",
       onclick: () => {
-        prefsFloat.toggle(trip.preferences || {}, members);
+        prefsFloat.toggle(
+          trip.preferences || {},
+          members.map((member) => ({ ...member, label: T.memberLabel(member) })),
+          places,
+        );
       },
     }, makeMsIcon(MS_GROUP_PATH, 18), " メンバーの希望");
 

@@ -82,7 +82,10 @@ export function installScheduleTab(ctx) {
           refreshEvents(true),
         ),
       ),
-      createEl("div", { class: "calendar-events-divider", "aria-hidden": "true" }),
+      createEl("div", {
+        class: "calendar-events-divider",
+        "aria-hidden": "true",
+      }),
       ranked.length
         ? createEl(
             "ul",
@@ -304,7 +307,7 @@ export function installScheduleTab(ctx) {
       state.regResults
         ? createEl(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             state.regResults.map((result) =>
               createEl(
                 "li",
@@ -338,7 +341,7 @@ export function installScheduleTab(ctx) {
       list.length
         ? createEl(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             list.map((item) =>
               createEl(
                 "li",
@@ -465,7 +468,7 @@ export function installScheduleTab(ctx) {
       state.delResults
         ? createEl(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             state.delResults.map((result) =>
               createEl(
                 "li",

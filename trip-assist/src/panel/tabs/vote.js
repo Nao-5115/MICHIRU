@@ -370,6 +370,11 @@ export function installVoteTab(ctx) {
       "section",
       {},
       createEl("h3", {}, "候補地点（得票数の多い順）"),
+      createEl(
+        "ul",
+        { class: "list trip-list trip-list-divider", "aria-hidden": "true" },
+        createEl("li", {}),
+      ),
       ranked.length
         ? createEl(
             "div",
@@ -896,8 +901,13 @@ export function installVoteTab(ctx) {
       "section",
       {},
       createEl("h3", {}, `共有スポット（最新${spots.length}件を表示）`),
+      createEl(
+        "ul",
+        { class: "list trip-list trip-list-divider", "aria-hidden": "true" },
+        createEl("li", {}),
+      ),
       spots.length
-        ? createEl("ul", { class: "list" }, ...rows(spots))
+        ? createEl("ul", { class: "list trip-list" }, ...rows(spots))
         : createEl("p", { class: "muted" }, "共有スポットはまだありません。"),
     );
     let nearbyOpen = false;

@@ -89,7 +89,7 @@ export function installRegisterTab(ctx) {
       state.regResults
         ? createEl(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             state.regResults.map((result) =>
               createEl(
                 "li",
@@ -112,10 +112,15 @@ export function installRegisterTab(ctx) {
       "section",
       {},
       createEl("h3", {}, "この拡張機能から登録した予定"),
+      createEl(
+        "ul",
+        { class: "list trip-list trip-list-divider", "aria-hidden": "true" },
+        createEl("li", {}),
+      ),
       list.length
         ? createEl(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             list.map((event) =>
               createEl(
                 "li",
@@ -226,12 +231,13 @@ export function installRegisterTab(ctx) {
               },
               "danger",
             ),
+            createEl("div", { class: "calendar-events-divider", "aria-hidden": "true" }),
           )
         : null,
       state.delResults
         ? createEl(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             state.delResults.map((result) =>
               createEl(
                 "li",

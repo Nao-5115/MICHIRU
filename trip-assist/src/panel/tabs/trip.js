@@ -35,10 +35,15 @@ export function installTripTab(ctx) {
       "section",
       {},
       createEl("h3", {}, "旅行の一覧"),
+      createEl(
+        "ul",
+        { class: "list trip-list trip-list-divider", "aria-hidden": "true" },
+        createEl("li", {}),
+      ),
       state.trips.length
         ? createEl(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             state.trips.map((trip) =>
               createEl(
                 "li",
@@ -77,6 +82,7 @@ export function installTripTab(ctx) {
             { class: "muted" },
             "参加している旅行はまだありません。新規作成するか、幹事に招待してもらってください。",
           ),
+      createEl("div", { class: "trip-create-divider", "aria-hidden": "true" }),
       createEl("h3", {}, "新しい旅行を作る"),
       nameIn,
       makeButton(

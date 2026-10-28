@@ -57,10 +57,11 @@ export function installScheduleTab(ctx) {
         { class: "row" },
         makeButton("自分のカレンダーの予定を重ねて表示", () => refreshEvents(true)),
       ),
+      createEl("div", { class: "calendar-events-divider", "aria-hidden": "true" }),
       ranked.length
         ? createEl(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             ranked.map((candidate) => {
               const date = candidate.date,
                 mine = ((trip.answers || {})[myMember.key] || {})[date.id];

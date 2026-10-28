@@ -297,8 +297,13 @@ export function installRouteTab(ctx) {
         },
         "primary",
       ),
+      createEl(
+        "ul",
+        { class: "list trip-list trip-list-divider", "aria-hidden": "true" },
+        createEl("li", {}),
+      ),
       getLocal().places.length
-        ? createEl("ul", { class: "list" }, getLocal().places.map(placeItem))
+        ? createEl("ul", { class: "list trip-list" }, getLocal().places.map(placeItem))
         : createEl("p", { class: "muted" }, "登録済みの地点はありません。"),
     );
     const sec2 = createEl(

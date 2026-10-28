@@ -3,7 +3,8 @@
   --card: #ffffff;
   --fg: #3a3a3c;
   --muted: #7b7b80;
-  --line: #ece5dc;
+  --line: #000000;
+  --miniline:#c5c5c5;
   --accent: #1a73e8;
   --accent-strong: #1557b0;
   --accent-soft: #e8f1fd;
@@ -338,6 +339,24 @@ select:focus-visible {
 }
 .list > li:last-child {
   border-bottom: none;
+}
+.trip-list > li {
+  border-bottom-color: #c0c0c0;
+}
+.trip-list-divider {
+  margin: 0 0 8px;
+}
+.trip-list-divider > li:last-child {
+  padding: 0;
+  border-bottom: 1px dashed #c0c0c0;
+}
+.trip-create-divider {
+  margin: 12px 0;
+  border-top: 1px dashed #000000;
+}
+.calendar-events-divider {
+  margin: 8px 0;
+  border-top: 1px dashed #000000;
 }
 .line {
   display: flex;

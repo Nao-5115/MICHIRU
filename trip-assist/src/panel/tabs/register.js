@@ -2,8 +2,26 @@
 import * as T from "../../lib.js";
 
 export function installRegisterTab(ctx) {
-  const { gate, tripData, getLocal, currentMember, currentItinerary, createEl, saveLocal, state, NOTICE, makeButton, registerToCalendar, flash, sendMessage } = ctx;
+  const {
+    gate,
+    tripData,
+    currentMember,
+    isOwner,
+    createEl,
+    makeButton,
+    flash,
+    runAction,
+    state,
+    getLocal,
+    saveLocal,
+    sendMessage,
+  } = ctx;
   const render = (...args) => ctx.render(...args);
+
+  const refreshEvents = (...args) => ctx.refreshEvents(...args);
+  const warnFor = (...args) => ctx.warnFor(...args);
+  const currentItinerary = (...args) => ctx.currentItinerary(...args);
+  const registerToCalendar = (...args) => ctx.registerToCalendar(...args);
 
   function viewRegister() {
     const gateView = gate(true);
@@ -11,9 +29,13 @@ export function installRegisterTab(ctx) {
     const trip = tripData(),
       settings = getLocal().settings,
       myMember = currentMember();
-    const others = T.membersOf(trip).filter((member) => member.key !== myMember.key);
+    const others = T.membersOf(trip).filter(
+      (member) => member.key !== myMember.key,
+    );
     const itinerary = currentItinerary();
-    const cand = T.datesOf(trip).find((date) => date.id === getLocal().confirmedId);
+    const cand = T.datesOf(trip).find(
+      (date) => date.id === getLocal().confirmedId,
+    );
     const section = createEl(
       "section",
       {},
@@ -69,7 +91,7 @@ export function installRegisterTab(ctx) {
           : "招待できるメンバーがいません",
       ),
       settings.invite && others.length
-        ? createEl("div", { class: "warn" }, "⚠ " + NOTICE)
+        ? createEl("div", { class: "warn" }, "⚠ " + ctx.NOTICE)
         : null,
       createEl(
         "label",
@@ -94,7 +116,9 @@ export function installRegisterTab(ctx) {
               createEl(
                 "li",
                 { class: result.ok ? "okli" : "warn" },
-                (result.ok ? "✔ " : "✖ ") + result.name + (result.ok ? "" : ` — ${result.error}`),
+                (result.ok ? "✔ " : "✖ ") +
+                  result.name +
+                  (result.ok ? "" : ` — ${result.error}`),
               ),
             ),
           )
@@ -105,9 +129,12 @@ export function installRegisterTab(ctx) {
 
   // この拡張機能から登録した予定の一覧と削除
   function viewMyEvents() {
-    const list = [...getLocal().events].sort((first, second) => first.start.localeCompare(second.start));
+    const list = [...getLocal().events].sort((first, second) =>
+      first.start.localeCompare(second.start),
+    );
     for (const selectedId of [...state.selDel])
-      if (!list.some((event) => event.id === selectedId)) state.selDel.delete(selectedId);
+      if (!list.some((event) => event.id === selectedId))
+        state.selDel.delete(selectedId);
     return createEl(
       "section",
       {},
@@ -136,7 +163,11 @@ export function installRegisterTab(ctx) {
                     {},
                     event.title,
                     event.attendees
-                      ? createEl("span", { class: "badge" }, `ゲスト${event.attendees}人`)
+                      ? createEl(
+                          "span",
+                          { class: "badge" },
+                          `ゲスト${event.attendees}人`,
+                        )
                       : null,
                     createEl("div", { class: "muted" }, T.fmtEventWhen(event)),
                   ),
@@ -172,11 +203,15 @@ export function installRegisterTab(ctx) {
             makeButton(
               "選択した予定を削除",
               async () => {
-                const targets = list.filter((event) => state.selDel.has(event.id));
+                const targets = list.filter((event) =>
+                  state.selDel.has(event.id),
+                );
                 if (!targets.length)
                   return flash("削除する予定を選択してください", "err");
                 const lines = targets
-                  .map((event) => `・${event.title}（${T.fmtEventWhen(event)}）`)
+                  .map(
+                    (event) => `・${event.title}（${T.fmtEventWhen(event)}）`,
+                  )
                   .join("\n");
                 const mail = targets.some((event) => event.attendees)
                   ? "\nゲストには、予定のキャンセル通知メールが送信されます。"
@@ -195,10 +230,13 @@ export function installRegisterTab(ctx) {
                     notify: event.attendees > 0,
                   });
                   const gone =
-                    !response.ok && (response.status === 404 || response.status === 410);
+                    !response.ok &&
+                    (response.status === 404 || response.status === 410);
                   if (response.ok || gone) {
                     // 成功、またはカレンダー側で削除済み → 記録を整理
-                    getLocal().events = getLocal().events.filter((event) => event.id !== event.id);
+                    getLocal().events = getLocal().events.filter(
+                      (event) => event.id !== event.id,
+                    );
                     state.selDel.delete(event.id);
                     state.delResults.push({
                       ok: true,
@@ -215,7 +253,9 @@ export function installRegisterTab(ctx) {
                   }
                 }
                 await saveLocal();
-                const failedCount = state.delResults.filter((result) => !result.ok).length;
+                const failedCount = state.delResults.filter(
+                  (result) => !result.ok,
+                ).length;
                 flash(
                   failedCount
                     ? `${failedCount} 件の削除に失敗しました`

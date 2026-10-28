@@ -1,7 +1,26 @@
 // 登録済みカレンダー予定の一覧と削除
 
 export function installMyEvents(ctx) {
-  const { viewTrip, viewSchedule, viewVote, viewRoute, viewRegister, viewSpots, state, body, tripData, subEl, isOwner, tabsEl, createEl, navBar, isDirPage, makeButton, goBack, clearNav } = ctx;
+  const {
+    viewTrip,
+    viewSchedule,
+    viewVote,
+    viewRoute,
+    viewRegister,
+    viewSpots,
+    state,
+    body,
+    tripData,
+    subEl,
+    isOwner,
+    tabsEl,
+    createEl,
+    navBar,
+    isDirPage,
+    makeButton,
+    goBack,
+    clearNav,
+  } = ctx;
 
   // ======================= 描画・起動 =======================
   const TABS = [
@@ -9,7 +28,6 @@ export function installMyEvents(ctx) {
     ["schedule", "日程", viewSchedule],
     ["vote", "投票", viewVote],
     ["route", "ルート", viewRoute],
-    ["register", "登録", viewRegister],
     ["spots", "スポット", viewSpots],
   ];
   function render() {
@@ -18,7 +36,9 @@ export function installMyEvents(ctx) {
     const keep = body.scrollTop;
     const trip = tripData();
     subEl.textContent =
-      trip && trip.meta ? `／ ${trip.meta.name}${isOwner() ? "（幹事）" : ""}` : "";
+      trip && trip.meta
+        ? `／ ${trip.meta.name}${isOwner() ? "（幹事）" : ""}`
+        : "";
     tabsEl.replaceChildren(
       ...TABS.map(([key, label]) =>
         createEl(

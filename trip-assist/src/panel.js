@@ -600,10 +600,18 @@ function main() {
       "section",
       {},
       h("h3", {}, "旅行の一覧"),
+      h(
+        "ul",
+        {
+          class: "list trip-list trip-list-divider",
+          "aria-hidden": "true",
+        },
+        h("li", {}),
+      ),
       S.trips.length
         ? h(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             S.trips.map((t) =>
               h(
                 "li",
@@ -642,6 +650,7 @@ function main() {
             { class: "muted" },
             "参加している旅行はまだありません。新規作成するか、幹事に招待してもらってください。",
           ),
+      h("div", { class: "trip-create-divider", "aria-hidden": "true" }),
       h("h3", {}, "新しい旅行を作る"),
       nameIn,
       btn(
@@ -801,11 +810,6 @@ function main() {
               },
               "primary",
             ),
-            h(
-              "p",
-              { class: "muted" },
-              "招待するのは、相手が Google アカウントのサインインに使うメールアドレスです（大文字小文字は区別しません）。相手が拡張機能を開くと、この旅行が自動的に一覧に表示されます。",
-            ),
           )
         : h("p", { class: "muted" }, "メンバーの招待は幹事のみ行えます。"),
     );
@@ -854,19 +858,15 @@ function main() {
       {},
       h("h3", {}, "候補日と出欠（参加可能人数の多い順）"),
       h(
-        "p",
-        { class: "muted" },
-        "誰かが出欠を入力すると、全員の画面がすぐに更新されます。",
-      ),
-      h(
         "div",
         { class: "row" },
         btn("自分のカレンダーの予定を重ねて表示", () => refreshEvents(true)),
       ),
+      h("div", { class: "calendar-events-divider", "aria-hidden": "true" }),
       ranked.length
         ? h(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             ranked.map((r) => {
               const c = r.date,
                 mine = ((d.answers || {})[m.key] || {})[c.id];
@@ -1048,10 +1048,18 @@ function main() {
       "section",
       {},
       h("h3", {}, "候補地点（得票数の多い順）"),
+      h(
+        "ul",
+        {
+          class: "list trip-list trip-list-divider",
+          "aria-hidden": "true",
+        },
+        h("li", {}),
+      ),
       ranked.length
         ? h(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             ranked.map(({ place: p, voters }) => {
               const mine = !!(votes[m.key] && votes[m.key][p.id]);
               return h(
@@ -1070,7 +1078,7 @@ function main() {
                     h(
                       "div",
                       { class: "muted" },
-                      `追加: ${p.addedByName || "—"}　座標: ${(+p.lat).toFixed(4)}, ${(+p.lng).toFixed(4)}`,
+                      `追加: ${p.addedByName || "—"}`,
                     ),
                   ),
                   h("span", { class: "counts" }, `${voters.length} 票`),
@@ -1160,11 +1168,6 @@ function main() {
               "採用した地点を訪問地点リストに取り込む",
               importAdopted,
               "primary",
-            ),
-            h(
-              "p",
-              { class: "muted" },
-              "採用した地点は、幹事のローカルの訪問地点リスト（ルートタブ）に追加されます。採用の状態は全員の画面に表示されます。",
             ),
           )
         : h("p", { class: "muted" }, "採用する地点は幹事が選びます。"),
@@ -1481,8 +1484,16 @@ function main() {
       "section",
       {},
       h("h3", {}, `共有スポット（最新${spots.length}件を表示）`),
+      h(
+        "ul",
+        {
+          class: "list trip-list trip-list-divider",
+          "aria-hidden": "true",
+        },
+        h("li", {}),
+      ),
       spots.length
-        ? h("ul", { class: "list" }, ...rows(spots))
+        ? h("ul", { class: "list trip-list" }, ...rows(spots))
         : h("p", { class: "muted" }, "共有スポットはまだありません。"),
     );
     let nearbyOpen = false;
@@ -1996,11 +2007,7 @@ function main() {
             "場所名が未設定です。名前を入力してください。",
           )
         : null,
-      h(
-        "div",
-        { class: "muted" },
-        `座標: ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`,
-      ),
+      h("div", { class: "muted" }),
       h(
         "div",
         { class: "row" },
@@ -2031,11 +2038,6 @@ function main() {
     const g = gate(true);
     if (g) return g;
     const st = L().settings;
-    const nameIn = h("input", {
-      type: "text",
-      placeholder: "地点名（空欄なら URL から自動取得）",
-      maxlength: 60,
-    });
     const num = (key, min, step) =>
       h("input", {
         type: "number",
@@ -2067,52 +2069,15 @@ function main() {
       {},
       h("h3", {}, "訪問地点（上から順に訪問）"),
       h(
-        "p",
-        { class: "muted" },
-        "訪問地点・しおり・移動手段は、あなた（幹事）のローカルにのみ保存されます。確定後はカレンダー予定でメンバーに共有します。",
-      ),
-      h(
-        "p",
-        { class: "muted" },
-        "☰ をドラッグすると並べ替えられます（先頭が出発地点）。投票タブで採用した地点の取り込みのほか、Google マップで場所を開いて直接登録もできます。",
-      ),
-      nameIn,
-      btn(
-        "現在のページの地点を登録",
-        async () => {
-          const ll = T.extractLatLng(location.href);
-          if (!ll)
-            return flash(
-              "このページの URL から緯度経度を取得できませんでした。場所を検索・選択してからもう一度お試しください。",
-              "err",
-            );
-          if (L().places.length >= T.MAX_LOCAL_PLACES)
-            return flash(
-              `登録できる地点は最大 ${T.MAX_LOCAL_PLACES} 件です`,
-              "err",
-            );
-          if (L().places.some((p) => T.samePoint(p, ll)))
-            return flash("同じ地点が既に登録されています", "err");
-          const typed = nameIn.value.trim(),
-            found = T.extractPlaceName(location.href);
-          L().places.push({
-            id: rid(),
-            name: typed || found || T.UNNAMED_PLACE,
-            lat: ll.lat,
-            lng: ll.lng,
-          });
-          await placesChanged();
-          if (typed || found) flash("地点を登録しました");
-          else
-            flash(
-              "場所名を URL から取得できなかったため「名称未設定の地点」として登録しました。一覧で名前を入力できます。",
-              "err",
-            );
+        "ul",
+        {
+          class: "list trip-list trip-list-divider",
+          "aria-hidden": "true",
         },
-        "primary",
+        h("li", {}),
       ),
       L().places.length
-        ? h("ul", { class: "list" }, L().places.map(placeItem))
+        ? h("ul", { class: "list trip-list" }, L().places.map(placeItem))
         : h("p", { class: "muted" }, "登録済みの地点はありません。"),
     );
     const sec2 = h(
@@ -2153,7 +2118,7 @@ function main() {
       h(
         "p",
         { class: "muted" },
-        "移動時間 = 直線距離 × 迂回係数 ÷ 想定速度。迂回係数は直線距離を道路・路線に沿った距離へ近づける倍率です。",
+        "迂回係数は直線距離を実際の道路・路線距離へ近づける倍率です。",
       ),
       btn(
         "訪問順を自動最適化（手動の並べ替えを上書き）",
@@ -2197,7 +2162,6 @@ function main() {
               ),
             ),
           ),
-          h("p", { class: "note" }, T.ESTIMATE_NOTE),
         )
       : null;
 
@@ -2228,11 +2192,6 @@ function main() {
             "全体ルートの移動手段:",
             wseg("car"),
             wseg("train"),
-          ),
-          h(
-            "p",
-            { class: "muted" },
-            "全体ルートでは移動手段を 1 つに決める必要があります（区間ごとの設定とは別です）。",
           ),
           h(
             "p",
@@ -2479,7 +2438,7 @@ function main() {
       S.regResults
         ? h(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             S.regResults.map((r) =>
               h(
                 "li",
@@ -2502,10 +2461,18 @@ function main() {
       "section",
       {},
       h("h3", {}, "この拡張機能から登録した予定"),
+      h(
+        "ul",
+        {
+          class: "list trip-list trip-list-divider",
+          "aria-hidden": "true",
+        },
+        h("li", {}),
+      ),
       list.length
         ? h(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             list.map((r) =>
               h(
                 "li",
@@ -2616,12 +2583,16 @@ function main() {
               },
               "danger",
             ),
+            h("div", {
+              class: "calendar-events-divider",
+              "aria-hidden": "true",
+            }),
           )
         : null,
       S.delResults
         ? h(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             S.delResults.map((x) =>
               h(
                 "li",

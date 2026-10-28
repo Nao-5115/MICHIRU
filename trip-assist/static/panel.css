@@ -1623,3 +1623,44 @@ tr.sel {
 .cal-paint__sym { font-weight: bold; font-size: 14px; }
 .cal-grid.painting { touch-action: none; user-select: none; }
 .cal-cell.is-drag { outline: 2px dashed var(--accent); outline-offset: -1px; }
+
+/* 希望を変更するボタンで開く、中央のポップアップ（フォームの見た目はそのまま） */
+.pref-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 2147483000;
+}
+.pref-modal-backdrop[hidden] {
+  display: none;
+}
+.pref-modal {
+  --line: #c5c5c5; /* ポップアップ内の枠線だけ薄いグレー（パネル全体は黒のまま） */
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(92vw, 430px);
+  max-height: calc(80vh + 10px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  z-index: 2147483001;
+}
+.pref-modal__close {
+  display: none;
+}
+.pref-modal .pref-modal__close {
+  display: block;
+  margin: 0 0 4px auto;
+  background: none;
+  border: none;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: inherit;
+}

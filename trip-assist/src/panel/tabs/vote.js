@@ -290,15 +290,30 @@ export function installVoteTab(ctx) {
     const prefFormWrap = createEl("div", {});
     const prefViewWrap = createEl("div", {});
     let _editMode = !hasMyPrefs; // 未登録なら最初からフォーム表示
+    let prefBackdrop = null; // 「希望を変更する」で開く中央ポップアップの背景
 
+    // 「希望を変更する」で、フォームを中央のポップアップとして表示する（デザインは同じ）
     function showPrefForm() {
       _editMode = true;
+      prefFormWrap.classList.add("pref-modal");
       prefFormWrap.style.display = "";
       prefViewWrap.style.display = "none";
+      if (!prefBackdrop) {
+        prefBackdrop = createEl("div", {
+          class: "pref-modal-backdrop",
+          onclick: (event) => {
+            if (event.target === prefBackdrop) showPrefView();
+          },
+        });
+        prefFormWrap.before(prefBackdrop);
+      }
+      prefBackdrop.hidden = false;
     }
     function showPrefView() {
       _editMode = false;
+      prefFormWrap.classList.remove("pref-modal");
       prefFormWrap.style.display = "none";
+      if (prefBackdrop) prefBackdrop.hidden = true;
       prefViewWrap.style.display = "";
       prefViewWrap.innerHTML = "";
       prefViewWrap.appendChild(buildPrefView());
@@ -307,6 +322,13 @@ export function installVoteTab(ctx) {
       );
     }
 
+    // ポップアップ表示時だけ見える閉じるボタン
+    prefFormWrap.appendChild(createEl("button", {
+      class: "pref-modal__close",
+      type: "button",
+      "aria-label": "閉じる",
+      onclick: () => showPrefView(),
+    }, "×"));
     // フォーム内容をprefFormWrapにセット
     prefFormWrap.appendChild(createEl("div", { class: "form-label" }, "行きたい場所（最大3件）"));
     prefFormWrap.appendChild(existingPlaceList);
@@ -364,7 +386,9 @@ export function installVoteTab(ctx) {
 
     // 初期表示
     if (_editMode) {
-      showPrefForm();
+      // 未登録の人は、最初からフォームをそのまま表示する（ポップアップにはしない）
+      prefFormWrap.style.display = "";
+      prefViewWrap.style.display = "none";
     } else {
       prefViewWrap.appendChild(buildPrefView());
       prefViewWrap.appendChild(makeButton("希望を変更する", showPrefForm, "small"));

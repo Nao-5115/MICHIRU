@@ -38,6 +38,7 @@ let auth = null,
 let unsubTrips = null,
   unsubTrip = null,
   unsubSpots = null;
+let tripsWatchGeneration = 0;
 let wantTripId = null;
 const joinedMarked = new Set();
 
@@ -92,22 +93,43 @@ const need = (hasValue, msg) => {
 // ---------- 同期（Firebase → chrome.storage.local へ中継） ----------
 function startTripsWatch(user) {
   if (unsubTrips) unsubTrips();
+  const generation = ++tripsWatchGeneration;
+  let snapshotRevision = 0;
   const key = emailKey(user.email);
   unsubTrips = onValue(
     ref(db, path("userTrips", key)),
     (snap) => {
-      const list = Object.entries(snap.val() || {})
-        .map(([entryId, value]) => ({
-          id: entryId,
-          name: value.name,
-          ownerEmail: value.ownerEmail,
-          invitedAt: value.invitedAt || 0,
-        }))
-        .sort((first, second) => second.invitedAt - first.invitedAt);
-      publish("fb:trips", { list, ts: Date.now() });
+      const revision = ++snapshotRevision;
+      const trips = Object.entries(snap.val() || {}).map(([entryId, value]) => ({
+        id: entryId,
+        name: (value || {}).name,
+        ownerEmail: (value || {}).ownerEmail,
+        invitedAt: (value || {}).invitedAt || 0,
+      }));
+      trips.sort((first, second) => second.invitedAt - first.invitedAt);
+      publish("fb:trips", { list: trips, ts: Date.now() });
+      Promise.all(
+        trips.map(async (trip) => {
+          try {
+            const datesSnap = await get(ref(db, path("trips", trip.id, "dates")));
+            const dates = Object.entries(datesSnap.val() || {}).map(([dateId, date]) => ({
+              id: dateId,
+              ...date,
+            }));
+            return { ...trip, dates };
+          } catch (_) {
+            return { ...trip, dates: null };
+          }
+        }),
+      ).then((list) => {
+        if (generation !== tripsWatchGeneration || revision !== snapshotRevision) return;
+        publish("fb:trips", { list, ts: Date.now() });
+      });
     },
-    (error) =>
-      publish("fb:trips", { list: [], error: humanize(error), ts: Date.now() }),
+    (error) => {
+      if (generation === tripsWatchGeneration)
+        publish("fb:trips", { list: [], error: humanize(error), ts: Date.now() });
+    },
   );
 }
 
@@ -382,6 +404,33 @@ const handlers = {
     else await set(answerRef, answer);
     return {};
   },
+  async setDayMark({ tripId, day, v: mark }) {
+    const currentUser = user();
+    need(
+      typeof tripId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(tripId),
+      "旅行IDが正しくありません",
+    );
+    need(
+      typeof day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(day),
+      "日付が正しくありません",
+    );
+    const parsedDay = new Date(`${day}T00:00:00.000Z`);
+    need(
+      Number.isFinite(parsedDay.getTime()) && parsedDay.toISOString().slice(0, 10) === day,
+      "日付が正しくありません",
+    );
+    need(
+      mark == null || mark === 0 || mark === 1 || mark === 2,
+      "出欠の値が正しくありません",
+    );
+    const markRef = ref(
+      db,
+      path("trips", tripId, "schedules", currentUser.key, day),
+    );
+    if (mark == null) await remove(markRef);
+    else await set(markRef, mark);
+    return {};
+  },
 
   async addPlace({ tripId, place }) {
     const currentUser = user();
@@ -491,6 +540,7 @@ async function init() {
   onAuthStateChanged(
     auth,
     (user) => {
+      tripsWatchGeneration++;
       if (unsubTrips) {
         unsubTrips();
         unsubTrips = null;

@@ -449,9 +449,11 @@ const handlers = {
   },
   async setAdopted({ tripId, placeId, on: enabled }) {
     user();
+    console.log("[MICHIRU-DEBUG] setAdopted", tripId, placeId, enabled);
     const adoptedRef = ref(db, path("trips", tripId, "adopted", placeId));
     if (enabled) await set(adoptedRef, true);
     else await remove(adoptedRef);
+    console.log("[MICHIRU-DEBUG] setAdopted 完了", placeId, enabled);
     return {};
   },
   async setPreferences({ tripId, prefs }) {

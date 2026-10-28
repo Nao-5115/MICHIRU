@@ -446,7 +446,7 @@ export function installVoteTab(ctx) {
                         createEl("input", {
                           type: "checkbox",
                           checked: !!adopted[wishPlace.id],
-                          onchange: (event) =>
+                          onchange: (event) => console.log("[MICHIRU-DEBUG] 採用ボタン", wishPlace.id, event.target.checked) ||
                             runAction(
                               "setAdopted",
                               {

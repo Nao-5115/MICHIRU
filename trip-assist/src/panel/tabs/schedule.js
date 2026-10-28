@@ -51,6 +51,28 @@ export function installScheduleTab(ctx) {
   let calSelected = null; // 詳細を開いている日（"YYYY-MM-DD"）
   let calPaint = null; // 登録する印（1=○ 2=△ 0=×）。null のときは日付クリックで詳細を開く
   let calDrag = null; // ドラッグ中の範囲（押した日・今の日・登録する値）
+  let popupOutside = null; // 詳細パネルの外側を押したら閉じるための処理
+
+  // 詳細パネルが開いている間だけ、その外側（日付セル以外）を押したら閉じる
+  function setPopupOutsideClose(on) {
+    if (on && !popupOutside) {
+      popupOutside = (event) => {
+        const inside = event.composedPath().some(
+          (node) =>
+            node.classList &&
+            (node.classList.contains("cal-pop") || node.classList.contains("cal-cell")),
+        );
+        if (inside) return;
+        calSelected = null;
+        setPopupOutsideClose(false);
+        render();
+      };
+      document.addEventListener("pointerdown", popupOutside, true);
+    } else if (!on && popupOutside) {
+      document.removeEventListener("pointerdown", popupOutside, true);
+      popupOutside = null;
+    }
+  }
   // 押していた指を離したら、選んだ範囲に登録する
   const endCalDrag = () => {
     if (!calDrag) return;
@@ -544,6 +566,7 @@ export function installScheduleTab(ctx) {
       state.events ? calEventList(state.events) : null,
       popup,
     );
+    setPopupOutsideClose(!!popup);
   }
 
   // 自分のカレンダーの予定（候補日の期間内）を一覧で表示

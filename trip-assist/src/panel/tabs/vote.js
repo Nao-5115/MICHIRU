@@ -4,6 +4,7 @@ import * as T from "../../lib.js";
 export function installVoteTab(ctx) {
   const { gate, tripData, currentMember, isOwner, createEl, BUDGET_OPTIONS, TRANSPORT_OPTIONS, makeSvgIcon, SPOT_CATEGORIES, SPOT_ICONS, prefsFloat, makeMsIcon, MS_GROUP_PATH, runAction, state, makeButton, flash, callFirebase, sendMessage, signinCard, SPOT_COLORS } = ctx;
   const importAdopted = (...args) => ctx.importAdopted(...args);
+  const addAdoptedPlace = (...args) => ctx.addAdoptedPlace(...args);
   const render = (...args) => ctx.render(...args);
 
   function viewVote() {
@@ -452,18 +453,19 @@ export function installVoteTab(ctx) {
                         createEl("input", {
                           type: "checkbox",
                           checked: !!adopted[wishPlace.id],
-                          onchange: (event) =>
-                            runAction(
+                          onchange: async (event) => {
+                            const on = event.target.checked;
+                            const result = await runAction(
                               "setAdopted",
                               {
                                 tripId: state.tripId,
                                 placeId: wishPlace.id,
-                                on: event.target.checked,
+                                on,
                               },
-                              event.target.checked
-                                ? "採用しました"
-                                : "採用を取り消しました",
-                            ),
+                              on ? "採用しました" : "採用を取り消しました",
+                            );
+                            if (result.ok && on) await addAdoptedPlace(wishPlace);
+                          },
                         }),
                         "採用（幹事）",
                       )

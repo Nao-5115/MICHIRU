@@ -213,6 +213,43 @@ export function installOverlay(ctx) {
     render();
   }
 
+  // 採用済みの地点のうち、訪問地点リストにまだないものを自動で追加する（画面表示時に呼ぶ。変更があった場合だけ保存）
+  function syncAdoptedPlaces() {
+    const trip = tripData();
+    if (!trip || !getLocal()) return false;
+    const adopted = trip.adopted || {};
+    let changed = false;
+    for (const place of T.placesOf(trip)) {
+      if (!adopted[place.id] || place.lat == null || place.lng == null) continue;
+      const lat = +place.lat, lng = +place.lng;
+      if (Number.isNaN(lat) || Number.isNaN(lng)) continue;
+      if (getLocal().places.some((existing) => T.samePoint(existing, { lat, lng }))) continue;
+      if (getLocal().places.length >= T.MAX_LOCAL_PLACES) break;
+      getLocal().places.push({ id: randomId(), name: place.name, lat, lng });
+      changed = true;
+    }
+    if (changed) saveLocal();
+    return changed;
+  }
+
+  // 採用チェックと同時に訪問地点リストへ追加する（取り込みボタンを押し忘れてもリロード後に残る）
+  async function addAdoptedPlace(place) {
+    if (place.lat == null || place.lng == null) {
+      flash("この地点は緯度経度がないため、訪問地点リストに追加できませんでした", "err");
+      return;
+    }
+    const lat = +place.lat, lng = +place.lng;
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+    if (getLocal().places.some((existing) => T.samePoint(existing, { lat, lng }))) return;
+    if (getLocal().places.length >= T.MAX_LOCAL_PLACES) {
+      flash(`訪問地点は最大 ${T.MAX_LOCAL_PLACES} 件までです`, "err");
+      return;
+    }
+    getLocal().places.push({ id: randomId(), name: place.name, lat, lng });
+    await saveLocal();
+    render();
+  }
+
   // ======================= ルートタブ（幹事のローカル） =======================
   // 訪問順 = L().places の並び。しおり・ルートリンクは常にこの並びから再計算される
   const modeOf = (from, to) =>
@@ -265,5 +302,5 @@ export function installOverlay(ctx) {
     flash("並べ替えました。しおりの時刻とルートリンクを更新しました。");
   }
 
-  Object.assign(ctx, { activeSpotPopup, closeSpotPopup, mercatorY, mapViewFromUrl, spotScreenPoint, showSpotPopup, updateOverlay, overlayHref, mapDrag, importAdopted, modeOf, currentItinerary, pruneLegModes, placesChanged, movePlace });
+  Object.assign(ctx, { activeSpotPopup, closeSpotPopup, mercatorY, mapViewFromUrl, spotScreenPoint, showSpotPopup, updateOverlay, overlayHref, mapDrag, importAdopted, addAdoptedPlace, syncAdoptedPlaces, modeOf, currentItinerary, pruneLegModes, placesChanged, movePlace });
 }

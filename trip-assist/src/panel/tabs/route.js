@@ -217,11 +217,7 @@ export function installRouteTab(ctx) {
     const gateView = gate(true);
     if (gateView) return gateView;
     const settings = getLocal().settings;
-    const nameIn = createEl("input", {
-      type: "text",
-      placeholder: "地点名（空欄なら URL から自動取得）",
-      maxlength: 60,
-    });
+    ctx.syncAdoptedPlaces();
     const num = (key, minValue, step) =>
       createEl("input", {
         type: "number",
@@ -252,51 +248,6 @@ export function installRouteTab(ctx) {
       "section",
       {},
       createEl("h3", {}, "訪問地点（上から順に訪問）"),
-      createEl(
-        "p",
-        { class: "muted" },
-        "訪問地点・しおり・移動手段は、あなた（幹事）のローカルにのみ保存されます。確定後はカレンダー予定でメンバーに共有します。",
-      ),
-      createEl(
-        "p",
-        { class: "muted" },
-        "☰ をドラッグすると並べ替えられます（先頭が出発地点）。投票タブで採用した地点の取り込みのほか、Google マップで場所を開いて直接登録もできます。",
-      ),
-      nameIn,
-      makeButton(
-        "現在のページの地点を登録",
-        async () => {
-          const latLng = T.extractLatLng(location.href);
-          if (!latLng)
-            return flash(
-              "このページの URL から緯度経度を取得できませんでした。場所を検索・選択してからもう一度お試しください。",
-              "err",
-            );
-          if (getLocal().places.length >= T.MAX_LOCAL_PLACES)
-            return flash(
-              `登録できる地点は最大 ${T.MAX_LOCAL_PLACES} 件です`,
-              "err",
-            );
-          if (getLocal().places.some((place) => T.samePoint(place, latLng)))
-            return flash("同じ地点が既に登録されています", "err");
-          const typed = nameIn.value.trim(),
-            found = T.extractPlaceName(location.href);
-          getLocal().places.push({
-            id: randomId(),
-            name: typed || found || T.UNNAMED_PLACE,
-            lat: latLng.lat,
-            lng: latLng.lng,
-          });
-          await placesChanged();
-          if (typed || found) flash("地点を登録しました");
-          else
-            flash(
-              "場所名を URL から取得できなかったため「名称未設定の地点」として登録しました。一覧で名前を入力できます。",
-              "err",
-            );
-        },
-        "primary",
-      ),
       createEl(
         "ul",
         { class: "list trip-list trip-list-divider", "aria-hidden": "true" },

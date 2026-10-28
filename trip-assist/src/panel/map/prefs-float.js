@@ -68,6 +68,31 @@ export function installPrefsFloat(ctx) {
 
       const head = document.createElement("div");
       head.id = "pf-head";
+      // ヘッダーをつかんで動かせる（閉じるボタンの上では動かさない）
+      head.style.cursor = "move";
+      head.style.touchAction = "none";
+      head.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || event.target.closest("button")) return;
+        event.preventDefault();
+        const rect = wrap.getBoundingClientRect();
+        const offsetX = event.clientX - rect.left;
+        const offsetY = event.clientY - rect.top;
+        // 下・左の固定指定を、今の位置の指定に切り替える
+        wrap.style.left = rect.left + "px";
+        wrap.style.top = rect.top + "px";
+        wrap.style.bottom = "auto";
+        head.setPointerCapture(event.pointerId);
+        const move = (moveEvent) => {
+          const x = Math.min(Math.max(moveEvent.clientX - offsetX, 0), window.innerWidth - rect.width);
+          const y = Math.min(Math.max(moveEvent.clientY - offsetY, 0), window.innerHeight - rect.height);
+          wrap.style.left = x + "px";
+          wrap.style.top = y + "px";
+        };
+        const stop = () => head.removeEventListener("pointermove", move);
+        head.addEventListener("pointermove", move);
+        head.addEventListener("pointerup", stop, { once: true });
+        head.addEventListener("pointercancel", stop, { once: true });
+      });
       const headTitle = document.createElement("span");
       headTitle.append(makeMsIcon(MS_GROUP_PATH, 18), document.createTextNode(" メンバーの希望"));
       head.append(headTitle);

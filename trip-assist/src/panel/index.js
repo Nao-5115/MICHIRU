@@ -6,6 +6,7 @@ import { installGeometry } from "./core/geometry.js";
 import { installMessaging } from "./core/messaging.js";
 import { installStorage } from "./core/storage.js";
 import { installCommon } from "./core/common.js";
+import { installColorSelect } from "./core/colorSelect.js";
 import { installTripTab } from "./tabs/trip.js";
 import { installScheduleTab } from "./tabs/schedule.js";
 import { installPrefsFloat } from "./map/prefs-float.js";
@@ -24,6 +25,7 @@ export function main() {
   installState(ctx);
   installDom(ctx);
   installShell(ctx);
+  installColorSelect(ctx);
   installGeometry(ctx);
   installMessaging(ctx);
   installStorage(ctx);

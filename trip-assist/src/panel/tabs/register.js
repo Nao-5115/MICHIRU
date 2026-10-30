@@ -24,6 +24,12 @@ export function installRegisterTab(ctx) {
   const registerToCalendar = (...args) => ctx.registerToCalendar(...args);
 
   function viewRegister() {
+    const section = viewCalendarRegistration();
+    if (Array.isArray(section)) return section;
+    return [section, viewMyEvents()];
+  }
+
+  function viewCalendarRegistration() {
     const gateView = gate(true);
     if (gateView) return gateView;
     const trip = tripData(),
@@ -124,7 +130,7 @@ export function installRegisterTab(ctx) {
           )
         : null,
     );
-    return [section, viewMyEvents()];
+    return section;
   }
 
   // この拡張機能から登録した予定の一覧と削除
@@ -290,5 +296,5 @@ export function installRegisterTab(ctx) {
     );
   }
 
-  Object.assign(ctx, { viewRegister, viewMyEvents });
+  Object.assign(ctx, { viewRegister, viewCalendarRegistration, viewMyEvents });
 }

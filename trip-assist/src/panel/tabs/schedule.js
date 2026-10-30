@@ -19,6 +19,7 @@ export function installScheduleTab(ctx) {
     warnFor,
   } = ctx;
   const render = (...args) => ctx.render(...args);
+  const calendarRegistration = (...args) => ctx.viewCalendarRegistration(...args);
 
   // ======================= 定数・状態 =======================
   const MEMBER_COLORS = [
@@ -563,14 +564,15 @@ export function installScheduleTab(ctx) {
           refreshEvents(true),
         ),
       ),
-      state.events ? calEventList(state.events) : null,
+      calendarRegistration(),
+      calEventList(state.events || [], state.events !== null),
       popup,
     );
     setPopupOutsideClose(!!popup);
   }
 
   // 自分のカレンダーの予定（候補日の期間内）を一覧で表示
-  function calEventList(events) {
+  function calEventList(events, loaded) {
     const whenOf = (event) => {
       if (event.start.dateTime) {
         const start = new Date(event.start.dateTime);
@@ -596,7 +598,13 @@ export function installScheduleTab(ctx) {
               ),
             ),
           )
-        : createEl("p", { class: "muted" }, "候補日の期間に予定はありません。"),
+        : createEl(
+            "p",
+            { class: "muted" },
+            loaded
+              ? "候補日の期間に予定はありません。"
+              : "「自分のカレンダーの予定を重ねて表示」を押すと、ここに表示されます。",
+          ),
     );
   }
 

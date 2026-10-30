@@ -4,7 +4,7 @@
   --fg: #3a3a3c;
   --muted: #7b7b80;
   --line: #000000;
-  --miniline:#c5c5c5;
+  --miniline: #c5c5c5;
   --accent: #1a73e8;
   --accent-strong: #1557b0;
   --accent-soft: #e8f1fd;
@@ -25,28 +25,52 @@
   box-sizing: border-box;
 }
 
-/* ---------- 開くボタン（旅） ---------- */
+/* ---------- 開くボタン ---------- */
 .fab {
   position: fixed;
   top: 90px;
   right: 12px;
   z-index: 2147483647;
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
+  width: 52px;
+  height: 52px;
+  padding: 0;
   border: none;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 18px;
+  background: transparent;
+  line-height: 0;
   cursor: pointer;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
   transition:
     transform 0.15s,
     filter 0.15s;
 }
+.fab img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.3));
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+.fab-hover {
+  opacity: 0;
+  transform: scale(1.5);
+}
+.fab:hover .fab-idle,
+.fab:focus-visible .fab-idle {
+  opacity: 0;
+}
+.fab:hover .fab-hover,
+.fab:focus-visible .fab-hover {
+  opacity: 1;
+}
 .fab:hover {
-  filter: brightness(1.06);
   transform: scale(1.06);
+}
+.fab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 .fab:active {
   transform: scale(0.94);
@@ -1680,9 +1704,18 @@ tr.sel {
 }
 
 /* ===== 口コミ要約 ===== */
-.review-block { margin: 6px 0 4px 8px; }
-.review-summary { margin-top: 4px; font-size: 12px; line-height: 1.5; color: var(--fg); }
-.review-summary.warn { color: #c5221f; }
+.review-block {
+  margin: 6px 0 4px 8px;
+}
+.review-summary {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg);
+}
+.review-summary.warn {
+  color: #c5221f;
+}
 
 /* ---------- 旅行の選択（リスト・右側にルートボタン） ---------- */
 .trip-list {
@@ -1797,39 +1830,417 @@ tr.sel {
 }
 
 /* ---- カレンダー（日程タブ） ---- */
-.cal { position: relative; }
-.cal-nav-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
-.cal-nav-row b { font-size: 14px; }
-.cal-legend { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 12px; color: var(--muted); margin-top: 8px; }
-.cal-legend span { display: inline-flex; align-items: center; gap: 4px; }
-.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; margin-top: 6px; }
-.cal-dow { text-align: center; font-size: 11px; color: var(--muted); padding: 2px 0; }
-.cal-dow.sun, .cal-cell.sun .cal-day { color: #d93025; }
-.cal-dow.sat, .cal-cell.sat .cal-day { color: #1a73e8; }
-.cal-cell { min-height: 54px; border-radius: 6px; padding: 3px; background: var(--card); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; overflow: hidden; text-align: left; font: inherit; color: var(--fg); }
-.cal-cell.blank { background: transparent; border: none; }
-.cal-cell.is-cand { background: var(--accent-soft); cursor: pointer; }
-.cal-cell.is-today .cal-day { color: var(--accent); font-weight: 700; }
-.cal-cell.is-sel { outline: 2px solid var(--accent); outline-offset: -1px; }
-.cal-day { font-size: 12px; line-height: 1.2; }
-.cal-row { display: flex; flex-wrap: wrap; gap: 2px; }
-.cal-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); box-sizing: border-box; flex-shrink: 0; }
-.cal-dot.maybe { width: 9px; height: 8px; border-radius: 0; background: var(--muted); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
-.cal-more { font-size: 10px; color: var(--muted); }
-.cal-pop { position: absolute; left: 0; right: 0; top: 36px; z-index: 5; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-panel); padding: 10px 12px; max-height: 280px; overflow: auto; }
-.cal-pop__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.cal-pop__close { background: none; border: 0; font-size: 18px; cursor: pointer; color: var(--muted); }
-.cal-pop__cand { border-top: 1px solid var(--line); padding: 6px 0; }
-.cal-pop__range { font-size: 13px; font-weight: bold; margin-bottom: 4px; }
-.cal-pop__member { display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 2px 0; }
-.cal-pop__member .muted { margin-left: auto; }
-.cal-pop__actions { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
-.cal-paint { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.cal-paint__btn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--fg); font-size: 12px; cursor: pointer; }
-.cal-paint__btn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-strong); }
-.cal-paint__sym { font-weight: bold; font-size: 14px; }
-.cal-grid.painting { touch-action: none; user-select: none; }
-.cal-cell.is-drag { outline: 2px dashed var(--accent); outline-offset: -1px; }
+.cal {
+  position: relative;
+}
+.cal-nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+.cal-nav-row b {
+  font-size: 14px;
+}
+.cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+.cal-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  margin-top: 6px;
+}
+.cal-dow {
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 2px 0;
+}
+.cal-dow.sun,
+.cal-cell.sun .cal-day {
+  color: #d93025;
+}
+.cal-dow.sat,
+.cal-cell.sat .cal-day {
+  color: #1a73e8;
+}
+.cal-cell {
+  min-height: 54px;
+  border-radius: 6px;
+  padding: 3px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  text-align: left;
+  font: inherit;
+  color: var(--fg);
+}
+.cal-cell.blank {
+  background: transparent;
+  border: none;
+}
+.cal-cell.is-cand {
+  background: var(--accent-soft);
+  cursor: pointer;
+}
+.cal-cell.is-today .cal-day {
+  color: var(--accent);
+  font-weight: 700;
+}
+.cal-cell.is-sel {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.cal-day {
+  font-size: 12px;
+  line-height: 1.2;
+}
+.cal-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.cal-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+.cal-dot.maybe {
+  width: 9px;
+  height: 8px;
+  border-radius: 0;
+  background: var(--muted);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.cal-more {
+  font-size: 10px;
+  color: var(--muted);
+}
+.cal-pop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 36px;
+  z-index: 5;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-panel);
+  padding: 10px 12px;
+  max-height: 280px;
+  overflow: auto;
+}
+.cal-pop__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.cal-pop__close {
+  background: none;
+  border: 0;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.cal-pop__cand {
+  border-top: 1px solid var(--line);
+  padding: 6px 0;
+}
+.cal-pop__range {
+  font-size: 13px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+.cal-pop__member {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 2px 0;
+}
+.cal-pop__member .muted {
+  margin-left: auto;
+}
+.cal-pop__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.cal-paint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.cal-paint__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+}
+.cal-paint__btn.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+.cal-paint__sym {
+  font-weight: bold;
+  font-size: 14px;
+}
+.cal-grid.painting {
+  touch-action: none;
+  user-select: none;
+}
+.cal-cell.is-drag {
+  outline: 2px dashed var(--accent);
+  outline-offset: -1px;
+}
+
+/* ---- ルートタブ ---- */
+.route-section {
+  padding: 10px 4px 16px;
+}
+.route-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.route-section__head h3 {
+  margin: 2px 0 0;
+  font-size: 16px;
+}
+.route-section__head .muted {
+  margin-top: 1px;
+}
+.route-section__icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  font-size: 19px;
+}
+.route-section__icon svg,
+.route-empty__icon svg {
+  display: block;
+}
+.route-add {
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--bg);
+}
+.route-add input[type="text"] {
+  margin: 0 0 6px;
+  background: var(--card);
+}
+.route-add__button {
+  width: 100%;
+  margin: 0;
+  border-radius: 10px;
+}
+.route-place-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+.route-place-list > li {
+  padding: 10px;
+  border: 1px solid #e7e9ed;
+  border-radius: 14px;
+  background: var(--card);
+}
+.route-place-list .placehead {
+  gap: 7px;
+}
+.route-place-list .idx {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+.route-place-list .pname {
+  border-color: transparent;
+  background: transparent;
+  padding-left: 4px;
+  font-size: 14px;
+}
+.route-place-list .pname:focus {
+  border-color: var(--accent);
+  background: var(--card);
+}
+.route-place-list .btn.danger {
+  border-color: transparent;
+  background: transparent;
+}
+.route-delete {
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin: 0 0 0 2px;
+  color: #d93025;
+}
+.route-delete:hover {
+  background: #fce8e6;
+}
+.route-place-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0 31px;
+  color: var(--muted);
+}
+.route-place-list label input {
+  flex: 1;
+  min-width: 0;
+}
+.route-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-top: 10px;
+  padding: 20px 10px;
+  border: 1px dashed #d8dee8;
+  border-radius: 14px;
+  background: #fcfdff;
+  text-align: center;
+  font-size: 13px;
+}
+.route-empty__icon {
+  margin-bottom: 2px;
+  color: var(--accent);
+}
+.route-settings .row {
+  gap: 10px;
+}
+.route-advanced {
+  margin: 8px 0 10px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: var(--bg);
+}
+.route-advanced summary {
+  padding: 9px 0;
+  color: var(--accent-strong);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+.route-advanced[open] {
+  padding-bottom: 6px;
+}
+.route-optimize {
+  width: 100%;
+  margin: 0;
+  border-radius: 10px;
+}
+/* ===== テーマ選択ポップアップ ===== */
+.colorSelect-pop {
+  position: absolute;
+  top: 52px;
+  right: 10px;
+  z-index: 10;
+  padding: 10px 12px 2px;
+  background: var(--card);
+  border-radius: 12px;
+  box-shadow: var(--shadow-panel);
+  animation: toast-in 0.18s ease-out;
+}
+.colorSelect-pop[hidden] {
+  display: none;
+}
+.colorSelect-pop .colorSelect-grid {
+  margin: 4px 0 8px;
+  max-width: 210px;
+}
+
+.colorSelect-grid {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.colorSelect-swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--card);
+  box-shadow: 0 0 0 1.5px var(--miniline);
+  cursor: pointer;
+  transition:
+    transform 0.1s,
+    box-shadow 0.15s;
+}
+.colorSelect-swatch:hover {
+  transform: scale(1.1);
+}
+.colorSelect-swatch.selected {
+  box-shadow: 0 0 0 2.5px var(--fg);
+}
+.colorSelect-tones {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.colorSelect-tone {
+  flex: 1;
+  padding: 4px 0;
+  border: 1.5px solid var(--miniline);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.colorSelect-tone:hover {
+  background: var(--accent-soft);
+}
+.colorSelect-tone.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 
 /* 希望を変更するボタンで開く、中央のポップアップ（フォームの見た目はそのまま） */
 .pref-modal-backdrop {

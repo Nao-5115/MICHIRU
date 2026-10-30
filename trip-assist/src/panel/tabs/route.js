@@ -764,8 +764,6 @@ export function installRouteTab(ctx) {
       minuteOfDay = minutes % 1440;
     return `${targetDate}T${String(Math.floor(minuteOfDay / 60)).padStart(2, "0")}:${String(minuteOfDay % 60).padStart(2, "0")}:00`;
   }
-  const NOTICE =
-    "Google カレンダー以外のメールアドレスの参加者の場合、この通知メールが唯一の伝達手段であり、予定が自動的にその人のカレンダーに追加されることはありません。また、参加者の設定によっては、招待メール内で出欠に回答するまでカレンダーに追加されない場合があります。招待は、あなた（幹事）のメールアドレスから送信されます。";
 
   async function registerToCalendar() {
     if (state.regBusy) return;
@@ -894,5 +892,5 @@ export function installRouteTab(ctx) {
     render();
   }
 
-  Object.assign(ctx, { isDirPage, openRoute, clearNav, goBack, legView, placeItem, viewRoute, toLocalDT, NOTICE, registerToCalendar });
+  Object.assign(ctx, { isDirPage, openRoute, clearNav, goBack, legView, placeItem, viewRoute, toLocalDT, registerToCalendar });
 }

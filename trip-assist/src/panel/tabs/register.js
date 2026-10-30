@@ -48,11 +48,7 @@ export function installRegisterTab(ctx) {
       createEl("h3", {}, "Google カレンダーに登録"),
       cand
         ? createEl("p", {}, "確定日程: ", createEl("b", {}, T.fmtRange(cand)))
-        : createEl(
-            "p",
-            { class: "warn" },
-            "日程が未確定です。「日程」タブで「この日で確定」を押すか、下から選んでください。",
-          ),
+        : null,
       createEl(
         "select",
         {
@@ -75,9 +71,7 @@ export function installRegisterTab(ctx) {
       createEl(
         "p",
         { class: "muted" },
-        itinerary
-          ? `しおり: ${itinerary.rows.length} 地点を予定の説明欄に記載し、最初の訪問地点を場所に設定します。`
-          : "しおりが未作成です（日程のみ登録されます）。",
+        itinerary ? null : "しおりが未作成です（日程のみ登録されます）。",
       ),
       createEl(
         "label",
@@ -96,9 +90,6 @@ export function installRegisterTab(ctx) {
           ? `メンバー ${others.length} 人を招待して、招待メールを送る`
           : "招待できるメンバーがいません",
       ),
-      settings.invite && others.length
-        ? createEl("div", { class: "warn" }, "⚠ " + ctx.NOTICE)
-        : null,
       createEl(
         "label",
         { class: "inline" },

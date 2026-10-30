@@ -1932,6 +1932,17 @@ tr.sel {
   background: var(--muted);
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
+.cal-dot.cross {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  clip-path: none;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 8px;
+  color: var(--muted);
+}
 .cal-more {
   font-size: 10px;
   color: var(--muted);

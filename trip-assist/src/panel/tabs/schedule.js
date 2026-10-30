@@ -118,7 +118,7 @@ export function installScheduleTab(ctx) {
                 { tripId: state.tripId, s: startDateInput.value, e: dateValue },
                 "候補日を追加しました",
               );
-            }),
+            }, "primary"),
           ),
         )
       : null;
@@ -219,6 +219,19 @@ export function installScheduleTab(ctx) {
               title: `${T.memberLabel(member)}：△`,
               style: `background:${colorOf(member)}`,
             }),
+          ),
+        members
+          .filter((member) => markOf(member, day) === 0)
+          .map((member) =>
+            createEl(
+              "span",
+              {
+                class: "cal-dot cross",
+                title: `${T.memberLabel(member)}：×`,
+                style: `color:${colorOf(member)}`,
+              },
+              "×",
+            ),
           ),
       );
       const classes = ["cal-cell"];
@@ -556,23 +569,30 @@ export function installScheduleTab(ctx) {
           createEl("span", { class: "cal-dot maybe" }),
           "△ 未定",
         ),
+        createEl(
+          "span",
+          {},
+          createEl("span", { class: "cal-dot cross" }, "×"),
+          "× 不可",
+        ),
       ),
       createEl(
         "div",
         { class: "row" },
-        makeButton("自分のカレンダーの予定を重ねて表示", () =>
+        makeButton("カレンダーから予定を確認", () =>
           refreshEvents(true),
+          "primary",
         ),
       ),
+      state.events !== null ? calEventList(state.events) : null,
       calendarRegistration(),
-      calEventList(state.events || [], state.events !== null),
       popup,
     );
     setPopupOutsideClose(!!popup);
   }
 
   // 自分のカレンダーの予定（候補日の期間内）を一覧で表示
-  function calEventList(events, loaded) {
+  function calEventList(events) {
     const whenOf = (event) => {
       if (event.start.dateTime) {
         const start = new Date(event.start.dateTime);
@@ -598,13 +618,7 @@ export function installScheduleTab(ctx) {
               ),
             ),
           )
-        : createEl(
-            "p",
-            { class: "muted" },
-            loaded
-              ? "候補日の期間に予定はありません。"
-              : "「自分のカレンダーの予定を重ねて表示」を押すと、ここに表示されます。",
-          ),
+        : createEl("p", { class: "muted" }, "候補日の期間に予定はありません。"),
     );
   }
 

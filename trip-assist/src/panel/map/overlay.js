@@ -30,6 +30,56 @@ export function installOverlay(ctx) {
     const deltaY = (mercatorY(view.lat) - mercatorY(spot.lat)) * scale;
     return { x: window.innerWidth / 2 + deltaX, y: window.innerHeight / 2 + deltaY };
   }
+  function mapUiRects() {
+    const selectors = [
+      ".app-vertical-widget-holder",
+      ".app-horizontal-widget-holder",
+      ".widget-pane",
+      ".searchbox",
+      "#searchbox",
+      '[role="search"]',
+      "button",
+      "input",
+      "a",
+      '[role="button"]',
+      '[role="link"]',
+    ];
+    return [...document.querySelectorAll(selectors.join(","))]
+      .filter(
+        (element) =>
+          !element.closest("#tripassist-host, #tripassist-spot-layer"),
+      )
+      .map((element) => {
+        const style = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return style.display === "none" ||
+          style.visibility === "hidden" ||
+          Number(style.opacity) === 0 ||
+          rect.width === 0 ||
+          rect.height === 0
+          ? null
+          : rect;
+      })
+      .filter(Boolean);
+  }
+  function overlapsMapUi(element, uiRects) {
+    const rect = element.getBoundingClientRect();
+    return uiRects.some(
+      (ui) =>
+        rect.left < ui.right &&
+        rect.right > ui.left &&
+        rect.top < ui.bottom &&
+        rect.bottom > ui.top,
+    );
+  }
+  function visibleMapUiRects() {
+    return [
+      ...mapUiRects(),
+      // Google Maps renders its left navigation as internal UI that may not be
+      // discoverable through page-level selectors.
+      { left: 0, top: 0, right: 96, bottom: window.innerHeight },
+    ];
+  }
   function showSpotPopup(spot, screenX, screenY) {
     if (activeSpotPopup === spot.id) {
       closeSpotPopup();
@@ -42,12 +92,19 @@ export function installOverlay(ctx) {
       ? new Date(spot.registeredAt).toLocaleDateString("ja-JP")
       : "";
     const mapUrl = spotMapUrl(spot);
-    const left = Math.max(
-      8,
-      Math.min(screenX + 18, window.innerWidth - (state.open ? 390 : 280)),
-    );
-    popup.style.left = `${left}px`;
-    popup.style.top = `${Math.max(8, Math.min(screenY - 36, window.innerHeight - 260))}px`;
+    const maxLeft = window.innerWidth - (state.open ? 290 : 280);
+    const maxTop = window.innerHeight - 260;
+    const positions = [
+      [screenX + 18, screenY - 36],
+      [screenX - 278, screenY - 36],
+      [screenX + 18, screenY + 18],
+      [screenX - 278, screenY + 18],
+    ].map(([left, top]) => [
+      Math.max(8, Math.min(left, maxLeft)),
+      Math.max(8, Math.min(top, maxTop)),
+    ]);
+    popup.style.left = `${positions[0][0]}px`;
+    popup.style.top = `${positions[0][1]}px`;
     popup.append(
       createEl(
         "button",
@@ -84,8 +141,58 @@ export function installOverlay(ctx) {
       ),
     );
     spotLayer.append(popup);
+    const uiRects = visibleMapUiRects();
+    const position = positions.find(([left, top]) => {
+      popup.style.left = `${left}px`;
+      popup.style.top = `${top}px`;
+      return !overlapsMapUi(popup, uiRects);
+    });
+    if (!position) closeSpotPopup();
+  }
+  let mapDrag = null;
+  let coastFrame = null;
+  function stopMapCoast() {
+    if (coastFrame !== null) cancelAnimationFrame(coastFrame);
+    coastFrame = null;
+  }
+  function startMapCoast(velocityX, velocityY) {
+    stopMapCoast();
+    let lastTime = performance.now();
+    const startedAt = lastTime;
+    const step = (time) => {
+      if (mapDrag) {
+        coastFrame = null;
+        return;
+      }
+      const elapsed = Math.min(time - lastTime, 32);
+      lastTime = time;
+      const friction = Math.exp(-elapsed / 220);
+      const deltaX = (velocityX * 220 * (1 - friction));
+      const deltaY = (velocityY * 220 * (1 - friction));
+      velocityX *= friction;
+      velocityY *= friction;
+      if (Math.abs(deltaX) > 0.01 || Math.abs(deltaY) > 0.01) {
+        spotLayer
+          .querySelectorAll(".tripassist-spot-marker")
+          .forEach((element) => {
+            element.style.left = `${parseFloat(element.style.left) + deltaX}px`;
+            element.style.top = `${parseFloat(element.style.top) + deltaY}px`;
+          });
+      }
+      if (
+        time - startedAt < 1600 &&
+        (Math.abs(velocityX) > 0.015 || Math.abs(velocityY) > 0.015)
+      ) {
+        coastFrame = requestAnimationFrame(step);
+      } else {
+        coastFrame = null;
+      }
+    };
+    if (Math.abs(velocityX) > 0.015 || Math.abs(velocityY) > 0.015)
+      coastFrame = requestAnimationFrame(step);
   }
   function updateOverlay() {
+    if (mapDrag || coastFrame !== null) return;
     spotLayer
       .querySelectorAll(".tripassist-spot-marker")
       .forEach((element) => element.remove());
@@ -94,6 +201,7 @@ export function installOverlay(ctx) {
       closeSpotPopup();
       return;
     }
+    const uiRects = visibleMapUiRects();
     for (const spot of state.spots) {
       if (!Number.isFinite(+spot.lat) || !Number.isFinite(+spot.lng)) continue;
       const { x: screenX, y: screenY } = spotScreenPoint(spot, view);
@@ -129,54 +237,111 @@ export function installOverlay(ctx) {
       callout.style.setProperty("--sc", color);
       marker.append(callout);
       spotLayer.append(marker);
+      if (overlapsMapUi(callout, uiRects)) marker.remove();
     }
   }
   let overlayHref = location.href;
-  setInterval(() => {
-    if (location.href !== overlayHref) {
+  function updateOverlayForUrlChange() {
+    if (!mapDrag && location.href !== overlayHref) {
       overlayHref = location.href;
+      stopMapCoast();
       closeSpotPopup();
       updateOverlay();
     }
-  }, 350);
+  }
+  setInterval(updateOverlayForUrlChange, 100);
   window.addEventListener("resize", () => {
     closeSpotPopup();
     updateOverlay();
   });
-  let mapDrag = null;
   document.addEventListener(
-    "mousedown",
+    "pointerdown",
     (event) => {
       if (
+        event.isPrimary &&
+        event.button === 0 &&
         mapViewFromUrl() &&
         state.spots &&
-        event.target.closest("#tripassist-host") === null
-      )
-        mapDrag = { x: event.clientX, y: event.clientY };
-    },
-    true,
-  );
-  document.addEventListener(
-    "mousemove",
-    (event) => {
-      if (!mapDrag) return;
-      const deltaX = event.clientX - mapDrag.x,
-        deltaY = event.clientY - mapDrag.y;
-      spotLayer.querySelectorAll(".tripassist-spot-marker").forEach((element) => {
-        element.style.left = `${parseFloat(element.style.left) + deltaX}px`;
-        element.style.top = `${parseFloat(element.style.top) + deltaY}px`;
-      });
-    },
-    true,
-  );
-  document.addEventListener(
-    "mouseup",
-    () => {
-      if (mapDrag) {
-        mapDrag = null;
-        closeSpotPopup();
-        updateOverlay();
+        event.target.closest("#tripassist-host, #tripassist-spot-layer") === null
+      ) {
+        stopMapCoast();
+        const markers = [
+          ...spotLayer.querySelectorAll(".tripassist-spot-marker"),
+        ].map((element) => {
+          const position = getComputedStyle(element);
+          const left = parseFloat(position.left);
+          const top = parseFloat(position.top);
+          element.style.transition = "none";
+          element.style.left = `${left}px`;
+          element.style.top = `${top}px`;
+          return { element, left, top };
+        });
+        mapDrag = {
+          x: event.clientX,
+          y: event.clientY,
+          pointerId: event.pointerId,
+          moved: false,
+          samples: [{ x: event.clientX, y: event.clientY, time: event.timeStamp }],
+          markers,
+        };
       }
+    },
+    true,
+  );
+  document.addEventListener(
+    "pointermove",
+    (event) => {
+      if (!mapDrag || event.pointerId !== mapDrag.pointerId) return;
+      const deltaX = event.clientX - mapDrag.x;
+      const deltaY = event.clientY - mapDrag.y;
+      if (!mapDrag.moved && Math.abs(deltaX) < 2 && Math.abs(deltaY) < 2)
+        return;
+      mapDrag.moved = true;
+      mapDrag.samples.push({
+        x: event.clientX,
+        y: event.clientY,
+        time: event.timeStamp,
+      });
+      while (
+        mapDrag.samples.length > 2 &&
+        event.timeStamp - mapDrag.samples[0].time > 100
+      )
+        mapDrag.samples.shift();
+      for (const marker of mapDrag.markers) {
+        marker.element.style.left = `${marker.left + deltaX}px`;
+        marker.element.style.top = `${marker.top + deltaY}px`;
+      }
+    },
+    true,
+  );
+  document.addEventListener(
+    "pointerup",
+    (event) => {
+      if (!mapDrag || event.pointerId !== mapDrag.pointerId) return;
+      const drag = mapDrag;
+      mapDrag = null;
+      if (!drag.moved) return;
+      closeSpotPopup();
+      const first = drag.samples[0];
+      const last = drag.samples[drag.samples.length - 1];
+      const duration = last.time - first.time;
+      if (duration > 0)
+        startMapCoast(
+          (last.x - first.x) / duration,
+          (last.y - first.y) / duration,
+        );
+      updateOverlayForUrlChange();
+      setTimeout(updateOverlayForUrlChange, 100);
+      setTimeout(updateOverlayForUrlChange, 350);
+    },
+    true,
+  );
+  document.addEventListener(
+    "pointercancel",
+    (event) => {
+      if (!mapDrag || event.pointerId !== mapDrag.pointerId) return;
+      mapDrag = null;
+      updateOverlayForUrlChange();
     },
     true,
   );

@@ -14,7 +14,7 @@ export function installSpotsTab(ctx) {
       const style = document.createElement("style");
       style.id = "tripassist-spot-style";
       style.textContent = `
-        #tripassist-spot-layer{position:fixed;inset:0;pointer-events:none;z-index:2147483646;overflow:hidden}
+        #tripassist-spot-layer{position:fixed;inset:0;pointer-events:none;z-index:1;overflow:hidden}
         .tripassist-spot-marker{position:absolute;pointer-events:auto;cursor:pointer;transform:translate(-50%,-100%)}
         .tripassist-spot-callout{
           display:flex;flex-direction:column;gap:2px;

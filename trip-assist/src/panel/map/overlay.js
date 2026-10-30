@@ -181,38 +181,6 @@ export function installOverlay(ctx) {
     true,
   );
 
-  async function importAdopted() {
-    const trip = tripData(),
-      adopted = trip.adopted || {};
-    const picked = T.placesOf(trip).filter((place) => adopted[place.id]);
-    if (!picked.length)
-      return flash(
-        "採用した地点がありません。「採用」にチェックを入れてください。",
-        "err",
-      );
-    let added = 0,
-      duplicateCount = 0;
-    for (const place of picked) {
-      if (getLocal().places.some((existing) => T.samePoint(existing, place))) {
-        duplicateCount++;
-        continue;
-      }
-      if (getLocal().places.length >= T.MAX_LOCAL_PLACES) {
-        flash(`訪問地点は最大 ${T.MAX_LOCAL_PLACES} 件までです`, "err");
-        break;
-      }
-      getLocal().places.push({ id: randomId(), name: place.name, lat: +place.lat, lng: +place.lng });
-      added++;
-    }
-    await saveLocal();
-    if (added || !duplicateCount)
-      flash(
-        `${added} 件を訪問地点リストに取り込みました${duplicateCount ? `（${duplicateCount} 件は登録済み）` : ""}`,
-      );
-    else flash("採用した地点は、すべて訪問地点リストに登録済みです");
-    render();
-  }
-
   // 採用済みの地点のうち、訪問地点リストにまだないものを自動で追加する（画面表示時に呼ぶ。変更があった場合だけ保存）
   function syncAdoptedPlaces() {
     const trip = tripData();
@@ -302,5 +270,5 @@ export function installOverlay(ctx) {
     flash("並べ替えました。しおりの時刻とルートリンクを更新しました。");
   }
 
-  Object.assign(ctx, { activeSpotPopup, closeSpotPopup, mercatorY, mapViewFromUrl, spotScreenPoint, showSpotPopup, updateOverlay, overlayHref, mapDrag, importAdopted, addAdoptedPlace, syncAdoptedPlaces, modeOf, currentItinerary, pruneLegModes, placesChanged, movePlace });
+  Object.assign(ctx, { activeSpotPopup, closeSpotPopup, mercatorY, mapViewFromUrl, spotScreenPoint, showSpotPopup, updateOverlay, overlayHref, mapDrag, addAdoptedPlace, syncAdoptedPlaces, modeOf, currentItinerary, pruneLegModes, placesChanged, movePlace });
 }

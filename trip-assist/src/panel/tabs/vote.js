@@ -3,7 +3,6 @@ import * as T from "../../lib.js";
 
 export function installVoteTab(ctx) {
   const { gate, tripData, currentMember, isOwner, createEl, BUDGET_OPTIONS, TRANSPORT_OPTIONS, makeSvgIcon, SPOT_CATEGORIES, SPOT_ICONS, prefsFloat, makeMsIcon, MS_GROUP_PATH, runAction, state, makeButton, flash, callFirebase, sendMessage, signinCard, SPOT_COLORS } = ctx;
-  const importAdopted = (...args) => ctx.importAdopted(...args);
   const addAdoptedPlace = (...args) => ctx.addAdoptedPlace(...args);
   const render = (...args) => ctx.render(...args);
 
@@ -527,18 +526,7 @@ export function installVoteTab(ctx) {
             }),
           )
         : createEl("p", { class: "muted" }, "候補地点がまだありません。"),
-      owner
-        ? createEl(
-            "div",
-            {},
-            makeButton(
-              "採用した地点を訪問地点リストに取り込む",
-              importAdopted,
-              "primary",
-            ),
-
-          )
-        : createEl("p", { class: "muted" }, "採用する地点は幹事が選びます。"),
+      owner ? null : createEl("p", { class: "muted" }, "採用する地点は幹事が選びます。"),
     );
 
     // ---- 口コミ要約（ボタンを押したときだけ取得・要約） ----

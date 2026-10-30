@@ -178,7 +178,7 @@ test("カレンダー description: 各地点の時刻・滞在・移動手段・
     html.includes('href="https://www.google.com/maps/dir/?api=1&amp;origin='),
   );
   assert.ok(html.includes("全体ルートを Google マップで見る"));
-  assert.ok(html.includes("waypoints=35.7148%2C139.7967"));
+  assert.ok(html.includes("waypoints=%E6%B5%85%E8%8D%89%E5%AF%BA"));
   assert.ok(html.includes("概算"));
   assert.ok(!html.includes("<script"));
 });

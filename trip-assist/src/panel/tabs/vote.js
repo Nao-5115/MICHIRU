@@ -3,7 +3,7 @@ import * as T from "../../lib.js";
 
 export function installVoteTab(ctx) {
   const { gate, tripData, currentMember, isOwner, createEl, BUDGET_OPTIONS, TRANSPORT_OPTIONS, makeSvgIcon, SPOT_CATEGORIES, SPOT_ICONS, prefsFloat, makeMsIcon, MS_GROUP_PATH, runAction, state, makeButton, flash, callFirebase, sendMessage, signinCard, SPOT_COLORS } = ctx;
-  const importAdopted = (...args) => ctx.importAdopted(...args);
+  const addAdoptedPlace = (...args) => ctx.addAdoptedPlace(...args);
   const render = (...args) => ctx.render(...args);
 
   function viewVote() {
@@ -87,13 +87,11 @@ export function installVoteTab(ctx) {
       })
     );
 
-    // 他メンバーの希望まとめ表示
+    // 他メンバーの希望まとめ表示（全メンバーの名前・希望・行きたい場所を表示）
     const prefSummary = (() => {
       const prefs = trip.preferences || {};
-      const rows = members
-        .filter((member) => prefs[member.key])
-        .map((member) => {
-          const memberPrefs = prefs[member.key];
+      const rows = members.map((member) => {
+          const memberPrefs = prefs[member.key] || {};
           const budgetLabel = memberPrefs.budget
             ? (BUDGET_OPTIONS.find((option) => option.value === memberPrefs.budget) || {}).label || "`¥`" + memberPrefs.budget
             : "—";
@@ -112,23 +110,35 @@ export function installVoteTab(ctx) {
                 return `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" style="vertical-align:middle;margin:0 1px" title="${spotCategory}">${icon.svg}</svg>`;
               }).join("")
             : "—";
+          const wishNames = places
+            .filter((wishPlace) => wishPlace.addedBy === member.key)
+            .map((wishPlace) => wishPlace.name);
           const listItem = createEl("li", {},
-            createEl("b", {}, member.name),
+            createEl("b", {}, T.memberLabel(member)),
           );
           const detail = createEl("span", { class: "muted pref-summary-detail" });
           detail.innerHTML = `　予算: ${budgetLabel}　交通: ${transLabel}　カテゴリ: ${catLabel}`;
           listItem.append(detail);
+          listItem.append(
+            createEl("div", { class: "muted pref-summary-detail" },
+              "　行きたい場所: " + (wishNames.length ? wishNames.join("、") : "—"),
+            ),
+          );
           return listItem;
         });
       return rows.length
         ? createEl("ul", { class: "list" }, ...rows)
-        : createEl("p", { class: "muted" }, "まだ誰も希望を登録していません。");
+        : createEl("p", { class: "muted" }, "メンバーがいません。");
     })();
 
     const memberPrefsToggle = createEl("button", {
       class: "member-prefs-toggle",
       onclick: () => {
-        prefsFloat.toggle(trip.preferences || {}, members);
+        prefsFloat.toggle(
+          trip.preferences || {},
+          members.map((member) => ({ ...member, label: T.memberLabel(member) })),
+          places,
+        );
       },
     }, makeMsIcon(MS_GROUP_PATH, 18), " メンバーの希望");
 
@@ -279,15 +289,30 @@ export function installVoteTab(ctx) {
     const prefFormWrap = createEl("div", {});
     const prefViewWrap = createEl("div", {});
     let _editMode = !hasMyPrefs; // 未登録なら最初からフォーム表示
+    let prefBackdrop = null; // 「希望を変更する」で開く中央ポップアップの背景
 
+    // 「希望を変更する」で、フォームを中央のポップアップとして表示する（デザインは同じ）
     function showPrefForm() {
       _editMode = true;
+      prefFormWrap.classList.add("pref-modal");
       prefFormWrap.style.display = "";
       prefViewWrap.style.display = "none";
+      if (!prefBackdrop) {
+        prefBackdrop = createEl("div", {
+          class: "pref-modal-backdrop",
+          onclick: (event) => {
+            if (event.target === prefBackdrop) showPrefView();
+          },
+        });
+        prefFormWrap.before(prefBackdrop);
+      }
+      prefBackdrop.hidden = false;
     }
     function showPrefView() {
       _editMode = false;
+      prefFormWrap.classList.remove("pref-modal");
       prefFormWrap.style.display = "none";
+      if (prefBackdrop) prefBackdrop.hidden = true;
       prefViewWrap.style.display = "";
       prefViewWrap.innerHTML = "";
       prefViewWrap.appendChild(buildPrefView());
@@ -296,6 +321,13 @@ export function installVoteTab(ctx) {
       );
     }
 
+    // ポップアップ表示時だけ見える閉じるボタン
+    prefFormWrap.appendChild(createEl("button", {
+      class: "pref-modal__close",
+      type: "button",
+      "aria-label": "閉じる",
+      onclick: () => showPrefView(),
+    }, "×"));
     // フォーム内容をprefFormWrapにセット
     prefFormWrap.appendChild(createEl("div", { class: "form-label" }, "行きたい場所（最大3件）"));
     prefFormWrap.appendChild(existingPlaceList);
@@ -353,7 +385,9 @@ export function installVoteTab(ctx) {
 
     // 初期表示
     if (_editMode) {
-      showPrefForm();
+      // 未登録の人は、最初からフォームをそのまま表示する（ポップアップにはしない）
+      prefFormWrap.style.display = "";
+      prefViewWrap.style.display = "none";
     } else {
       prefViewWrap.appendChild(buildPrefView());
       prefViewWrap.appendChild(makeButton("希望を変更する", showPrefForm, "small"));
@@ -452,18 +486,19 @@ export function installVoteTab(ctx) {
                         createEl("input", {
                           type: "checkbox",
                           checked: !!adopted[wishPlace.id],
-                          onchange: (event) =>
-                            runAction(
+                          onchange: async (event) => {
+                            const on = event.target.checked;
+                            const result = await runAction(
                               "setAdopted",
                               {
                                 tripId: state.tripId,
                                 placeId: wishPlace.id,
-                                on: event.target.checked,
+                                on,
                               },
-                              event.target.checked
-                                ? "採用しました"
-                                : "採用を取り消しました",
-                            ),
+                              on ? "採用しました" : "採用を取り消しました",
+                            );
+                            if (result.ok && on) await addAdoptedPlace(wishPlace);
+                          },
                         }),
                         "採用（幹事）",
                       )
@@ -491,18 +526,7 @@ export function installVoteTab(ctx) {
             }),
           )
         : createEl("p", { class: "muted" }, "候補地点がまだありません。"),
-      owner
-        ? createEl(
-            "div",
-            {},
-            makeButton(
-              "採用した地点を訪問地点リストに取り込む",
-              importAdopted,
-              "primary",
-            ),
-
-          )
-        : createEl("p", { class: "muted" }, "採用する地点は幹事が選びます。"),
+      owner ? null : createEl("p", { class: "muted" }, "採用する地点は幹事が選びます。"),
     );
 
     // ---- 口コミ要約（ボタンを押したときだけ取得・要約） ----

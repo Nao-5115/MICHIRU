@@ -109,7 +109,6 @@ export function installRouteTab(ctx) {
     return createEl(
       "div",
       { class: "leg" },
-      createEl("div", { class: "legnames" }, `${fromPlace.name} → ${toPlace.name}`),
       `${T.fmtTime(prev.depart)}出発 → ${T.fmtTime(next.arrive)}到着（約${next.travel}分・直線${next.km.toFixed(1)}km→道路換算約${next.roadKm.toFixed(1)}km）`,
       createEl(
         "div",
@@ -298,11 +297,6 @@ export function installRouteTab(ctx) {
           }),
         ),
       ),
-      createEl(
-        "p",
-        { class: "muted" },
-        "移動時間 = 直線距離 × 迂回係数 ÷ 想定速度。迂回係数は直線距離を道路・路線に沿った距離へ近づける倍率です。",
-      ),
       makeButton(
         "訪問順を自動最適化（手動の並べ替えを上書き）",
         async () => {
@@ -345,7 +339,6 @@ export function installRouteTab(ctx) {
               ),
             ),
           ),
-          createEl("p", { class: "note" }, T.ESTIMATE_NOTE),
         )
       : null;
 

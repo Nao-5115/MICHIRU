@@ -398,6 +398,7 @@ export function itineraryHtml(
   const out = [`<b>${escapeHtml(title)}</b>`];
   if (dateText) out.push(escapeHtml(dateText));
   out.push("");
+  let visitNumber = 0;
   rows.forEach((row, index) => {
     if (index > 0) {
       const prev = rows[index - 1];
@@ -406,9 +407,14 @@ export function itineraryHtml(
         line += ` <a href="${escapeHtml(mapsDirUrl(prev.place, row.place, row.mode))}">この区間のルート案内</a>`;
       out.push(line);
     }
-    out.push(
-      `<b>${index + 1}. ${escapeHtml(row.place.name)}</b> ${fmtTime(row.arrive)}到着 → ${fmtTime(row.depart)}出発（滞在${row.stay}分）`,
-    );
+    if (row.place.isMeetingPlace)
+      out.push(
+        `<b>集合場所: ${escapeHtml(row.place.name)}</b> ${fmtTime(row.depart)}出発`,
+      );
+    else
+      out.push(
+        `<b>${++visitNumber}. ${escapeHtml(row.place.name)}</b> ${fmtTime(row.arrive)}到着 → ${fmtTime(row.depart)}出発（滞在${row.stay}分）`,
+      );
   });
   const whole = mapsDirAllUrl(
     rows.map((row) => row.place),

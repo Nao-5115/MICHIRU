@@ -7,39 +7,11 @@ export function installRouteTab(ctx) {
   const render = (...args) => ctx.render(...args);
   const EDIT_ICON = '<path d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z"/>';
   let editingPlaceId = null; // 名称・滞在時間を編集中の地点 ID（一度に 1 件）
-  let locateTripId = null; // 現在地の取得を試した旅行 ID（同じ旅行では 1 回だけ試す）
   const MODE_ICON = {
     car: '<path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>',
     train: '<path d="M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h2.23l2-2H14l2 2h2v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zm0 2c3.51 0 5.44.48 5.93 1H6.07C6.56 4.48 8.49 4 12 4zM6 7h5v3H6V7zm12 0v3h-5V7h5zM7.5 17C6.67 17 6 16.33 6 15.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>',
   };
   let itinEditor = null; // しおりの編集ポップアップ（開いていないときは null）
-
-  // 旅行を初めて開いたとき、現在地を訪問地点の先頭に登録する（名前・滞在時間は編集可能）
-  function ensureCurrentLocation() {
-    const local = getLocal();
-    if (!local || local.currentLocationAdded || !navigator.geolocation) return;
-    const tripId = state.tripId;
-    if (locateTripId === tripId) return;
-    locateTripId = tripId;
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        if (state.tripId !== tripId) return; // 取得中に旅行を切り替えた場合は何もしない
-        const current = getLocal();
-        if (!current || current.currentLocationAdded) return;
-        const lat = position.coords.latitude,
-          lng = position.coords.longitude;
-        if (current.places.length < T.MAX_LOCAL_PLACES && !current.places.some((place) => T.samePoint(place, { lat, lng })))
-          current.places.unshift({ id: randomId(), name: "現在地", lat, lng });
-        current.currentLocationAdded = true;
-        await placesChanged();
-      },
-      () => {
-        if (state.tripId === tripId)
-          flash("現在地を取得できませんでした。ブラウザの位置情報の許可を確認してください", "err");
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 600000 },
-    );
-  }
 
   // ルート案内リンク: 現在のタブ内で遷移（遷移前の URL と画面状態を保存してから）
   const isDirPage = () => location.pathname.startsWith("/maps/dir");
@@ -280,12 +252,15 @@ export function installRouteTab(ctx) {
     const settings = getLocal().settings;
     const originalStart = T.parseTime(settings.startTime);
     let startMin = originalStart; // 先頭の地点の到着時刻（＝出発時刻）
-    const basePlaces = new Map(getLocal().places.map((place) => [place.id, place]));
+    const basePlaces = new Map(ctx.routePlaces().map((place) => [place.id, place]));
     const draft = base.rows.map((row) => ({
       id: row.place.id,
       name: row.place.name,
+      isMeetingPlace: Boolean(row.place.isMeetingPlace),
       nameDirty: false,
-      stay: settings.stays[row.place.id] ?? settings.defaultStay,
+      stay: row.place.isMeetingPlace
+        ? (settings.stays[row.place.id] ?? 0)
+        : (settings.stays[row.place.id] ?? settings.defaultStay),
       stayDirty: false,
     }));
     const hhmm = (minutes) => {
@@ -349,6 +324,13 @@ export function installRouteTab(ctx) {
       const local = getLocal();
       const byId = new Map(local.places.map((place) => [place.id, place]));
       draft.forEach((item) => {
+        if (item.isMeetingPlace) {
+          if (item.nameDirty && settings.meetingPlace)
+            settings.meetingPlace.name = item.name.trim() || "集合場所";
+          if (item.stayDirty && Number.isFinite(item.stay) && item.stay >= 0)
+            settings.stays[item.id] = item.stay;
+          return;
+        }
         const place = byId.get(item.id);
         if (!place) return;
         if (item.nameDirty) place.name = item.name.trim() || T.UNNAMED_PLACE;
@@ -358,8 +340,13 @@ export function installRouteTab(ctx) {
         }
       });
       if (startMin !== originalStart) settings.startTime = hhmm(startMin);
-      const ordered = draft.map((item) => byId.get(item.id)).filter(Boolean);
-      const rest = local.places.filter((place) => !draft.some((item) => item.id === place.id));
+      const ordered = draft
+        .filter((item) => !item.isMeetingPlace)
+        .map((item) => byId.get(item.id))
+        .filter(Boolean);
+      const rest = local.places.filter(
+        (place) => !draft.some((item) => !item.isMeetingPlace && item.id === place.id),
+      );
       local.places = [...ordered, ...rest];
       close();
       await placesChanged();
@@ -384,7 +371,9 @@ export function installRouteTab(ctx) {
     // 下書きの並べ替え（確定するまで地点データは変えない）
     const moveDraft = (fromId, toId, after) => {
       const from = draft.findIndex((item) => item.id === fromId);
-      if (from < 0 || !draft.some((item) => item.id === toId)) return;
+      const target = draft.find((item) => item.id === toId);
+      if (from < 0 || draft[from].isMeetingPlace || !target || target.isMeetingPlace)
+        return;
       const [moving] = draft.splice(from, 1);
       const index = draft.findIndex((item) => item.id === toId);
       draft.splice(after ? index + 1 : index, 0, moving);
@@ -473,7 +462,7 @@ export function installRouteTab(ctx) {
         {
           class: "itin-edit-row",
           ondragover: (event) => {
-            if (!state.dragId) return;
+            if (!state.dragId || item.isMeetingPlace) return;
             event.preventDefault();
             event.dataTransfer.dropEffect = "move";
             const rect = el.getBoundingClientRect(),
@@ -494,27 +483,35 @@ export function installRouteTab(ctx) {
             if (from && from !== item.id) moveDraft(from, item.id, after);
           },
         },
+        item.isMeetingPlace
+          ? createEl("span", { class: "muted" }, "集合")
+          : createEl(
+              "span",
+              {
+                class: "handle",
+                draggable: "true",
+                title: "ドラッグして並べ替え",
+                ondragstart: (event) => {
+                  state.dragId = item.id;
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", item.id);
+                  event.dataTransfer.setDragImage(el, 12, 12);
+                  el.classList.add("dragging");
+                },
+                ondragend: () => {
+                  state.dragId = null;
+                  clearMarks();
+                },
+              },
+              "☰",
+            ),
         createEl(
           "span",
-          {
-            class: "handle",
-            draggable: "true",
-            title: "ドラッグして並べ替え",
-            ondragstart: (event) => {
-              state.dragId = item.id;
-              event.dataTransfer.effectAllowed = "move";
-              event.dataTransfer.setData("text/plain", item.id);
-              event.dataTransfer.setDragImage(el, 12, 12);
-              el.classList.add("dragging");
-            },
-            ondragend: () => {
-              state.dragId = null;
-              clearMarks();
-            },
-          },
-          "☰",
+          { class: "itin-edit-idx" },
+          item.isMeetingPlace
+            ? ""
+            : `${index + 1 - (draft[0]?.isMeetingPlace ? 1 : 0)}.`,
         ),
-        createEl("span", { class: "itin-edit-idx" }, `${index + 1}.`),
         createEl("input", {
           type: "text",
           class: "itin-name" + (item.name === T.UNNAMED_PLACE ? " unnamed" : ""),
@@ -598,7 +595,77 @@ export function installRouteTab(ctx) {
     if (gateView) return gateView;
     const settings = getLocal().settings;
     ctx.syncAdoptedPlaces();
-    ensureCurrentLocation();
+    const local = getLocal();
+    if (local.currentLocationAdded) {
+      if (local.places[0]?.name === "現在地") {
+        const [currentPlace] = local.places.splice(0, 1);
+        delete settings.stays[currentPlace.id];
+      }
+      local.currentLocationAdded = false;
+      saveLocal();
+    }
+    const meetingPlace = settings.meetingPlace;
+    const meetingNameInput = createEl("input", {
+      type: "text",
+      value: meetingPlace?.name || "",
+      maxlength: 100,
+      placeholder: "駅名・施設名など",
+      "aria-label": "集合場所の名前",
+    });
+    const meetingSection = createEl(
+      "section",
+      { class: "route-section" },
+      createEl("h3", {}, "集合場所"),
+      createEl(
+        "p",
+      ),
+      createEl("label", {}, "場所の名前", meetingNameInput),
+      makeButton(
+        "現在の地図の場所を集合場所に設定",
+        async () => {
+          const point = T.extractLatLng(location.href);
+          if (!point)
+            return flash(
+              "Google マップで集合場所を開いてから設定してください",
+              "err",
+            );
+          const name =
+            meetingNameInput.value.trim() ||
+            T.extractPlaceName(location.href) ||
+            "集合場所";
+          let meetingId = meetingPlace?.id || randomId();
+          while (local.places.some((place) => place.id === meetingId))
+            meetingId = randomId();
+          settings.meetingPlace = {
+            id: meetingId,
+            name,
+            lat: point.lat,
+            lng: point.lng,
+            isMeetingPlace: true,
+          };
+          if (!(await saveLocal())) return;
+          flash("集合場所を設定しました");
+          render();
+        },
+        "primary",
+      ),
+      meetingPlace
+        ? makeButton(
+            "集合場所を解除",
+            async () => {
+              const meetingId = settings.meetingPlace.id;
+              settings.meetingPlace = null;
+              delete settings.stays[meetingId];
+              for (const key of Object.keys(local.legModes))
+                if (key.startsWith(meetingId + ">") || key.endsWith(">" + meetingId))
+                  delete local.legModes[key];
+              await saveLocal();
+              render();
+            },
+            "small",
+          )
+        : null,
+    );
     // しおりの並べ替え（訪問地点リストと同じ動き）
     const clearDragMarks = () =>
       root
@@ -609,9 +676,16 @@ export function installRouteTab(ctx) {
       async () => {
         if (getLocal().places.length < 2)
           return flash("地点を 2 件以上登録してください", "err");
-        getLocal().places = T.optimize(getLocal().places, 0).map((index) => getLocal().places[index]); // 先頭の地点を出発地点として固定
+        const routePlaces = ctx.routePlaces();
+        getLocal().places = T.optimize(routePlaces, 0)
+          .map((index) => routePlaces[index])
+          .filter((place) => !place.isMeetingPlace);
         await placesChanged();
-        flash("先頭の地点を出発地点として、訪問順を最適化しました");
+        flash(
+          settings.meetingPlace
+            ? "集合場所からの距離を基準に訪問順を最適化しました"
+            : "先頭の訪問地点を固定して、訪問順を最適化しました",
+        );
       },
       "primary",
     );
@@ -654,7 +728,7 @@ export function installRouteTab(ctx) {
                 "li",
                 {
                   ondragover: (event) => {
-                    if (!state.dragId) return;
+                    if (!state.dragId || row.place.isMeetingPlace) return;
                     event.preventDefault();
                     event.dataTransfer.dropEffect = "move";
                     const rect = item.getBoundingClientRect(),
@@ -672,33 +746,40 @@ export function installRouteTab(ctx) {
                       from = state.dragId;
                     clearDragMarks();
                     state.dragId = null;
-                    if (from && from !== row.place.id) movePlace(from, row.place.id, after);
+                    if (
+                      from &&
+                      from !== row.place.id &&
+                      !row.place.isMeetingPlace
+                    )
+                      movePlace(from, row.place.id, after);
                   },
                 },
                 index > 0 ? legView(itinerary.rows[index - 1], row) : null,
                 createEl(
                   "div",
                   { class: "stop-row" },
-                  createEl(
-                    "span",
-                    {
-                      class: "handle",
-                      draggable: "true",
-                      title: "ドラッグして並べ替え",
-                      ondragstart: (event) => {
-                        state.dragId = row.place.id;
-                        event.dataTransfer.effectAllowed = "move";
-                        event.dataTransfer.setData("text/plain", row.place.id);
-                        event.dataTransfer.setDragImage(item, 12, 12);
-                        item.classList.add("dragging");
-                      },
-                      ondragend: () => {
-                        state.dragId = null;
-                        clearDragMarks();
-                      },
-                    },
-                    "☰",
-                  ),
+                  row.place.isMeetingPlace
+                    ? createEl("span", { class: "muted" }, "集合")
+                    : createEl(
+                        "span",
+                        {
+                          class: "handle",
+                          draggable: "true",
+                          title: "ドラッグして並べ替え",
+                          ondragstart: (event) => {
+                            state.dragId = row.place.id;
+                            event.dataTransfer.effectAllowed = "move";
+                            event.dataTransfer.setData("text/plain", row.place.id);
+                            event.dataTransfer.setDragImage(item, 12, 12);
+                            item.classList.add("dragging");
+                          },
+                          ondragend: () => {
+                            state.dragId = null;
+                            clearDragMarks();
+                          },
+                        },
+                        "☰",
+                      ),
                   createEl(
                     "div",
                     { class: "stop" },
@@ -716,7 +797,11 @@ export function installRouteTab(ctx) {
       : null;
 
     // 全体のルート案内（waypoints）
-    const whole = T.mapsDirAllUrl(getLocal().places, settings.wholeMode, T.isMobile());
+    const whole = T.mapsDirAllUrl(
+      ctx.routePlaces(),
+      settings.wholeMode,
+      T.isMobile(),
+    );
     const wseg = (mode) =>
       createEl(
         "button",
@@ -765,7 +850,7 @@ export function installRouteTab(ctx) {
             : null,
         )
       : null;
-    return [sec3, sec4];
+    return [meetingSection, sec3, sec4];
   }
 
   // ======================= 登録タブ（幹事のみ: カレンダー登録・削除） =======================
@@ -830,6 +915,7 @@ export function installRouteTab(ctx) {
       // 任意: 各地点を時刻付きの予定として幹事のカレンダーにも登録（招待はしない）
       const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       for (const row of itinerary.rows) {
+        if (row.place.isMeetingPlace) continue;
         events.push({
           sendUpdates: "none",
           ev: {

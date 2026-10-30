@@ -145,6 +145,14 @@
             }
           }
         },
+        "schedules": {
+          "$emailKey": {
+            "$day": {
+              ".write": "auth != null && auth.token.email_verified === true && $emailKey === auth.token.email.toLowerCase().replace('.', ',') && root.child('trips').child($tripId).child('members').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && $day.matches(/^\\d{4}-\\d{2}-\\d{2}$/)",
+              ".validate": "newData.val() === 0 || newData.val() === 1 || newData.val() === 2"
+            }
+          }
+        },
         "places": {
           "$placeId": {
             ".write": "auth != null && auth.token.email_verified === true && root.child('trips').child($tripId).child('members').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && ((!data.exists() && newData.child('addedBy').val() === auth.token.email.toLowerCase().replace('.', ',')) || (data.exists() && !newData.exists() && (data.child('addedBy').val() === auth.token.email.toLowerCase().replace('.', ',') || root.child('trips').child($tripId).child('meta').child('ownerUid').val() === auth.uid)))",

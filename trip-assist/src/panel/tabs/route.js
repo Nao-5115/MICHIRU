@@ -3,8 +3,14 @@ import * as T from "../../lib.js";
 import { STORAGE_KEYS, randomId } from "../constants.js";
 
 export function installRouteTab(ctx) {
-  const { state, body, flash, getLocal, saveLocal, createEl, root, movePlace, makeButton, placesChanged, gate, currentItinerary, tripData, currentMember, sendMessage } = ctx;
+  const { state, body, flash, getLocal, saveLocal, createEl, root, movePlace, makeButton, makeMsIcon, placesChanged, gate, currentItinerary, tripData, currentMember, sendMessage } = ctx;
   const render = (...args) => ctx.render(...args);
+  const ICONS = {
+    pin: '<path d="M480-480q33 0 56.5-23.5T560-560q0-33-23.5-56.5T480-640q-33 0-56.5 23.5T400-560q0 33 23.5 56.5T480-480Zm0 400Q319-217 239.5-334.5T160-552q0-150 96.5-239T480-880q127 0 223.5 89T800-552q0 100-79.5 217.5T480-80Zm0-80q133-132 196.5-238.5T740-552q0-117-73.5-182.5T480-800q-113 0-186.5 65.5T220-552q0 47 20 99.5T303.5-341Q347-275 480-160Zm0-392Z"/>',
+    map: '<path d="m600-120-240-84-168 65q-20 8-36-4.5T140-178v-562q0-13 7.5-23t20.5-15l192-67 240 84 168-65q20-8 36 4.5t16 34.5v562q0 13-7.5 23T792-187l-192 67Zm-40-98v-468l-160-56v468l160 56Zm80 0 120-40v-474l-120 46v468Zm-420-11 120-46v-468l-120 40v474Zm420-457v468-468Zm-300-57v468-468Z"/>',
+    schedule: '<path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Zm112 168L452-452v-188h56v156l124 124-40 40Z"/>',
+    delete: '<path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/>',
+  };
 
   // ルート案内リンク: 現在のタブ内で遷移（遷移前の URL と画面状態を保存してから）
   const isDirPage = () => location.pathname.startsWith("/maps/dir");
@@ -165,14 +171,18 @@ export function installRouteTab(ctx) {
             render();
           },
         }),
-        makeButton(
-          "削除",
-          async () => {
-            getLocal().places = getLocal().places.filter((place) => place.id !== place.id);
+        createEl("button", {
+          class: "icon-delete route-delete",
+          type: "button",
+          title: "地点を削除",
+          "aria-label": `${place.name}を削除`,
+          onclick: async () => {
+            getLocal().places = getLocal().places.filter((item) => item.id !== place.id);
             delete settings.stays[place.id];
             await placesChanged();
           },
-          "small danger",
+        },
+          makeMsIcon(ICONS.delete, 18),
         ),
       ),
       place.name === T.UNNAMED_PLACE
@@ -182,11 +192,6 @@ export function installRouteTab(ctx) {
             "場所名が未設定です。名前を入力してください。",
           )
         : null,
-      createEl(
-        "div",
-        { class: "muted" },
-        `座標: ${place.lat.toFixed(5)}, ${place.lng.toFixed(5)}`,
-      ),
       createEl(
         "div",
         { class: "row" },
@@ -219,7 +224,7 @@ export function installRouteTab(ctx) {
     const settings = getLocal().settings;
     const nameIn = createEl("input", {
       type: "text",
-      placeholder: "地点名（空欄なら URL から自動取得）",
+      placeholder: "地点名（任意）",
       maxlength: 60,
     });
     const num = (key, minValue, step) =>
@@ -250,21 +255,18 @@ export function installRouteTab(ctx) {
       });
     const sec1 = createEl(
       "section",
-      {},
-      createEl("h3", {}, "訪問地点（上から順に訪問）"),
-      createEl(
-        "p",
-        { class: "muted" },
-        "訪問地点・しおり・移動手段は、あなた（幹事）のローカルにのみ保存されます。確定後はカレンダー予定でメンバーに共有します。",
+      { class: "route-section route-stops" },
+      createEl("div", { class: "route-section__head" },
+        createEl("div", {},
+          createEl("h3", {}, "訪問地点"),
+          createEl("p", { class: "muted" }, `${getLocal().places.length} 件 · 上から順に訪問`),
+        ),
+        createEl("span", { class: "route-section__icon", "aria-hidden": "true" }, makeMsIcon(ICONS.pin, 22)),
       ),
-      createEl(
-        "p",
-        { class: "muted" },
-        "☰ をドラッグすると並べ替えられます（先頭が出発地点）。投票タブで採用した地点の取り込みのほか、Google マップで場所を開いて直接登録もできます。",
-      ),
+      createEl("div", { class: "route-add" },
       nameIn,
       makeButton(
-        "現在のページの地点を登録",
+        "＋ この場所を追加",
         async () => {
           const latLng = T.extractLatLng(location.href);
           if (!latLng)
@@ -295,21 +297,26 @@ export function installRouteTab(ctx) {
               "err",
             );
         },
-        "primary",
-      ),
-      createEl(
-        "ul",
-        { class: "list trip-list trip-list-divider", "aria-hidden": "true" },
-        createEl("li", {}),
-      ),
+        "primary route-add__button",
+      )),
       getLocal().places.length
-        ? createEl("ul", { class: "list trip-list" }, getLocal().places.map(placeItem))
-        : createEl("p", { class: "muted" }, "登録済みの地点はありません。"),
+        ? createEl("ul", { class: "list trip-list route-place-list" }, getLocal().places.map(placeItem))
+        : createEl("div", { class: "route-empty" },
+            createEl("span", { class: "route-empty__icon", "aria-hidden": "true" }, makeMsIcon(ICONS.map, 30)),
+            createEl("b", {}, "訪問地点を追加しましょう"),
+            createEl("span", { class: "muted" }, "Google マップで場所を開いて追加できます"),
+          ),
     );
     const sec2 = createEl(
       "section",
-      {},
-      createEl("h3", {}, "しおりの設定"),
+      { class: "route-section route-settings" },
+      createEl("div", { class: "route-section__head" },
+        createEl("div", {},
+          createEl("h3", {}, "しおり"),
+          createEl("p", { class: "muted" }, "出発時刻と滞在時間を設定"),
+        ),
+        createEl("span", { class: "route-section__icon", "aria-hidden": "true" }, makeMsIcon(ICONS.schedule, 22)),
+      ),
       createEl(
         "div",
         { class: "row" },
@@ -329,6 +336,8 @@ export function installRouteTab(ctx) {
         ),
         createEl("label", {}, "標準滞在(分)", num("defaultStay", 0, 5)),
       ),
+      createEl("details", { class: "route-advanced" },
+        createEl("summary", {}, "移動時間の詳細設定"),
       createEl(
         "div",
         { class: "row" },
@@ -341,13 +350,9 @@ export function installRouteTab(ctx) {
         createEl("label", {}, "迂回係数・車", num("detourCar", 1, 0.05)),
         createEl("label", {}, "迂回係数・電車", num("detourTrain", 1, 0.05)),
       ),
-      createEl(
-        "p",
-        { class: "muted" },
-        "移動時間 = 直線距離 × 迂回係数 ÷ 想定速度。迂回係数は直線距離を道路・路線に沿った距離へ近づける倍率です。",
       ),
       makeButton(
-        "訪問順を自動最適化（手動の並べ替えを上書き）",
+        "訪問順を自動で並べ替え",
         async () => {
           if (getLocal().places.length < 2)
             return flash("地点を 2 件以上登録してください", "err");
@@ -355,7 +360,7 @@ export function installRouteTab(ctx) {
           await placesChanged();
           flash("先頭の地点を出発地点として、訪問順を最適化しました");
         },
-        "primary",
+        "primary route-optimize",
       ),
     );
     const itinerary = currentItinerary();

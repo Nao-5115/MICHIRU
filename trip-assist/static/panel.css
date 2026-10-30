@@ -4,7 +4,7 @@
   --fg: #3a3a3c;
   --muted: #7b7b80;
   --line: #000000;
-  --miniline:#c5c5c5;
+  --miniline: #c5c5c5;
   --accent: #1a73e8;
   --accent-strong: #1557b0;
   --accent-soft: #e8f1fd;
@@ -1452,6 +1452,86 @@ tr.sel {
 }
 
 /* ===== 口コミ要約 ===== */
-.review-block { margin: 6px 0 4px 8px; }
-.review-summary { margin-top: 4px; font-size: 12px; line-height: 1.5; color: var(--fg); }
-.review-summary.warn { color: #c5221f; }
+.review-block {
+  margin: 6px 0 4px 8px;
+}
+.review-summary {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg);
+}
+.review-summary.warn {
+  color: #c5221f;
+}
+
+/* ===== テーマ選択ポップアップ ===== */
+.colorSelect-pop {
+  position: absolute;
+  top: 52px;
+  right: 10px;
+  z-index: 10;
+  padding: 10px 12px 2px;
+  background: var(--card);
+  border-radius: 12px;
+  box-shadow: var(--shadow-panel);
+  animation: toast-in 0.18s ease-out;
+}
+.colorSelect-pop[hidden] {
+  display: none;
+}
+.colorSelect-pop .colorSelect-grid {
+  margin: 4px 0 8px;
+  max-width: 210px;
+}
+
+.colorSelect-grid {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.colorSelect-swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--card);
+  box-shadow: 0 0 0 1.5px var(--miniline);
+  cursor: pointer;
+  transition:
+    transform 0.1s,
+    box-shadow 0.15s;
+}
+.colorSelect-swatch:hover {
+  transform: scale(1.1);
+}
+.colorSelect-swatch.selected {
+  box-shadow: 0 0 0 2.5px var(--fg);
+}
+.colorSelect-tones {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.colorSelect-tone {
+  flex: 1;
+  padding: 4px 0;
+  border: 1.5px solid var(--miniline);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.colorSelect-tone:hover {
+  background: var(--accent-soft);
+}
+.colorSelect-tone.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}

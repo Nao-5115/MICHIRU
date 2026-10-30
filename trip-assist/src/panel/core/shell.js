@@ -15,7 +15,8 @@ export function installShell(ctx) {
     window.addEventListener(
       type,
       (event) => {
-        if (event.composedPath().includes(host)) event.stopImmediatePropagation();
+        if (event.composedPath().includes(host))
+          event.stopImmediatePropagation();
       },
       true,
     );
@@ -36,6 +37,13 @@ export function installShell(ctx) {
   );
   ghostBtn.title = "離れたら半透明（オン/オフ）";
   ghostBtn.setAttribute("aria-label", "半透明モードの切り替え");
+  const colorSelectBtn = makeButton("🎨", () => togglecolorSelectPop(), "icon");
+  colorSelectBtn.title = "テーマカラー";
+  colorSelectBtn.setAttribute("aria-label", "テーマカラーを選ぶ");
+  const colorSelectPop = createEl("div", {
+    class: "colorSelect-pop",
+    hidden: true,
+  });
   const panel = createEl(
     "div",
     { class: "panel", hidden: true },
@@ -55,16 +63,21 @@ export function installShell(ctx) {
       createEl(
         "span",
         {},
+        colorSelectBtn,
         ghostBtn,
         makeButton("×", () => toggle(false), "icon"),
       ),
     ),
     navBar,
     tabsEl,
+    colorSelectPop,
     statusEl,
     body,
     ...["n", "s", "e", "w", "ne", "nw", "se", "sw"].map((direction) =>
-      createEl("div", { class: "grip " + direction, onpointerdown: (event) => startResize(event, direction) }),
+      createEl("div", {
+        class: "grip " + direction,
+        onpointerdown: (event) => startResize(event, direction),
+      }),
     ),
   );
   const fab = createEl(
@@ -78,7 +91,10 @@ export function installShell(ctx) {
     "旅",
   );
   root.append(
-    createEl("link", { rel: "stylesheet", href: chrome.runtime.getURL("panel.css") }),
+    createEl("link", {
+      rel: "stylesheet",
+      href: chrome.runtime.getURL("panel.css"),
+    }),
     panel,
     fab,
   );
@@ -92,8 +108,33 @@ export function installShell(ctx) {
     clearTimeout(flashTimer);
     flashTimer = setTimeout(() => (statusEl.hidden = true), 9000);
   }
+
+  function togglecolorSelectPop(force) {
+    const show = force ?? colorSelectPop.hidden;
+    colorSelectPop.hidden = !show;
+    if (show) {
+      // colorSelect.js は shell より後に読み込まれるので、押された時点で呼ぶ
+      colorSelectPop.replaceChildren(
+        createEl("div", { class: "form-label" }, "テーマカラー"),
+        ctx.rendercolorSelectPicker(),
+      );
+    }
+  }
+  // ポップアップの外を押したら閉じる
+  root.addEventListener("pointerdown", (event) => {
+    const path = event.composedPath();
+    if (
+      !colorSelectPop.hidden &&
+      !path.includes(colorSelectPop) &&
+      !path.includes(colorSelectBtn)
+    ) {
+      colorSelectPop.hidden = true;
+    }
+  });
+
   function toggle(open) {
     state.open = open;
+    colorSelectPop.hidden = true;
     panel.hidden = !open;
     fab.hidden = open;
     if (open) {
@@ -103,5 +144,20 @@ export function installShell(ctx) {
     }
   }
 
-  Object.assign(ctx, { host, root, statusEl, body, tabsEl, navBar, subEl, ghostBtn, panel, fab, flashTimer, flash, toggle });
+  Object.assign(ctx, {
+    host,
+    root,
+    statusEl,
+    body,
+    tabsEl,
+    navBar,
+    subEl,
+    colorSelectPop,
+    ghostBtn,
+    panel,
+    fab,
+    flashTimer,
+    flash,
+    toggle,
+  });
 }

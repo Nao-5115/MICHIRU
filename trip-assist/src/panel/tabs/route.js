@@ -14,6 +14,37 @@ export function installRouteTab(ctx) {
   };
   let itinEditor = null; // しおりの編集ポップアップ（開いていないときは null）
 
+  async function saveItineraryPdf(itinerary, trip, date) {
+    const W = 1240, H = 1754, margin = 100, title = trip.meta.name || "旅のしおり";
+    const css = getComputedStyle(ctx.host), accent = css.getPropertyValue("--accent").trim() || "#246b55", soft = css.getPropertyValue("--accent-soft").trim() || "#e7f2ed";
+    const artwork = async (name) => { try { const r = await fetch(chrome.runtime.getURL(name)); return r.ok ? createImageBitmap(await r.blob()) : null; } catch (_) { return null; } };
+    const [logo, ghost] = await Promise.all([artwork("michiru-logo.png"), artwork("michiru-fab-hover.png")]);
+    const pages = []; let canvas, g;
+    const page = (n) => {
+      canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H; g = canvas.getContext("2d"); g.fillStyle = "white"; g.fillRect(0, 0, W, H);
+      g.fillStyle = accent; g.fillRect(0, 0, W, 18); g.fillRect(margin, 100, 8, 100); g.fillStyle = "#202124"; g.font = 'bold 48px "Yu Gothic",Meiryo,sans-serif'; g.fillText(title, margin + 32, 145, 620);
+      if (logo) g.drawImage(logo, W - margin - 330, 105, 205, 68); if (ghost) g.drawImage(ghost, W - margin - 105, 90, 92, 92);
+      g.strokeStyle = soft; g.lineWidth = 5; g.beginPath(); g.moveTo(margin, 225); g.lineTo(W - margin, 225); g.stroke(); pages.push(canvas);
+    };
+    page(0); let y = 280;
+    itinerary.rows.forEach((row, i) => {
+      if (y + 150 + (i ? 55 : 0) > H - 100) { page(pages.length); y = 280; }
+      if (i) { g.fillStyle = accent; g.font = 'bold 24px "Yu Gothic",Meiryo,sans-serif'; g.fillText(`↓ ${T.MODE_LABEL[row.mode] || "移動"}・約${row.travel}分`, margin + 30, y + 20); y += 55; }
+      g.fillStyle = soft; g.fillRect(margin + 60, y - 8, W - margin * 2 - 60, 126); g.fillStyle = accent; g.fillRect(margin + 60, y - 8, 6, 126); g.beginPath(); g.arc(margin + 25, y + 55, 25, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "white"; g.font = "bold 24px Arial"; g.textAlign = "center"; g.fillText(String(i + 1), margin + 25, y + 64); g.textAlign = "left"; g.fillStyle = "#202124"; g.font = 'bold 32px "Yu Gothic",Meiryo,sans-serif'; g.fillText(row.place.name, margin + 75, y + 43, W - margin * 2 - 90);
+      g.font = '25px "Yu Gothic",Meiryo,sans-serif'; g.fillText(`${T.fmtTime(row.arrive)} 到着　〜　${T.fmtTime(row.depart)} 出発`, margin + 75, y + 82); y += 150;
+    });
+    const enc = new TextEncoder(), txt = (s) => enc.encode(s), join = (a) => { const b = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let p = 0; for (const x of a) { b.set(x, p); p += x.length; } return b; };
+    const o = [null, null, null], add = (x) => { o.push(x); return o.length - 1; }, kids = [];
+    for (let i = 0; i < pages.length; i++) { const blob = await new Promise((r) => pages[i].toBlob(r, "image/jpeg", .92)); if (!blob) throw new Error("PDFページを作成できませんでした"); const jpg = new Uint8Array(await blob.arrayBuffer()); const im = add(join([txt(`<< /Type /XObject /Subtype /Image /Width ${W} /Height ${H} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`), jpg, txt("\nendstream")])); const draw = `q 595 0 0 842 0 0 cm /Im${i} Do Q\n`, c = add(txt(`<< /Length ${txt(draw).length} >>\nstream\n${draw}endstream`)); kids.push(add(txt(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /Im${i} ${im} 0 R >> >> /Contents ${c} 0 R >>`))); }
+    o[1] = txt("<< /Type /Catalog /Pages 2 0 R >>"); o[2] = txt(`<< /Type /Pages /Kids [${kids.map((id) => `${id} 0 R`).join(" ")}] /Count ${kids.length} >>`);
+    const parts = [txt("%PDF-1.4\n%PDF\n")], offsets = [0]; let size = parts[0].length; for (let i = 1; i < o.length; i++) { offsets[i] = size; const v = join([txt(`${i} 0 obj\n`), o[i], txt("\nendobj\n")]); parts.push(v); size += v.length; }
+    let x = `xref\n0 ${o.length}\n0000000000 65535 f \n`; for (let i = 1; i < o.length; i++) x += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`; parts.push(txt(`${x}trailer\n<< /Size ${o.length} /Root 1 0 R >>\nstartxref\n${size}\n%%EOF`));
+    const bytes = join(parts); let bin = ""; for (let i = 0; i < bytes.length; i += 32768) bin += String.fromCharCode(...bytes.subarray(i, i + 32768));
+    const safe = title.replace(/[\\/:*?"<>|]/g, "_").slice(0, 80), result = await chrome.runtime.sendMessage({ type: "pdf:download", filename: `${safe} - 旅のしおり.pdf`, dataUrl: `data:application/pdf;base64,${btoa(bin)}` });
+    if (!result?.ok) throw new Error(result?.error || "PDFをダウンロードできませんでした"); flash("保存先を選んでPDFを保存してください");
+  }
+
   // 旅行を初めて開いたとき、現在地を訪問地点の先頭に登録する（名前・滞在時間は編集可能）
   function ensureCurrentLocation() {
     const local = getLocal();
@@ -645,6 +676,7 @@ export function installRouteTab(ctx) {
               },
               makeMsIcon(EDIT_ICON, 18),
             ),
+            makeButton("PDFで保存", () => saveItineraryPdf(itinerary, tripData(), confirmedDate).catch((error) => flash(error.message, "err")), "small primary"),
           ),
           createEl(
             "ol",

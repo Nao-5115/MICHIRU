@@ -449,7 +449,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   )
     return false;
   const type = message.type;
-  if (!/^(app|auth|cal|gemini|mail|review|settings):/.test(type) && !LEGACY_TYPES.has(type))
+  if (!/^(app|auth|cal|gemini|mail|pdf|review|settings):/.test(type) && !LEGACY_TYPES.has(type))
     return false;
   (async () => {
     try {
@@ -547,6 +547,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       } else if (type === "mail:send") {
         await sendMail(message);
         sendResponse({ ok: true });
+      } else if (type === "pdf:download") {
+        if (typeof message.dataUrl !== "string" || !message.dataUrl.startsWith("data:application/pdf;base64,") || message.dataUrl.length > 30_000_000)
+          throw new Error("PDFデータが不正か、サイズが大きすぎます");
+        const filename = typeof message.filename === "string"
+          ? message.filename.replace(/[\\/:*?\"<>|]/g, "_").slice(0, 120)
+          : "旅のしおり.pdf";
+        const downloadId = await chrome.downloads.download({
+          url: message.dataUrl,
+          filename: filename.endsWith(".pdf") ? filename : `${filename}.pdf`,
+          saveAs: true,
+        });
+        sendResponse({ ok: true, downloadId });
       } else {
         sendResponse({ ok: false, error: "不明なリクエストです" });
       }

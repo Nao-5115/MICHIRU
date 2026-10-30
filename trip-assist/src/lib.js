@@ -280,7 +280,7 @@ export function fmtTime(minutes) {
 // places: 訪問順の地点配列 / speeds, detours: {car, train} / modeOf(前の地点, 次の地点) → 'car' | 'train'
 export function buildItinerary(
   places,
-  { startMin, speeds, detours, defaultStay, stays, modeOf },
+  { startMin, speeds, detours, defaultStay, stays, modeOf, trainMinutes },
 ) {
   const rows = [];
   let totalKm = 0,
@@ -301,6 +301,10 @@ export function buildItinerary(
       distanceKm = haversine(places[index - 1], place);
       roadKm = distanceKm * detour;
       travel = Math.max(1, Math.round((roadKm / speed) * 60));
+      if (mode === "train" && trainMinutes) {
+        const known = trainMinutes(places[index - 1], place);
+        if (known != null) travel = known; // Google の経路時間があればそれを使う
+      }
       arrive = rows[index - 1].depart + travel;
       totalKm += distanceKm;
       totalRoadKm += roadKm;

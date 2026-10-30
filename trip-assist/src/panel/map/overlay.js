@@ -3,7 +3,7 @@ import * as T from "../../lib.js";
 import { randomId } from "../constants.js";
 
 export function installOverlay(ctx) {
-  const { spotLayer, createEl, spotMapUrl, state, SPOT_COLORS, spotStars, tripData, flash, getLocal, saveLocal } = ctx;
+  const { spotLayer, createEl, spotMapUrl, state, SPOT_COLORS, spotStars, tripData, flash, getLocal, saveLocal, sendMessage } = ctx;
   const render = (...args) => ctx.render(...args);
   let activeSpotPopup = null;
   function closeSpotPopup() {
@@ -191,14 +191,51 @@ export function installOverlay(ctx) {
       if (!adopted[place.id] || place.lat == null || place.lng == null) continue;
       const lat = +place.lat, lng = +place.lng;
       if (Number.isNaN(lat) || Number.isNaN(lng)) continue;
-      if (getLocal().places.some((existing) => T.samePoint(existing, { lat, lng }))) continue;
+      if (findDuplicateLocal(place, lat, lng)) continue;
       if (getLocal().places.length >= T.MAX_LOCAL_PLACES) break;
-      getLocal().places.push({ id: randomId(), name: place.name, lat, lng });
+      getLocal().places.push({ id: randomId(), name: place.name, lat, lng, sourceId: place.id });
       changed = true;
     }
     if (changed) saveLocal();
     return changed;
   }
+
+  // 区間の電車時間の取得結果（Google 経路検索）。区間の地点名・座標が変わったら取り直す
+  const legKey = (from, to) => [from.id, from.lat, from.lng, to.id, to.lat, to.lng].join("|");
+  const transitRequests = new Set();
+  function transitMinutesOf(from, to) {
+    const hit = state.transitMinutes[legKey(from, to)];
+    return hit && hit.minutes != null ? hit.minutes : null;
+  }
+  // 訪問順の隣り合う区間ごとに、まだ取得していない電車時間を Google から取る
+  async function ensureTransitTimes() {
+    const places = getLocal() ? getLocal().places : [];
+    let fetched = false;
+    for (let index = 1; index < places.length; index++) {
+      const from = places[index - 1], to = places[index];
+      const key = legKey(from, to);
+      if (state.transitMinutes[key] || transitRequests.has(key)) continue;
+      transitRequests.add(key);
+      const result = await sendMessage({
+        type: "maps:transitTime",
+        from: { lat: from.lat, lng: from.lng },
+        to: { lat: to.lat, lng: to.lng },
+      });
+      transitRequests.delete(key);
+      state.transitMinutes[key] = result.ok ? { minutes: result.minutes } : { error: result.error };
+      fetched = true;
+    }
+    if (fetched) render();
+  }
+
+  // 同じ候補地点（sourceId）か、座標と名前が両方一致する場合だけ重複とみなす
+  // （地図の中心座標を使うと別の施設でも座標が同じになるため、座標だけでは判定しない）
+  const findDuplicateLocal = (place, lat, lng) =>
+    getLocal().places.find(
+      (existing) =>
+        (place.id != null && existing.sourceId === place.id) ||
+        (T.samePoint(existing, { lat, lng }) && existing.name === place.name),
+    );
 
   // 採用チェックと同時に訪問地点リストへ追加する（取り込みボタンを押し忘れてもリロード後に残る）
   async function addAdoptedPlace(place) {
@@ -207,14 +244,21 @@ export function installOverlay(ctx) {
       return;
     }
     const lat = +place.lat, lng = +place.lng;
-    if (Number.isNaN(lat) || Number.isNaN(lng)) return;
-    if (getLocal().places.some((existing) => T.samePoint(existing, { lat, lng }))) return;
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      flash(`「${place.name}」の緯度経度が正しくないため、訪問地点リストに追加できませんでした`, "err");
+      return;
+    }
+    if (findDuplicateLocal(place, lat, lng)) {
+      flash(`「${place.name}」はすでに訪問地点リストに入っています`, "err");
+      return;
+    }
     if (getLocal().places.length >= T.MAX_LOCAL_PLACES) {
       flash(`訪問地点は最大 ${T.MAX_LOCAL_PLACES} 件までです`, "err");
       return;
     }
-    getLocal().places.push({ id: randomId(), name: place.name, lat, lng });
+    getLocal().places.push({ id: randomId(), name: place.name, lat, lng, sourceId: place.id });
     await saveLocal();
+    flash(`「${place.name}」を訪問地点リストに追加しました`);
     render();
   }
 
@@ -232,6 +276,7 @@ export function installOverlay(ctx) {
       defaultStay: settings.defaultStay,
       stays: settings.stays,
       modeOf,
+      trainMinutes: transitMinutesOf,
     });
   }
   // 区間の移動手段は「2 地点の組み合わせ」に紐づけて保持（電車のみ保存、未設定は車）
@@ -270,5 +315,5 @@ export function installOverlay(ctx) {
     flash("並べ替えました。しおりの時刻とルートリンクを更新しました。");
   }
 
-  Object.assign(ctx, { activeSpotPopup, closeSpotPopup, mercatorY, mapViewFromUrl, spotScreenPoint, showSpotPopup, updateOverlay, overlayHref, mapDrag, addAdoptedPlace, syncAdoptedPlaces, modeOf, currentItinerary, pruneLegModes, placesChanged, movePlace });
+  Object.assign(ctx, { transitMinutesOf, ensureTransitTimes, activeSpotPopup, closeSpotPopup, mercatorY, mapViewFromUrl, spotScreenPoint, showSpotPopup, updateOverlay, overlayHref, mapDrag, addAdoptedPlace, syncAdoptedPlaces, modeOf, currentItinerary, pruneLegModes, placesChanged, movePlace });
 }

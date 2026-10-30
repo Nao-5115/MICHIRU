@@ -3,6 +3,7 @@
 export function installState(ctx) {
 
   const state = {
+    transitMinutes: {}, // 区間ごとの電車の所要時間（Google 経路検索の結果）
     tab: "trip",
     open: false,
     auth: { state: "unknown" },

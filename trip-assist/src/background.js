@@ -257,6 +257,17 @@ async function geocodePlace(name) {
   return { lat: location.lat, lng: location.lng };
 }
 
+// 公共交通機関の所要時間（分）。Google マップの経路検索と同じ値を使う
+async function transitMinutes(from, to) {
+  const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&mode=transit&language=ja&region=jp&key=${MAPS_API_KEY}`;
+  const response = await fetch(url);
+  const data = await response.json();
+  const leg = data.routes?.[0]?.legs?.[0];
+  if (data.status !== "OK" || !leg)
+    throw new Error(data.error_message || `電車の所要時間を取得できませんでした（${data.status}）`);
+  return Math.max(1, Math.round(leg.duration.value / 60));
+}
+
 async function suggestSpotsWithGemini({ preferences, tripName }) {
   const budgetLabels = {
     5000: "〜5,000円",
@@ -542,6 +553,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           patch["settings:placesKey"] = message.placesKey.trim();
         if (Object.keys(patch).length) await chrome.storage.local.set(patch);
         sendResponse({ ok: true });
+      } else if (type === "maps:transitTime") {
+        const minutes = await transitMinutes(message.from, message.to);
+        sendResponse({ ok: true, minutes });
       } else if (type === "review:summarize") {
         sendResponse({ ok: true, ...(await summarizeReviews(message)) });
       } else if (type === "mail:send") {

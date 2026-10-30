@@ -109,7 +109,6 @@ export function installRouteTab(ctx) {
     return createEl(
       "div",
       { class: "leg" },
-      `${T.fmtTime(prev.depart)}出発 → ${T.fmtTime(next.arrive)}到着（約${next.travel}分・直線${next.km.toFixed(1)}km→道路換算約${next.roadKm.toFixed(1)}km）`,
       createEl(
         "div",
         { class: "legctl" },
@@ -369,11 +368,6 @@ export function installRouteTab(ctx) {
             "全体ルートの移動手段:",
             wseg("car"),
             wseg("train"),
-          ),
-          createEl(
-            "p",
-            { class: "muted" },
-            "全体ルートでは移動手段を 1 つに決める必要があります（区間ごとの設定とは別です）。",
           ),
           createEl(
             "p",

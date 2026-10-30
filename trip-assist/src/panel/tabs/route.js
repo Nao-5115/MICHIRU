@@ -3,14 +3,34 @@ import * as T from "../../lib.js";
 import { STORAGE_KEYS, randomId } from "../constants.js";
 
 export function installRouteTab(ctx) {
-  const { state, body, flash, getLocal, saveLocal, createEl, root, movePlace, makeButton, makeMsIcon, makeSvgIcon, placesChanged, gate, currentItinerary, tripData, currentMember, sendMessage } = ctx;
+  const {
+    state,
+    body,
+    flash,
+    getLocal,
+    saveLocal,
+    createEl,
+    root,
+    movePlace,
+    makeButton,
+    makeMsIcon,
+    makeSvgIcon,
+    placesChanged,
+    gate,
+    currentItinerary,
+    tripData,
+    currentMember,
+    sendMessage,
+  } = ctx;
   const render = (...args) => ctx.render(...args);
-  const EDIT_ICON = '<path d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z"/>';
+  const EDIT_ICON =
+    '<path d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z"/>';
   let editingPlaceId = null; // 名称・滞在時間を編集中の地点 ID（一度に 1 件）
   let locateTripId = null; // 現在地の取得を試した旅行 ID（同じ旅行では 1 回だけ試す）
   const MODE_ICON = {
     car: '<path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>',
-    train: '<path d="M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h2.23l2-2H14l2 2h2v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zm0 2c3.51 0 5.44.48 5.93 1H6.07C6.56 4.48 8.49 4 12 4zM6 7h5v3H6V7zm12 0v3h-5V7h5zM7.5 17C6.67 17 6 16.33 6 15.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>',
+    train:
+      '<path d="M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h2.23l2-2H14l2 2h2v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zm0 2c3.51 0 5.44.48 5.93 1H6.07C6.56 4.48 8.49 4 12 4zM6 7h5v3H6V7zm12 0v3h-5V7h5zM7.5 17C6.67 17 6 16.33 6 15.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>',
   };
   let itinEditor = null; // しおりの編集ポップアップ（開いていないときは null）
 
@@ -28,14 +48,20 @@ export function installRouteTab(ctx) {
         if (!current || current.currentLocationAdded) return;
         const lat = position.coords.latitude,
           lng = position.coords.longitude;
-        if (current.places.length < T.MAX_LOCAL_PLACES && !current.places.some((place) => T.samePoint(place, { lat, lng })))
+        if (
+          current.places.length < T.MAX_LOCAL_PLACES &&
+          !current.places.some((place) => T.samePoint(place, { lat, lng }))
+        )
           current.places.unshift({ id: randomId(), name: "現在地", lat, lng });
         current.currentLocationAdded = true;
         await placesChanged();
       },
       () => {
         if (state.tripId === tripId)
-          flash("現在地を取得できませんでした。ブラウザの位置情報の許可を確認してください", "err");
+          flash(
+            "現在地を取得できませんでした。ブラウザの位置情報の許可を確認してください",
+            "err",
+          );
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 600000 },
     );
@@ -44,10 +70,17 @@ export function installRouteTab(ctx) {
   // ルート案内リンク: 現在のタブ内で遷移（遷移前の URL と画面状態を保存してから）
   const isDirPage = () => location.pathname.startsWith("/maps/dir");
   async function openRoute(event, url) {
-    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)
+    if (
+      event.button !== 0 ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      event.altKey
+    )
       return; // 修飾キー付きはブラウザ標準の動作
     event.preventDefault();
-    const fromUrl = state.nav && isDirPage() ? state.nav.fromUrl : location.href;
+    const fromUrl =
+      state.nav && isDirPage() ? state.nav.fromUrl : location.href;
     state.nav = {
       fromUrl,
       tab: state.tab,
@@ -96,7 +129,8 @@ export function installRouteTab(ctx) {
     const setMode = async (mode) => {
       delete getLocal().legModes[fromPlace.id + ">" + toPlace.id];
       delete getLocal().legModes[toPlace.id + ">" + fromPlace.id];
-      if (mode === "train") getLocal().legModes[fromPlace.id + ">" + toPlace.id] = "train";
+      if (mode === "train")
+        getLocal().legModes[fromPlace.id + ">" + toPlace.id] = "train";
       await saveLocal();
       render();
     };
@@ -197,20 +231,30 @@ export function installRouteTab(ctx) {
           "☰",
         ),
         createEl("span", { class: "idx" }, `${index + 1}.`),
-        editing ? createEl("input", {
-          type: "text",
-          class: "pname" + (place.name === T.UNNAMED_PLACE ? " unnamed" : ""),
-          value: place.name,
-          maxlength: 60,
-          placeholder: "地点名を入力",
-          "aria-label": "地点名",
-          onchange: async (event) => {
-            place.name = event.target.value.trim() || T.UNNAMED_PLACE;
-            await saveLocal();
-            render();
-          },
-        })
-          : createEl("span", { class: "pname-text" + (place.name === T.UNNAMED_PLACE ? " unnamed" : "") }, place.name),
+        editing
+          ? createEl("input", {
+              type: "text",
+              class:
+                "pname" + (place.name === T.UNNAMED_PLACE ? " unnamed" : ""),
+              value: place.name,
+              maxlength: 60,
+              placeholder: "地点名を入力",
+              "aria-label": "地点名",
+              onchange: async (event) => {
+                place.name = event.target.value.trim() || T.UNNAMED_PLACE;
+                await saveLocal();
+                render();
+              },
+            })
+          : createEl(
+              "span",
+              {
+                class:
+                  "pname-text" +
+                  (place.name === T.UNNAMED_PLACE ? " unnamed" : ""),
+              },
+              place.name,
+            ),
         createEl(
           "button",
           {
@@ -229,7 +273,9 @@ export function installRouteTab(ctx) {
         makeButton(
           "削除",
           async () => {
-            getLocal().places = getLocal().places.filter((item) => item.id !== place.id);
+            getLocal().places = getLocal().places.filter(
+              (item) => item.id !== place.id,
+            );
             delete settings.stays[place.id];
             await placesChanged();
           },
@@ -237,36 +283,36 @@ export function installRouteTab(ctx) {
         ),
       ),
       place.name === T.UNNAMED_PLACE
-        ? createEl(
-            "div",
-            { class: "hint" },
-            "場所名が未設定です。名前を入力してください。",
-          )
+        ? createEl("div", { class: "hint" }, "場所名が未設定です")
         : null,
       editing
-      ? createEl(
-        "div",
-        { class: "row" },
-        createEl(
-          "label",
-          {},
-          "滞在(分)",
-          createEl("input", {
-            type: "number",
-            min: 0,
-            step: 5,
-            value: settings.stays[place.id] ?? settings.defaultStay,
-            onchange: async (event) => {
-              const value = parseInt(event.target.value, 10);
-              if (value >= 0) settings.stays[place.id] = value;
-              else delete settings.stays[place.id];
-              await saveLocal();
-              render();
-            },
-          }),
-        ),
-      )
-      : createEl("div", { class: "muted" }, `滞在 ${settings.stays[place.id] ?? settings.defaultStay} 分`),
+        ? createEl(
+            "div",
+            { class: "row" },
+            createEl(
+              "label",
+              {},
+              "滞在(分)",
+              createEl("input", {
+                type: "number",
+                min: 0,
+                step: 5,
+                value: settings.stays[place.id] ?? settings.defaultStay,
+                onchange: async (event) => {
+                  const value = parseInt(event.target.value, 10);
+                  if (value >= 0) settings.stays[place.id] = value;
+                  else delete settings.stays[place.id];
+                  await saveLocal();
+                  render();
+                },
+              }),
+            ),
+          )
+        : createEl(
+            "div",
+            { class: "muted" },
+            `滞在 ${settings.stays[place.id] ?? settings.defaultStay} 分`,
+          ),
     );
     return listItem;
   }
@@ -280,7 +326,9 @@ export function installRouteTab(ctx) {
     const settings = getLocal().settings;
     const originalStart = T.parseTime(settings.startTime);
     let startMin = originalStart; // 先頭の地点の到着時刻（＝出発時刻）
-    const basePlaces = new Map(getLocal().places.map((place) => [place.id, place]));
+    const basePlaces = new Map(
+      getLocal().places.map((place) => [place.id, place]),
+    );
     const draft = base.rows.map((row) => ({
       id: row.place.id,
       name: row.place.name,
@@ -296,12 +344,18 @@ export function installRouteTab(ctx) {
     const toAbsolute = (text, reference) => {
       const match = /^(\d{1,2}):(\d{2})$/.exec(text || "");
       if (!match) return null;
-      return Math.floor(reference / 1440) * 1440 + Number(match[1]) * 60 + Number(match[2]);
+      return (
+        Math.floor(reference / 1440) * 1440 +
+        Number(match[1]) * 60 +
+        Number(match[2])
+      );
     };
     // 下書きの内容で到着・出発時刻を計算し直す
     const previewRows = () => {
       const local = getLocal();
-      const places = draft.map((item) => basePlaces.get(item.id)).filter(Boolean);
+      const places = draft
+        .map((item) => basePlaces.get(item.id))
+        .filter(Boolean);
       const stays = {};
       draft.forEach((item) => {
         stays[item.id] = item.stay;
@@ -313,7 +367,9 @@ export function installRouteTab(ctx) {
         defaultStay: settings.defaultStay,
         stays,
         modeOf: (from, to) =>
-          local.legModes[from.id + ">" + to.id] || local.legModes[to.id + ">" + from.id] || "car",
+          local.legModes[from.id + ">" + to.id] ||
+          local.legModes[to.id + ">" + from.id] ||
+          "car",
       }).rows;
     };
     // 到着時刻の変更: 先頭の地点は出発時刻そのもの。2 件目以降は、ひとつ前の地点での滞在時間を調整する
@@ -336,7 +392,9 @@ export function installRouteTab(ctx) {
     const clearMarks = () =>
       itinEditor
         .querySelectorAll(".dragging, .drop-before, .drop-after")
-        .forEach((node) => node.classList.remove("dragging", "drop-before", "drop-after"));
+        .forEach((node) =>
+          node.classList.remove("dragging", "drop-before", "drop-after"),
+        );
     const close = () => {
       document.removeEventListener("keydown", onKey, true);
       if (itinEditor) itinEditor.remove();
@@ -353,20 +411,27 @@ export function installRouteTab(ctx) {
         if (!place) return;
         if (item.nameDirty) place.name = item.name.trim() || T.UNNAMED_PLACE;
         if (item.stayDirty) {
-          if (Number.isFinite(item.stay) && item.stay >= 0) settings.stays[item.id] = item.stay;
+          if (Number.isFinite(item.stay) && item.stay >= 0)
+            settings.stays[item.id] = item.stay;
           else delete settings.stays[item.id];
         }
       });
       if (startMin !== originalStart) settings.startTime = hhmm(startMin);
       const ordered = draft.map((item) => byId.get(item.id)).filter(Boolean);
-      const rest = local.places.filter((place) => !draft.some((item) => item.id === place.id));
+      const rest = local.places.filter(
+        (place) => !draft.some((item) => item.id === place.id),
+      );
       local.places = [...ordered, ...rest];
       close();
       await placesChanged();
     };
     const onKey = (event) => {
       if (event.isComposing) return;
-      if (event.key === "Escape" && itinEditor && itinEditor.querySelector(".itin-time-list.open")) {
+      if (
+        event.key === "Escape" &&
+        itinEditor &&
+        itinEditor.querySelector(".itin-time-list.open")
+      ) {
         event.preventDefault();
         closeLists();
         return;
@@ -377,7 +442,8 @@ export function installRouteTab(ctx) {
       } else if (event.key === "Enter") {
         event.preventDefault();
         // 入力中の値（時刻など）を確定させてから保存する
-        if (root.activeElement && root.activeElement.blur) root.activeElement.blur();
+        if (root.activeElement && root.activeElement.blur)
+          root.activeElement.blur();
         commit();
       }
     };
@@ -392,11 +458,15 @@ export function installRouteTab(ctx) {
     };
     const fillList = () => {
       const rows = previewRows();
-      listEl.replaceChildren(...draft.map((item, index) => editRow(item, index, rows[index])));
+      listEl.replaceChildren(
+        ...draft.map((item, index) => editRow(item, index, rows[index])),
+      );
     };
     const closeLists = () => {
       if (itinEditor)
-        itinEditor.querySelectorAll(".itin-time-list.open").forEach((list) => list.classList.remove("open"));
+        itinEditor
+          .querySelectorAll(".itin-time-list.open")
+          .forEach((list) => list.classList.remove("open"));
     };
     // Google マップ風の時刻入力: 直接入力・◀▶で 15 分ずつ変更・30 分刻みの候補から選択
     const timeField = (current, reference, ariaLabel, onPick) => {
@@ -517,7 +587,8 @@ export function installRouteTab(ctx) {
         createEl("span", { class: "itin-edit-idx" }, `${index + 1}.`),
         createEl("input", {
           type: "text",
-          class: "itin-name" + (item.name === T.UNNAMED_PLACE ? " unnamed" : ""),
+          class:
+            "itin-name" + (item.name === T.UNNAMED_PLACE ? " unnamed" : ""),
           value: item.name,
           maxlength: 60,
           placeholder: "地点名を入力",
@@ -534,13 +605,17 @@ export function installRouteTab(ctx) {
             "div",
             { class: "itin-time" },
             createEl("span", {}, "到着"),
-            timeField(row.arrive, row.arrive, "到着時刻", (value) => setArrive(index, value, previewRows())),
+            timeField(row.arrive, row.arrive, "到着時刻", (value) =>
+              setArrive(index, value, previewRows()),
+            ),
           ),
           createEl(
             "div",
             { class: "itin-time" },
             createEl("span", {}, "出発"),
-            timeField(row.depart, row.depart, "出発時刻", (value) => setDepart(index, value, previewRows())),
+            timeField(row.depart, row.depart, "出発時刻", (value) =>
+              setDepart(index, value, previewRows()),
+            ),
           ),
           createEl(
             "label",
@@ -573,14 +648,24 @@ export function installRouteTab(ctx) {
       },
       createEl(
         "div",
-        { class: "itin-modal", role: "dialog", "aria-modal": "true", "aria-label": "旅のしおりの編集" },
+        {
+          class: "itin-modal",
+          role: "dialog",
+          "aria-modal": "true",
+          "aria-label": "旅のしおりの編集",
+        },
         createEl(
           "div",
           { class: "itin-modal-head" },
           createEl("h3", {}, "旅のしおりの編集"),
           createEl(
             "button",
-            { class: "itin-modal-close", type: "button", "aria-label": "閉じる", onclick: discard },
+            {
+              class: "itin-modal-close",
+              type: "button",
+              "aria-label": "閉じる",
+              onclick: discard,
+            },
             "×",
           ),
         ),
@@ -603,13 +688,17 @@ export function installRouteTab(ctx) {
     const clearDragMarks = () =>
       root
         .querySelectorAll(".dragging, .drop-before, .drop-after")
-        .forEach((node) => node.classList.remove("dragging", "drop-before", "drop-after"));
+        .forEach((node) =>
+          node.classList.remove("dragging", "drop-before", "drop-after"),
+        );
     const optimizeButton = makeButton(
       "訪問順を自動最適化（手動の並べ替えを上書き）",
       async () => {
         if (getLocal().places.length < 2)
           return flash("地点を 2 件以上登録してください", "err");
-        getLocal().places = T.optimize(getLocal().places, 0).map((index) => getLocal().places[index]); // 先頭の地点を出発地点として固定
+        getLocal().places = T.optimize(getLocal().places, 0).map(
+          (index) => getLocal().places[index],
+        ); // 先頭の地点を出発地点として固定
         await placesChanged();
         flash("先頭の地点を出発地点として、訪問順を最適化しました");
       },
@@ -631,7 +720,11 @@ export function installRouteTab(ctx) {
               {},
               "旅のしおり",
               confirmedDate
-                ? createEl("span", { class: "itinerary-date" }, T.fmtRange(confirmedDate))
+                ? createEl(
+                    "span",
+                    { class: "itinerary-date" },
+                    T.fmtRange(confirmedDate),
+                  )
                 : null,
             ),
             createEl(
@@ -672,7 +765,8 @@ export function installRouteTab(ctx) {
                       from = state.dragId;
                     clearDragMarks();
                     state.dragId = null;
-                    if (from && from !== row.place.id) movePlace(from, row.place.id, after);
+                    if (from && from !== row.place.id)
+                      movePlace(from, row.place.id, after);
                   },
                 },
                 index > 0 ? legView(itinerary.rows[index - 1], row) : null,
@@ -716,7 +810,11 @@ export function installRouteTab(ctx) {
       : null;
 
     // 全体のルート案内（waypoints）
-    const whole = T.mapsDirAllUrl(getLocal().places, settings.wholeMode, T.isMobile());
+    const whole = T.mapsDirAllUrl(
+      getLocal().places,
+      settings.wholeMode,
+      T.isMobile(),
+    );
     const wseg = (mode) =>
       createEl(
         "button",
@@ -775,19 +873,23 @@ export function installRouteTab(ctx) {
     return `${targetDate}T${String(Math.floor(minuteOfDay / 60)).padStart(2, "0")}:${String(minuteOfDay % 60).padStart(2, "0")}:00`;
   }
   const NOTICE =
-    "Google カレンダー以外のメールアドレスの参加者の場合、この通知メールが唯一の伝達手段であり、予定が自動的にその人のカレンダーに追加されることはありません。また、参加者の設定によっては、招待メール内で出欠に回答するまでカレンダーに追加されない場合があります。招待は、あなた（幹事）のメールアドレスから送信されます。";
+    "Googleカレンダー以外のアドレスの参加者には、招待メールだけが届きます";
 
   async function registerToCalendar() {
     if (state.regBusy) return;
     const trip = tripData(),
       settings = getLocal().settings,
       myMember = currentMember();
-    const cand = T.datesOf(trip).find((date) => date.id === getLocal().confirmedId);
+    const cand = T.datesOf(trip).find(
+      (date) => date.id === getLocal().confirmedId,
+    );
     if (!cand) return flash("日程を確定してください", "err");
     const itinerary = currentItinerary(),
       title = trip.meta.name,
       dateText = T.fmtRange(cand);
-    const others = T.membersOf(trip).filter((member) => member.key !== myMember.key);
+    const others = T.membersOf(trip).filter(
+      (member) => member.key !== myMember.key,
+    );
     const invite = settings.invite && others.length > 0;
 
     // description: しおり全体（各地点の到着・出発、滞在、区間の移動手段と時間、区間ごとのルートリンク、全体ルートのリンク）
@@ -818,7 +920,10 @@ export function installRouteTab(ctx) {
     };
     if (itinerary) {
       const firstPlace = itinerary.rows[0].place;
-      main.location = firstPlace.name === T.UNNAMED_PLACE ? `${firstPlace.lat},${firstPlace.lng}` : firstPlace.name;
+      main.location =
+        firstPlace.name === T.UNNAMED_PLACE
+          ? `${firstPlace.lat},${firstPlace.lng}`
+          : firstPlace.name;
     } // 最初の訪問地点
     if (invite)
       main.attendees = others.map((member) => ({
@@ -839,8 +944,14 @@ export function installRouteTab(ctx) {
                 ? `${row.place.lat},${row.place.lng}`
                 : row.place.name,
             description: `<a href="https://www.google.com/maps?q=${row.place.lat},${row.place.lng}">Google マップで開く</a>`,
-            start: { dateTime: toLocalDT(cand.s, row.arrive), timeZone: timeZone },
-            end: { dateTime: toLocalDT(cand.s, row.depart), timeZone: timeZone },
+            start: {
+              dateTime: toLocalDT(cand.s, row.arrive),
+              timeZone: timeZone,
+            },
+            end: {
+              dateTime: toLocalDT(cand.s, row.depart),
+              timeZone: timeZone,
+            },
           },
         });
       }
@@ -861,7 +972,11 @@ export function installRouteTab(ctx) {
       : events.map(() => ({ ok: false, error: batch.error }));
     for (const [eventIndex, response] of results.entries()) {
       const calendarEvent = events[eventIndex].ev;
-      state.regResults.push({ name: calendarEvent.summary, ok: response.ok, error: response.error });
+      state.regResults.push({
+        name: calendarEvent.summary,
+        ok: response.ok,
+        error: response.error,
+      });
       if (response.ok && response.id) {
         recs.push(
           calendarEvent.start.date
@@ -871,7 +986,9 @@ export function installRouteTab(ctx) {
                 start: calendarEvent.start.date,
                 end: calendarEvent.end.date,
                 allDay: true,
-                attendees: calendarEvent.attendees ? calendarEvent.attendees.length : 0,
+                attendees: calendarEvent.attendees
+                  ? calendarEvent.attendees.length
+                  : 0,
               }
             : {
                 id: response.id,
@@ -904,5 +1021,16 @@ export function installRouteTab(ctx) {
     render();
   }
 
-  Object.assign(ctx, { isDirPage, openRoute, clearNav, goBack, legView, placeItem, viewRoute, toLocalDT, NOTICE, registerToCalendar });
+  Object.assign(ctx, {
+    isDirPage,
+    openRoute,
+    clearNav,
+    goBack,
+    legView,
+    placeItem,
+    viewRoute,
+    toLocalDT,
+    NOTICE,
+    registerToCalendar,
+  });
 }

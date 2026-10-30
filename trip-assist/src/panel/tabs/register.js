@@ -48,11 +48,7 @@ export function installRegisterTab(ctx) {
       createEl("h3", {}, "Google カレンダーに登録"),
       cand
         ? createEl("p", {}, "確定日程: ", createEl("b", {}, T.fmtRange(cand)))
-        : createEl(
-            "p",
-            { class: "warn" },
-            "日程が未確定です。「日程」タブで「この日で確定」を押すか、下から選んでください。",
-          ),
+        : createEl("p", { class: "warn" }, "日程が未確定です"),
       createEl(
         "select",
         {
@@ -277,7 +273,10 @@ export function installRegisterTab(ctx) {
               },
               "danger",
             ),
-            createEl("div", { class: "calendar-events-divider", "aria-hidden": "true" }),
+            createEl("div", {
+              class: "calendar-events-divider",
+              "aria-hidden": "true",
+            }),
           )
         : null,
       state.delResults

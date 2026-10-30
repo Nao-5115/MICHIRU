@@ -57,7 +57,12 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["panel.css", "michiru-logo.png"],
+      "resources": [
+        "panel.css",
+        "michiru-logo.png",
+        "michiru-fab-idle.png",
+        "michiru-fab-hover.png"
+      ],
       "matches": [
         "https://www.google.com/*",
         "https://www.google.co.jp/*",

@@ -86,9 +86,21 @@ export function installShell(ctx) {
       class: "fab",
       type: "button",
       title: "旅行アシストを開く",
+      "aria-label": "旅行アシストを開く",
       onclick: () => toggle(true),
     },
-    "旅",
+    createEl("img", {
+      class: "fab-idle",
+      src: chrome.runtime.getURL("michiru-fab-idle.png"),
+      alt: "",
+      "aria-hidden": "true",
+    }),
+    createEl("img", {
+      class: "fab-hover",
+      src: chrome.runtime.getURL("michiru-fab-hover.png"),
+      alt: "",
+      "aria-hidden": "true",
+    }),
   );
   root.append(
     createEl("link", {

@@ -2,7 +2,8 @@
 
 export function installBoot(ctx) {
   const { boot, flash } = ctx;
+  ctx.loadcolorSelect();
   boot().catch((error) => flash("起動に失敗しました: " + error.message, "err"));
 
-  Object.assign(ctx, {  });
+  Object.assign(ctx, {});
 }

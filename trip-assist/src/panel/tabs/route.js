@@ -3,11 +3,16 @@ import * as T from "../../lib.js";
 import { STORAGE_KEYS, randomId } from "../constants.js";
 
 export function installRouteTab(ctx) {
-  const { state, body, flash, getLocal, saveLocal, createEl, root, movePlace, makeButton, makeMsIcon, placesChanged, gate, currentItinerary, tripData, currentMember, sendMessage } = ctx;
+  const { state, body, flash, getLocal, saveLocal, createEl, root, movePlace, makeButton, makeMsIcon, makeSvgIcon, placesChanged, gate, currentItinerary, tripData, currentMember, sendMessage } = ctx;
   const render = (...args) => ctx.render(...args);
   const EDIT_ICON = '<path d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z"/>';
   let editingPlaceId = null; // 名称・滞在時間を編集中の地点 ID（一度に 1 件）
   let locateTripId = null; // 現在地の取得を試した旅行 ID（同じ旅行では 1 回だけ試す）
+  const MODE_ICON = {
+    car: '<path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>',
+    train: '<path d="M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h2.23l2-2H14l2 2h2v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zm0 2c3.51 0 5.44.48 5.93 1H6.07C6.56 4.48 8.49 4 12 4zM6 7h5v3H6V7zm12 0v3h-5V7h5zM7.5 17C6.67 17 6 16.33 6 15.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>',
+  };
+  let itinEditor = null; // しおりの編集ポップアップ（開いていないときは null）
 
   // 旅行を初めて開いたとき、現在地を訪問地点の先頭に登録する（名前・滞在時間は編集可能）
   function ensureCurrentLocation() {
@@ -95,17 +100,33 @@ export function installRouteTab(ctx) {
       await saveLocal();
       render();
     };
+    // この区間を各移動手段で移動した場合の目安時間（分）
+    const legMinutes = (mode) => {
+      const s = getLocal().settings;
+      const speed = mode === "car" ? s.speedCar : s.speedTrain;
+      const detour = mode === "car" ? s.detourCar : s.detourTrain;
+      const v = speed > 0 ? speed : T.DEFAULT_SPEED[mode];
+      const d = detour >= 1 ? detour : T.DEFAULT_DETOUR;
+      return Math.max(1, Math.round(((next.km * d) / v) * 60));
+    };
     const segmentButton = (mode) =>
       createEl(
         "button",
         {
-          class: "seg" + (next.mode === mode ? " on" : ""),
+          class: "seg seg-mode" + (next.mode === mode ? " on" : ""),
           type: "button",
-          onclick: () => setMode(mode),
+          title: T.MODE_LABEL[mode],
+          "aria-label": `${T.MODE_LABEL[mode]} 約${legMinutes(mode)}分`,
+          onclick: async (event) => {
+            // 移動手段を保存してから、その移動手段のルート案内を開く
+            const url = T.mapsDirUrl(fromPlace, toPlace, mode);
+            await setMode(mode);
+            await openRoute(event, url);
+          },
         },
-        T.MODE_LABEL[mode],
+        makeSvgIcon(MODE_ICON[mode], 22),
+        createEl("span", { class: "seg-time" }, `${legMinutes(mode)} 分`),
       );
-    const url = T.mapsDirUrl(fromPlace, toPlace, next.mode);
     return createEl(
       "div",
       { class: "leg" },
@@ -114,11 +135,6 @@ export function installRouteTab(ctx) {
         { class: "legctl" },
         segmentButton("car"),
         segmentButton("train"),
-        createEl(
-          "a",
-          { href: url, onclick: (event) => openRoute(event, url) },
-          "この区間のルートを見る",
-        ),
       ),
     );
   }
@@ -255,89 +271,437 @@ export function installRouteTab(ctx) {
     return listItem;
   }
 
+  // しおりの編集ポップアップ（地点名・到着/出発時刻・滞在時間・並べ替え）。
+  // 変更は下書きとして持ち、「編集」または Enter で確定する。×・Esc・外側クリックでは破棄する。
+  function openItineraryEditor() {
+    if (itinEditor && itinEditor.isConnected) return;
+    const base = currentItinerary();
+    if (!base) return;
+    const settings = getLocal().settings;
+    const originalStart = T.parseTime(settings.startTime);
+    let startMin = originalStart; // 先頭の地点の到着時刻（＝出発時刻）
+    const basePlaces = new Map(getLocal().places.map((place) => [place.id, place]));
+    const draft = base.rows.map((row) => ({
+      id: row.place.id,
+      name: row.place.name,
+      nameDirty: false,
+      stay: settings.stays[row.place.id] ?? settings.defaultStay,
+      stayDirty: false,
+    }));
+    const hhmm = (minutes) => {
+      const m = ((minutes % 1440) + 1440) % 1440;
+      return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+    };
+    // "HH:MM" を、基準時刻と同じ日の分（通算の分）に直す
+    const toAbsolute = (text, reference) => {
+      const match = /^(\d{1,2}):(\d{2})$/.exec(text || "");
+      if (!match) return null;
+      return Math.floor(reference / 1440) * 1440 + Number(match[1]) * 60 + Number(match[2]);
+    };
+    // 下書きの内容で到着・出発時刻を計算し直す
+    const previewRows = () => {
+      const local = getLocal();
+      const places = draft.map((item) => basePlaces.get(item.id)).filter(Boolean);
+      const stays = {};
+      draft.forEach((item) => {
+        stays[item.id] = item.stay;
+      });
+      return T.buildItinerary(places, {
+        startMin,
+        speeds: { car: settings.speedCar, train: settings.speedTrain },
+        detours: { car: settings.detourCar, train: settings.detourTrain },
+        defaultStay: settings.defaultStay,
+        stays,
+        modeOf: (from, to) =>
+          local.legModes[from.id + ">" + to.id] || local.legModes[to.id + ">" + from.id] || "car",
+      }).rows;
+    };
+    // 到着時刻の変更: 先頭の地点は出発時刻そのもの。2 件目以降は、ひとつ前の地点での滞在時間を調整する
+    const setArrive = (index, value, rows) => {
+      if (index === 0) {
+        startMin = value;
+        return;
+      }
+      const prev = rows[index - 1],
+        cur = rows[index];
+      draft[index - 1].stay = Math.max(0, value - cur.travel - prev.arrive);
+      draft[index - 1].stayDirty = true;
+    };
+    // 出発時刻の変更: その地点での滞在時間を調整する
+    const setDepart = (index, value, rows) => {
+      draft[index].stay = Math.max(0, value - rows[index].arrive);
+      draft[index].stayDirty = true;
+    };
+    const listEl = createEl("ol", { class: "itin-edit-list" });
+    const clearMarks = () =>
+      itinEditor
+        .querySelectorAll(".dragging, .drop-before, .drop-after")
+        .forEach((node) => node.classList.remove("dragging", "drop-before", "drop-after"));
+    const close = () => {
+      document.removeEventListener("keydown", onKey, true);
+      if (itinEditor) itinEditor.remove();
+      itinEditor = null;
+    };
+    const discard = () => close();
+    // 下書きを地点データと設定に反映して保存する
+    const commit = async () => {
+      if (!itinEditor) return;
+      const local = getLocal();
+      const byId = new Map(local.places.map((place) => [place.id, place]));
+      draft.forEach((item) => {
+        const place = byId.get(item.id);
+        if (!place) return;
+        if (item.nameDirty) place.name = item.name.trim() || T.UNNAMED_PLACE;
+        if (item.stayDirty) {
+          if (Number.isFinite(item.stay) && item.stay >= 0) settings.stays[item.id] = item.stay;
+          else delete settings.stays[item.id];
+        }
+      });
+      if (startMin !== originalStart) settings.startTime = hhmm(startMin);
+      const ordered = draft.map((item) => byId.get(item.id)).filter(Boolean);
+      const rest = local.places.filter((place) => !draft.some((item) => item.id === place.id));
+      local.places = [...ordered, ...rest];
+      close();
+      await placesChanged();
+    };
+    const onKey = (event) => {
+      if (event.isComposing) return;
+      if (event.key === "Escape" && itinEditor && itinEditor.querySelector(".itin-time-list.open")) {
+        event.preventDefault();
+        closeLists();
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        discard();
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        // 入力中の値（時刻など）を確定させてから保存する
+        if (root.activeElement && root.activeElement.blur) root.activeElement.blur();
+        commit();
+      }
+    };
+    // 下書きの並べ替え（確定するまで地点データは変えない）
+    const moveDraft = (fromId, toId, after) => {
+      const from = draft.findIndex((item) => item.id === fromId);
+      if (from < 0 || !draft.some((item) => item.id === toId)) return;
+      const [moving] = draft.splice(from, 1);
+      const index = draft.findIndex((item) => item.id === toId);
+      draft.splice(after ? index + 1 : index, 0, moving);
+      fillList();
+    };
+    const fillList = () => {
+      const rows = previewRows();
+      listEl.replaceChildren(...draft.map((item, index) => editRow(item, index, rows[index])));
+    };
+    const closeLists = () => {
+      if (itinEditor)
+        itinEditor.querySelectorAll(".itin-time-list.open").forEach((list) => list.classList.remove("open"));
+    };
+    // Google マップ風の時刻入力: 直接入力・◀▶で 15 分ずつ変更・30 分刻みの候補から選択
+    const timeField = (current, reference, ariaLabel, onPick) => {
+      const dayBase = Math.floor(reference / 1440) * 1440;
+      const select = (value) => {
+        onPick(value);
+        fillList();
+      };
+      const list = createEl("ul", { class: "itin-time-list" });
+      for (let t = 0; t < 1440; t += 30) {
+        const value = dayBase + t;
+        list.appendChild(
+          createEl(
+            "li",
+            {
+              class: value === current ? "selected" : "",
+              onmousedown: (event) => event.preventDefault(), // 入力欄のフォーカスを保つ
+              onclick: () => select(value),
+            },
+            hhmm(value),
+          ),
+        );
+      }
+      const openList = () => {
+        closeLists();
+        list.classList.add("open");
+        const selected = list.querySelector(".selected");
+        if (selected) selected.scrollIntoView({ block: "nearest" });
+      };
+      const input = createEl("input", {
+        type: "text",
+        class: "itin-time-input",
+        value: hhmm(current),
+        maxlength: 5,
+        "aria-label": ariaLabel,
+        onfocus: () => openList(),
+        onblur: () => closeLists(),
+        onchange: (event) => {
+          const value = toAbsolute(event.target.value, reference);
+          if (value === null) fillList();
+          else select(value);
+        },
+      });
+      return createEl(
+        "div",
+        { class: "itin-time-field" },
+        createEl(
+          "button",
+          {
+            type: "button",
+            class: "itin-time-step",
+            "aria-label": `${ariaLabel}を15分戻す`,
+            onclick: () => select(current - 15),
+          },
+          "◀",
+        ),
+        input,
+        createEl(
+          "button",
+          {
+            type: "button",
+            class: "itin-time-step",
+            "aria-label": `${ariaLabel}を15分進める`,
+            onclick: () => select(current + 15),
+          },
+          "▶",
+        ),
+        list,
+      );
+    };
+    const editRow = (item, index, row) => {
+      const el = createEl(
+        "li",
+        {
+          class: "itin-edit-row",
+          ondragover: (event) => {
+            if (!state.dragId) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            const rect = el.getBoundingClientRect(),
+              after = event.clientY > rect.top + rect.height / 2;
+            el.classList.toggle("drop-before", !after);
+            el.classList.toggle("drop-after", after);
+          },
+          ondragleave: (event) => {
+            if (!el.contains(event.relatedTarget))
+              el.classList.remove("drop-before", "drop-after");
+          },
+          ondrop: (event) => {
+            event.preventDefault();
+            const after = el.classList.contains("drop-after"),
+              from = state.dragId;
+            clearMarks();
+            state.dragId = null;
+            if (from && from !== item.id) moveDraft(from, item.id, after);
+          },
+        },
+        createEl(
+          "span",
+          {
+            class: "handle",
+            draggable: "true",
+            title: "ドラッグして並べ替え",
+            ondragstart: (event) => {
+              state.dragId = item.id;
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", item.id);
+              event.dataTransfer.setDragImage(el, 12, 12);
+              el.classList.add("dragging");
+            },
+            ondragend: () => {
+              state.dragId = null;
+              clearMarks();
+            },
+          },
+          "☰",
+        ),
+        createEl("span", { class: "itin-edit-idx" }, `${index + 1}.`),
+        createEl("input", {
+          type: "text",
+          class: "itin-name" + (item.name === T.UNNAMED_PLACE ? " unnamed" : ""),
+          value: item.name,
+          maxlength: 60,
+          placeholder: "地点名を入力",
+          "aria-label": "地点名",
+          oninput: (event) => {
+            item.name = event.target.value;
+            item.nameDirty = true;
+          },
+        }),
+        createEl(
+          "div",
+          { class: "itin-time-row" },
+          createEl(
+            "div",
+            { class: "itin-time" },
+            createEl("span", {}, "到着"),
+            timeField(row.arrive, row.arrive, "到着時刻", (value) => setArrive(index, value, previewRows())),
+          ),
+          createEl(
+            "div",
+            { class: "itin-time" },
+            createEl("span", {}, "出発"),
+            timeField(row.depart, row.depart, "出発時刻", (value) => setDepart(index, value, previewRows())),
+          ),
+          createEl(
+            "label",
+            { class: "stay-edit" },
+            "滞在(分)",
+            createEl("input", {
+              type: "number",
+              min: 0,
+              step: 5,
+              value: Number.isFinite(item.stay) ? item.stay : "",
+              "aria-label": "滞在時間（分）",
+              oninput: (event) => {
+                item.stay = parseInt(event.target.value, 10);
+                item.stayDirty = true;
+              },
+              onchange: () => fillList(),
+            }),
+          ),
+        ),
+      );
+      return el;
+    };
+    itinEditor = createEl(
+      "div",
+      {
+        class: "itin-modal-backdrop",
+        onclick: (event) => {
+          if (event.target === itinEditor) discard();
+        },
+      },
+      createEl(
+        "div",
+        { class: "itin-modal", role: "dialog", "aria-modal": "true", "aria-label": "旅のしおりの編集" },
+        createEl(
+          "div",
+          { class: "itin-modal-head" },
+          createEl("h3", {}, "旅のしおりの編集"),
+          createEl(
+            "button",
+            { class: "itin-modal-close", type: "button", "aria-label": "閉じる", onclick: discard },
+            "×",
+          ),
+        ),
+        listEl,
+        makeButton("編集", () => commit(), "primary"),
+      ),
+    );
+    fillList();
+    root.appendChild(itinEditor);
+    document.addEventListener("keydown", onKey, true);
+  }
+
   function viewRoute() {
     const gateView = gate(true);
     if (gateView) return gateView;
     const settings = getLocal().settings;
     ctx.syncAdoptedPlaces();
     ensureCurrentLocation();
-    const sec1 = createEl(
-      "section",
-      {},
-      createEl("h3", {}, "訪問地点（上から順に訪問）"),
-      createEl(
-        "ul",
-        { class: "list trip-list trip-list-divider", "aria-hidden": "true" },
-        createEl("li", {}),
-      ),
-      getLocal().places.length
-        ? createEl("ul", { class: "list trip-list" }, getLocal().places.map(placeItem))
-        : createEl("p", { class: "muted" }, "登録済みの地点はありません。"),
-    );
-    const sec2 = createEl(
-      "section",
-      {},
-      createEl("h3", {}, "しおりの設定"),
-      createEl(
-        "div",
-        { class: "row" },
-        createEl(
-          "label",
-          {},
-          "出発時刻",
-          createEl("input", {
-            type: "time",
-            value: settings.startTime,
-            onchange: async (event) => {
-              settings.startTime = event.target.value || "09:00";
-              await saveLocal();
-              render();
-            },
-          }),
-        ),
-      ),
-      makeButton(
-        "訪問順を自動最適化（手動の並べ替えを上書き）",
-        async () => {
-          if (getLocal().places.length < 2)
-            return flash("地点を 2 件以上登録してください", "err");
-          getLocal().places = T.optimize(getLocal().places, 0).map((index) => getLocal().places[index]); // 先頭の地点を出発地点として固定
-          await placesChanged();
-          flash("先頭の地点を出発地点として、訪問順を最適化しました");
-        },
-        "primary",
-      ),
+    // しおりの並べ替え（訪問地点リストと同じ動き）
+    const clearDragMarks = () =>
+      root
+        .querySelectorAll(".dragging, .drop-before, .drop-after")
+        .forEach((node) => node.classList.remove("dragging", "drop-before", "drop-after"));
+    const optimizeButton = makeButton(
+      "訪問順を自動最適化（手動の並べ替えを上書き）",
+      async () => {
+        if (getLocal().places.length < 2)
+          return flash("地点を 2 件以上登録してください", "err");
+        getLocal().places = T.optimize(getLocal().places, 0).map((index) => getLocal().places[index]); // 先頭の地点を出発地点として固定
+        await placesChanged();
+        flash("先頭の地点を出発地点として、訪問順を最適化しました");
+      },
+      "primary",
     );
     const itinerary = currentItinerary();
     const sec3 = itinerary
       ? createEl(
           "section",
           {},
-          createEl("h3", {}, "旅のしおり"),
-          itinerary.rows.length > 1
-            ? createEl(
-                "p",
-                { class: "muted" },
-                `総移動距離: 直線 ${itinerary.totalKm.toFixed(1)} km／道路換算 約 ${itinerary.totalRoadKm.toFixed(1)} km`,
-              )
-            : null,
+          createEl(
+            "div",
+            { class: "sec-head" },
+            createEl("h3", {}, "旅のしおり"),
+            createEl(
+              "button",
+              {
+                class: "icon-edit",
+                type: "button",
+                title: "地点名・滞在時間を編集",
+                "aria-label": "しおりの地点名・滞在時間を編集",
+                onclick: () => openItineraryEditor(),
+              },
+              makeMsIcon(EDIT_ICON, 18),
+            ),
+          ),
           createEl(
             "ol",
             { class: "timeline" },
-            itinerary.rows.map((row, index) =>
-              createEl(
+            itinerary.rows.map((row, index) => {
+              const item = createEl(
                 "li",
-                {},
+                {
+                  ondragover: (event) => {
+                    if (!state.dragId) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                    const rect = item.getBoundingClientRect(),
+                      after = event.clientY > rect.top + rect.height / 2;
+                    item.classList.toggle("drop-before", !after);
+                    item.classList.toggle("drop-after", after);
+                  },
+                  ondragleave: (event) => {
+                    if (!item.contains(event.relatedTarget))
+                      item.classList.remove("drop-before", "drop-after");
+                  },
+                  ondrop: (event) => {
+                    event.preventDefault();
+                    const after = item.classList.contains("drop-after"),
+                      from = state.dragId;
+                    clearDragMarks();
+                    state.dragId = null;
+                    if (from && from !== row.place.id) movePlace(from, row.place.id, after);
+                  },
+                },
                 index > 0 ? legView(itinerary.rows[index - 1], row) : null,
                 createEl(
                   "div",
-                  { class: "stop" },
-                  createEl("b", {}, row.place.name),
-                  ` 滞在${row.stay}分 (${T.fmtTime(row.arrive)}〜${T.fmtTime(row.depart)})`,
+                  { class: "stop-row" },
+                  createEl(
+                    "span",
+                    {
+                      class: "handle",
+                      draggable: "true",
+                      title: "ドラッグして並べ替え",
+                      ondragstart: (event) => {
+                        state.dragId = row.place.id;
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", row.place.id);
+                        event.dataTransfer.setDragImage(item, 12, 12);
+                        item.classList.add("dragging");
+                      },
+                      ondragend: () => {
+                        state.dragId = null;
+                        clearDragMarks();
+                      },
+                    },
+                    "☰",
+                  ),
+                  createEl(
+                    "div",
+                    { class: "stop" },
+                    createEl("b", {}, row.place.name),
+                    createEl("br", {}),
+                    `(${T.fmtTime(row.arrive)}〜${T.fmtTime(row.depart)})`,
+                  ),
                 ),
-              ),
-            ),
+              );
+              return item;
+            }),
           ),
+          optimizeButton,
         )
       : null;
 
@@ -391,7 +755,7 @@ export function installRouteTab(ctx) {
             : null,
         )
       : null;
-    return [sec1, sec2, sec3, sec4];
+    return [sec3, sec4];
   }
 
   // ======================= 登録タブ（幹事のみ: カレンダー登録・削除） =======================

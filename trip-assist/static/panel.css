@@ -1816,7 +1816,8 @@ tr.sel {
   cursor: pointer;
   border-radius: 6px;
 }
-.icon-edit:hover, .icon-edit[aria-pressed="true"] {
+.icon-edit:hover,
+.icon-edit[aria-pressed="true"] {
   opacity: 1;
   background: rgba(0, 0, 0, 0.06);
 }
@@ -2241,6 +2242,7 @@ tr.sel {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
+}
 
 /* 希望を変更するボタンで開く、中央のポップアップ（フォームの見た目はそのまま） */
 .pref-modal-backdrop {

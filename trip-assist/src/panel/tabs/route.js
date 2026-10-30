@@ -616,6 +616,9 @@ export function installRouteTab(ctx) {
       "primary",
     );
     const itinerary = currentItinerary();
+    const confirmedDate = T.datesOf(tripData()).find(
+      (date) => date.id === getLocal().confirmedId,
+    );
     const sec3 = itinerary
       ? createEl(
           "section",
@@ -623,7 +626,14 @@ export function installRouteTab(ctx) {
           createEl(
             "div",
             { class: "sec-head" },
-            createEl("h3", {}, "旅のしおり"),
+            createEl(
+              "h3",
+              {},
+              "旅のしおり",
+              confirmedDate
+                ? createEl("span", { class: "itinerary-date" }, T.fmtRange(confirmedDate))
+                : null,
+            ),
             createEl(
               "button",
               {

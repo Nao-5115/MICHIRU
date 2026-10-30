@@ -640,6 +640,12 @@ tr.sel {
 .sec-head h3 {
   margin: 0;
 }
+.itinerary-date {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
 .itin-modal-backdrop {
   position: fixed;
   inset: 0;

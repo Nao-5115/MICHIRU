@@ -17,8 +17,10 @@ export const DEF_LOCAL = () => ({
   places: [],
   legModes: {},
   confirmedId: null,
+  currentLocationAdded: false, // 現在地を先頭に登録済みか（旅行ごと）
   events: [],
   settings: {
+    meetingPlace: null,
     speedCar: 40,
     speedTrain: 35,
     detourCar: 1.3,

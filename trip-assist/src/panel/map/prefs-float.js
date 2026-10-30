@@ -77,6 +77,35 @@ export function installPrefsFloat(ctx) {
       closeBtn.title = "閉じる";
       closeBtn.onclick = () => { wrap.style.display = "none"; };
       head.append(closeBtn);
+      // 見出しバーをつかんで移動できるようにする（× ボタンでは移動しない）
+      head.style.cursor = "move";
+      head.style.userSelect = "none";
+      head.style.touchAction = "none";
+      head.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || (event.target.closest && event.target.closest("#pf-close"))) return;
+        const rect = wrap.getBoundingClientRect();
+        const offsetX = event.clientX - rect.left;
+        const offsetY = event.clientY - rect.top;
+        head.setPointerCapture(event.pointerId);
+        const move = (moveEvent) => {
+          const maxLeft = Math.max(0, window.innerWidth - rect.width);
+          const maxTop = Math.max(0, window.innerHeight - rect.height);
+          const left = Math.min(Math.max(0, moveEvent.clientX - offsetX), maxLeft);
+          const top = Math.min(Math.max(0, moveEvent.clientY - offsetY), maxTop);
+          wrap.style.left = left + "px";
+          wrap.style.top = top + "px";
+          wrap.style.right = "auto";
+          wrap.style.bottom = "auto";
+        };
+        const stop = () => {
+          head.removeEventListener("pointermove", move);
+          head.removeEventListener("pointerup", stop);
+          head.removeEventListener("pointercancel", stop);
+        };
+        head.addEventListener("pointermove", move);
+        head.addEventListener("pointerup", stop);
+        head.addEventListener("pointercancel", stop);
+      });
 
       const body = document.createElement("div");
       body.id = "pf-body";
@@ -85,10 +114,10 @@ export function installPrefsFloat(ctx) {
       shadow.append(wrap);
     }
 
-    function renderContent(prefs, members) {
+    function renderContent(prefs, members, places = []) {
       const body = wrap.querySelector("#pf-body");
       body.innerHTML = "";
-      const rows = members.filter((member) => prefs[member.key]);
+      const rows = members;
       if (!rows.length) {
         const paragraph = document.createElement("p");
         paragraph.className = "pf-empty";
@@ -97,13 +126,13 @@ export function installPrefsFloat(ctx) {
         return;
       }
       rows.forEach((member) => {
-        const memberPrefs = prefs[member.key];
+        const memberPrefs = prefs[member.key] || {};
         const wrapper = document.createElement("div");
         wrapper.className = "pf-member";
 
         const nameEl = document.createElement("div");
         nameEl.className = "pf-name";
-        nameEl.textContent = member.name;
+        nameEl.textContent = member.label || member.email || member.key;
         wrapper.append(nameEl);
 
         const budRow = document.createElement("div");
@@ -176,23 +205,45 @@ export function installPrefsFloat(ctx) {
         }
         wrapper.append(cRow);
 
+        const wRow = document.createElement("div");
+        wRow.className = "pf-row";
+        const wLbl = document.createElement("span");
+        wLbl.className = "pf-lbl";
+        wLbl.textContent = "行きたい場所:";
+        wRow.append(wLbl);
+        const wishPlaces = places.filter((wishPlace) => wishPlace.addedBy === member.key);
+        if (wishPlaces.length) {
+          wishPlaces.forEach((wishPlace) => {
+            const chip = document.createElement("span");
+            chip.className = "pf-chip";
+            chip.textContent = wishPlace.name;
+            wRow.append(chip);
+          });
+        } else {
+          const dash = document.createElement("span");
+          dash.className = "pf-dash";
+          dash.textContent = "—";
+          wRow.append(dash);
+        }
+        wrapper.append(wRow);
+
         body.append(wrapper);
       });
     }
 
     return {
-      toggle(prefs, members) {
+      toggle(prefs, members, places) {
         ensure();
         if (wrap.style.display !== "none") {
           wrap.style.display = "none";
         } else {
-          renderContent(prefs, members);
+          renderContent(prefs, members, places);
           wrap.style.display = "flex";
         }
       },
-      update(prefs, members) {
+      update(prefs, members, places) {
         if (!wrap || wrap.style.display === "none") return;
-        renderContent(prefs, members);
+        renderContent(prefs, members, places);
       },
     };
   })();

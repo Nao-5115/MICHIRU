@@ -325,14 +325,19 @@ export function buildItinerary(
 
 // ---------- Google Maps URLs（API キー不要） ----------
 const formatLatLng = (point) => `${point.lat},${point.lng}`;
+// Google マップには地点名で渡し、名前で検索させる（手で検索したときと同じ候補になる）。
+// 「現在地」「名称未設定」は名前では探せないので緯度経度を使う
+const COORD_ONLY_NAMES = ["現在地", UNNAMED_PLACE];
+const formatPoint = (point) =>
+  point.name && !COORD_ONLY_NAMES.includes(point.name) ? point.name : formatLatLng(point);
 const travelmode = (mode) => (mode === "train" ? "transit" : "driving");
 
 // 区間（2 地点）。waypoints は使わない
 export function mapsDirUrl(from, to, mode) {
   const params = new URLSearchParams(); // カンマは %2C にエンコードされる
   params.set("api", "1");
-  params.set("origin", formatLatLng(from));
-  params.set("destination", formatLatLng(to));
+  params.set("origin", formatPoint(from));
+  params.set("destination", formatPoint(to));
   params.set("travelmode", travelmode(mode));
   return "https://www.google.com/maps/dir/?" + params.toString();
 }
@@ -352,14 +357,14 @@ export function mapsDirAllUrl(places, mode, mobile = false) {
   const build = (count) => {
     const params = new URLSearchParams(); // `|` は %7C、`,` は %2C にエンコードされる
     params.set("api", "1");
-    params.set("origin", formatLatLng(places[0]));
-    params.set("destination", formatLatLng(places[count - 1]));
+    params.set("origin", formatPoint(places[0]));
+    params.set("destination", formatPoint(places[count - 1]));
     if (count > 2)
       params.set(
         "waypoints",
         places
           .slice(1, count - 1)
-          .map(formatLatLng)
+          .map(formatPoint)
           .join("|"),
       );
     params.set("travelmode", travelmode(mode));
@@ -393,6 +398,7 @@ export function itineraryHtml(
   const out = [`<b>${escapeHtml(title)}</b>`];
   if (dateText) out.push(escapeHtml(dateText));
   out.push("");
+  let visitNumber = 0;
   rows.forEach((row, index) => {
     if (index > 0) {
       const prev = rows[index - 1];
@@ -401,9 +407,14 @@ export function itineraryHtml(
         line += ` <a href="${escapeHtml(mapsDirUrl(prev.place, row.place, row.mode))}">この区間のルート案内</a>`;
       out.push(line);
     }
-    out.push(
-      `<b>${index + 1}. ${escapeHtml(row.place.name)}</b> ${fmtTime(row.arrive)}到着 → ${fmtTime(row.depart)}出発（滞在${row.stay}分）`,
-    );
+    if (row.place.isMeetingPlace)
+      out.push(
+        `<b>集合場所: ${escapeHtml(row.place.name)}</b> ${fmtTime(row.depart)}出発`,
+      );
+    else
+      out.push(
+        `<b>${++visitNumber}. ${escapeHtml(row.place.name)}</b> ${fmtTime(row.arrive)}到着 → ${fmtTime(row.depart)}出発（滞在${row.stay}分）`,
+      );
   });
   const whole = mapsDirAllUrl(
     rows.map((row) => row.place),

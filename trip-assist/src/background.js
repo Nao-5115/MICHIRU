@@ -247,6 +247,20 @@ async function callGeminiAPI(prompt) {
   );
 }
 
+async function estimateTrainFare({ from, to }) {
+  if (typeof from !== "string" || typeof to !== "string" || !from.trim() || !to.trim())
+    throw new Error("出発地または到着地が不明です");
+  const prompt = `日本国内の公共交通の運賃の参考額を推定してください。運賃データを直接検索できない場合は、地名・距離・一般的な運賃体系から無理のない幅で推定してください。正確な金額と断定せず、必ず日本円の概算としてください。\n出発地: ${from.slice(0, 160)}\n到着地: ${to.slice(0, 160)}\n1人・片道。乗換を含む一般的な電車ルート。\nJSONだけで回答: {"low":整数,"high":整数,"note":"短い補足"}. 運賃を推定できない場合は {"low":0,"high":0,"note":"推定できません"}`;
+  const response = (await callGeminiAPI(prompt)).replace(/```json|```/gi, "").trim();
+  const match = response.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("Geminiから運賃の目安を取得できませんでした");
+  const fare = JSON.parse(match[0]);
+  const low = Math.round(Number(fare.low)), high = Math.round(Number(fare.high));
+  if (!Number.isFinite(low) || !Number.isFinite(high) || low < 0 || high < low || high > 1000000)
+    throw new Error("運賃の目安を読み取れませんでした");
+  return { low, high, note: String(fare.note || "AIによる概算") .slice(0, 100) };
+}
+
 async function geocodePlace(name) {
   const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(name)}&language=ja&region=jp&key=${MAPS_API_KEY}`;
   const response = await fetch(url);
@@ -536,6 +550,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       } else if (type === "gemini:suggest") {
         const spots = await suggestSpotsWithGemini(message);
         sendResponse({ ok: true, spots });
+      } else if (type === "gemini:fare") {
+        sendResponse({ ok: true, fare: await estimateTrainFare(message) });
       } else if (type === "settings:save") {
         const patch = {};
         if (typeof message.placesKey === "string" && message.placesKey.trim())

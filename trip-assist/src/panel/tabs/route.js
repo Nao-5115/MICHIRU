@@ -13,6 +13,7 @@ export function installRouteTab(ctx) {
     train: '<path d="M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h2.23l2-2H14l2 2h2v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zm0 2c3.51 0 5.44.48 5.93 1H6.07C6.56 4.48 8.49 4 12 4zM6 7h5v3H6V7zm12 0v3h-5V7h5zM7.5 17C6.67 17 6 16.33 6 15.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>',
   };
   let itinEditor = null; // しおりの編集ポップアップ（開いていないときは null）
+  const fareCache = new Map(), farePending = new Map();
 
   async function saveItineraryPdf(itinerary, trip, date) {
     const W = 1240, H = 1754, margin = 100, title = trip.meta.name || "旅のしおり";
@@ -140,6 +141,24 @@ export function installRouteTab(ctx) {
       const d = detour >= 1 ? detour : T.DEFAULT_DETOUR;
       return Math.max(1, Math.round(((next.km * d) / v) * 60));
     };
+    const fareKey = `${fromPlace.id}>${toPlace.id}`;
+    const fareLabel = next.mode === "train"
+      ? createEl("div", { class: "muted train-fare" }, fareCache.has(fareKey)
+          ? `運賃の参考額（1人・片道）: ${fareCache.get(fareKey).low === fareCache.get(fareKey).high ? `${fareCache.get(fareKey).low.toLocaleString()}円` : `${fareCache.get(fareKey).low.toLocaleString()}〜${fareCache.get(fareKey).high.toLocaleString()}円`}`
+          : "運賃の参考額をGeminiで確認中…")
+      : null;
+    if (next.mode === "train" && !fareCache.has(fareKey) && !farePending.has(fareKey)) {
+      const element = fareLabel;
+      const request = sendMessage({ type: "gemini:fare", from: fromPlace.name, to: toPlace.name });
+      farePending.set(fareKey, request);
+      request.then((result) => {
+        farePending.delete(fareKey);
+        if (result.ok && result.fare) fareCache.set(fareKey, result.fare);
+        if (element?.isConnected) element.textContent = result.ok
+          ? `運賃の参考額（1人・片道）: ${result.fare.low === result.fare.high ? `${result.fare.low.toLocaleString()}円` : `${result.fare.low.toLocaleString()}〜${result.fare.high.toLocaleString()}円`}（AIによる概算）`
+          : `運賃の目安を取得できませんでした: ${result.error || "時間をおいて再度お試しください"}`;
+      });
+    }
     const segmentButton = (mode) =>
       createEl(
         "button",
@@ -167,6 +186,7 @@ export function installRouteTab(ctx) {
         segmentButton("car"),
         segmentButton("train"),
       ),
+      fareLabel,
     );
   }
 

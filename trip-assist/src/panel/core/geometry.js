@@ -32,7 +32,9 @@ export function installGeometry(ctx) {
   }
   async function saveUi() {
     try {
-      await chrome.storage.local.set({ ui: { geo: state.geo, ghost: state.ghost } });
+      await chrome.storage.local.set({
+        ui: { geo: state.geo, ghost: state.ghost },
+      });
     } catch (_) {}
   }
   async function loadUi() {
@@ -46,7 +48,6 @@ export function installGeometry(ctx) {
   }
   function applyGhost() {
     panel.classList.toggle("ghost", state.ghost);
-    ghostBtn.style.opacity = state.ghost ? 1 : 0.5;
   }
   function startDrag(event) {
     if (event.button !== 0 || event.target.closest("button")) return;
@@ -57,7 +58,11 @@ export function installGeometry(ctx) {
       startGeo = { ...state.geo };
     handle.setPointerCapture(event.pointerId);
     const move = (event) => {
-      state.geo = { ...startGeo, x: startGeo.x + event.clientX - startX, y: startGeo.y + event.clientY - startY };
+      state.geo = {
+        ...startGeo,
+        x: startGeo.x + event.clientX - startX,
+        y: startGeo.y + event.clientY - startY,
+      };
       applyGeo();
     };
     const onPointerUp = () => {
@@ -114,5 +119,16 @@ export function installGeometry(ctx) {
     if (state.open) applyGeo();
   });
 
-  Object.assign(ctx, { MIN_W, MIN_H, defaultGeo, clampGeo, applyGeo, saveUi, loadUi, applyGhost, startDrag, startResize });
+  Object.assign(ctx, {
+    MIN_W,
+    MIN_H,
+    defaultGeo,
+    clampGeo,
+    applyGeo,
+    saveUi,
+    loadUi,
+    applyGhost,
+    startDrag,
+    startResize,
+  });
 }

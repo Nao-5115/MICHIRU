@@ -470,6 +470,17 @@ const handlers = {
     else await remove(adoptedRef);
     return {};
   },
+  async setTransitMinutes({ tripId, key, minutes, sig, mode }) {
+    user();
+    if (!/^[A-Za-z0-9_-]{1,120}$/.test(key) || !Number.isFinite(minutes)) throw new Error("保存できない値です");
+    await set(ref(db, path("trips", tripId, "transit", key)), {
+      minutes,
+      sig: String(sig).slice(0, 200),
+      mode: mode === "car" ? "car" : "train",
+      updatedAt: Date.now(),
+    });
+    return {};
+  },
   async setPreferences({ tripId, prefs }) {
     const currentUser = user();
     const prefsRef = ref(

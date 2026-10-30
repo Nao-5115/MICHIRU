@@ -102,10 +102,8 @@ export function installRouteTab(ctx) {
     };
     // この区間を各移動手段で移動した場合の目安時間（分）
     const legMinutes = (mode) => {
-      if (mode === "train") {
-        const known = ctx.transitMinutesOf(fromPlace, toPlace);
-        if (known != null) return known;
-      }
+      const known = ctx.transitMinutesOf(fromPlace, toPlace, mode);
+      if (known != null) return known;
       const s = getLocal().settings;
       const speed = mode === "car" ? s.speedCar : s.speedTrain;
       const detour = mode === "car" ? s.detourCar : s.detourTrain;

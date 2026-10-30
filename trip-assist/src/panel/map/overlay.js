@@ -3,7 +3,7 @@ import * as T from "../../lib.js";
 import { randomId } from "../constants.js";
 
 export function installOverlay(ctx) {
-  const { spotLayer, createEl, spotMapUrl, state, SPOT_COLORS, spotStars, tripData, flash, getLocal, saveLocal, sendMessage } = ctx;
+  const { spotLayer, createEl, spotMapUrl, state, SPOT_COLORS, spotStars, tripData, flash, getLocal, saveLocal, sendMessage, callFirebase } = ctx;
   const render = (...args) => ctx.render(...args);
   let activeSpotPopup = null;
   function closeSpotPopup() {
@@ -200,32 +200,61 @@ export function installOverlay(ctx) {
     return changed;
   }
 
-  // 区間の電車時間の取得結果（Google 経路検索）。区間の地点名・座標が変わったら取り直す
-  const legKey = (from, to) => [from.id, from.lat, from.lng, to.id, to.lat, to.lng].join("|");
+  // 区間の所要時間（Gemini の目安。電車・車）。旅行の Firebase データ（trips/{旅行}/transit）に保存して、メンバー全員で再利用する
+  // 座標が変わった区間は、保存値の sig（座標の組み合わせ）が合わないので取り直す
+  // 地点名と座標から作るキー（地点を追加し直しても、同じ地点の組み合わせなら同じキーになる）
+  const transitSig = (from, to) =>
+    `${from.name}|${from.lat},${from.lng}|${to.name}|${to.lat},${to.lng}`;
+  const hashText = (text) => {
+    let hash = 5381;
+    for (let index = 0; index < text.length; index++) hash = ((hash * 33) ^ text.charCodeAt(index)) >>> 0;
+    return hash.toString(36);
+  };
+  const transitKey = (from, to, mode) => `${mode}_${hashText(transitSig(from, to))}`;
+  const transitFailed = new Set(); // 失敗した区間は、ページを開き直すまで再問い合わせしない
   const transitRequests = new Set();
-  function transitMinutesOf(from, to) {
-    const hit = state.transitMinutes[legKey(from, to)];
-    return hit && hit.minutes != null ? hit.minutes : null;
+  // 保存済みの値を探す（同じ地点の組み合わせなら、順番を逆にした区間の値も使う）
+  function transitMinutesOf(from, to, mode) {
+    const trip = tripData();
+    const saved = (trip && trip.transit) || {};
+    for (const [first, second] of [[from, to], [to, from]]) {
+      const entry = saved[transitKey(first, second, mode)];
+      if (entry && entry.sig === transitSig(first, second) && entry.minutes != null) return entry.minutes;
+    }
+    return null;
   }
-  // 訪問順の隣り合う区間ごとに、まだ取得していない電車時間を Google から取る
+  // 訪問順の隣り合う区間で、まだ保存されていない（電車・車）だけ Gemini に問い合わせて保存する
   async function ensureTransitTimes() {
     const places = getLocal() ? getLocal().places : [];
-    let fetched = false;
     for (let index = 1; index < places.length; index++) {
       const from = places[index - 1], to = places[index];
-      const key = legKey(from, to);
-      if (state.transitMinutes[key] || transitRequests.has(key)) continue;
-      transitRequests.add(key);
-      const result = await sendMessage({
-        type: "maps:transitTime",
-        from: { lat: from.lat, lng: from.lng },
-        to: { lat: to.lat, lng: to.lng },
-      });
-      transitRequests.delete(key);
-      state.transitMinutes[key] = result.ok ? { minutes: result.minutes } : { error: result.error };
-      fetched = true;
+      for (const mode of ["train", "car"]) {
+        const key = transitKey(from, to, mode);
+        if (transitMinutesOf(from, to, mode) != null || transitRequests.has(key) || transitFailed.has(key)) continue;
+        transitRequests.add(key);
+        const result = await sendMessage({
+          type: "gemini:routeTime",
+          mode,
+          from: { name: from.name, lat: from.lat, lng: from.lng },
+          to: { name: to.name, lat: to.lat, lng: to.lng },
+        });
+        if (!result.ok) {
+          transitFailed.add(key);
+          transitRequests.delete(key);
+          flash(`所要時間を取得できませんでした: ${result.error || ""}`, "err");
+          continue;
+        }
+        const saved = await callFirebase("setTransitMinutes", {
+          tripId: state.tripId,
+          key,
+          minutes: result.minutes,
+          sig: transitSig(from, to),
+          mode,
+        });
+        transitRequests.delete(key);
+        if (!saved.ok) flash(`所要時間を保存できませんでした: ${saved.error || ""}`, "err");
+      }
     }
-    if (fetched) render();
   }
 
   // 同じ候補地点（sourceId）か、座標と名前が両方一致する場合だけ重複とみなす
@@ -276,7 +305,7 @@ export function installOverlay(ctx) {
       defaultStay: settings.defaultStay,
       stays: settings.stays,
       modeOf,
-      trainMinutes: transitMinutesOf,
+      knownMinutes: transitMinutesOf,
     });
   }
   // 区間の移動手段は「2 地点の組み合わせ」に紐づけて保持（電車のみ保存、未設定は車）

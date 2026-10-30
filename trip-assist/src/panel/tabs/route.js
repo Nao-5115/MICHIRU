@@ -3,8 +3,38 @@ import * as T from "../../lib.js";
 import { STORAGE_KEYS, randomId } from "../constants.js";
 
 export function installRouteTab(ctx) {
-  const { state, body, flash, getLocal, saveLocal, createEl, root, movePlace, makeButton, placesChanged, gate, currentItinerary, tripData, currentMember, sendMessage } = ctx;
+  const { state, body, flash, getLocal, saveLocal, createEl, root, movePlace, makeButton, makeMsIcon, placesChanged, gate, currentItinerary, tripData, currentMember, sendMessage } = ctx;
   const render = (...args) => ctx.render(...args);
+  const EDIT_ICON = '<path d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z"/>';
+  let editingPlaceId = null; // 名称・滞在時間を編集中の地点 ID（一度に 1 件）
+  let locateTripId = null; // 現在地の取得を試した旅行 ID（同じ旅行では 1 回だけ試す）
+
+  // 旅行を初めて開いたとき、現在地を訪問地点の先頭に登録する（名前・滞在時間は編集可能）
+  function ensureCurrentLocation() {
+    const local = getLocal();
+    if (!local || local.currentLocationAdded || !navigator.geolocation) return;
+    const tripId = state.tripId;
+    if (locateTripId === tripId) return;
+    locateTripId = tripId;
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        if (state.tripId !== tripId) return; // 取得中に旅行を切り替えた場合は何もしない
+        const current = getLocal();
+        if (!current || current.currentLocationAdded) return;
+        const lat = position.coords.latitude,
+          lng = position.coords.longitude;
+        if (current.places.length < T.MAX_LOCAL_PLACES && !current.places.some((place) => T.samePoint(place, { lat, lng })))
+          current.places.unshift({ id: randomId(), name: "現在地", lat, lng });
+        current.currentLocationAdded = true;
+        await placesChanged();
+      },
+      () => {
+        if (state.tripId === tripId)
+          flash("現在地を取得できませんでした。ブラウザの位置情報の許可を確認してください", "err");
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 600000 },
+    );
+  }
 
   // ルート案内リンク: 現在のタブ内で遷移（遷移前の URL と画面状態を保存してから）
   const isDirPage = () => location.pathname.startsWith("/maps/dir");
@@ -97,6 +127,7 @@ export function installRouteTab(ctx) {
 
   function placeItem(place, index) {
     const settings = getLocal().settings;
+    const editing = editingPlaceId === place.id;
     const clearMarks = () =>
       root
         .querySelectorAll(".dragging, .drop-before, .drop-after")
@@ -152,7 +183,7 @@ export function installRouteTab(ctx) {
           "☰",
         ),
         createEl("span", { class: "idx" }, `${index + 1}.`),
-        createEl("input", {
+        editing ? createEl("input", {
           type: "text",
           class: "pname" + (place.name === T.UNNAMED_PLACE ? " unnamed" : ""),
           value: place.name,
@@ -164,11 +195,27 @@ export function installRouteTab(ctx) {
             await saveLocal();
             render();
           },
-        }),
+        })
+          : createEl("span", { class: "pname-text" + (place.name === T.UNNAMED_PLACE ? " unnamed" : "") }, place.name),
+        createEl(
+          "button",
+          {
+            class: "icon-edit",
+            type: "button",
+            title: editing ? "編集を終了" : "名称・滞在時間を編集",
+            "aria-label": `${place.name}を編集`,
+            "aria-pressed": String(editing),
+            onclick: () => {
+              editingPlaceId = editing ? null : place.id;
+              render();
+            },
+          },
+          makeMsIcon(EDIT_ICON, 18),
+        ),
         makeButton(
           "削除",
           async () => {
-            getLocal().places = getLocal().places.filter((place) => place.id !== place.id);
+            getLocal().places = getLocal().places.filter((item) => item.id !== place.id);
             delete settings.stays[place.id];
             await placesChanged();
           },
@@ -182,12 +229,8 @@ export function installRouteTab(ctx) {
             "場所名が未設定です。名前を入力してください。",
           )
         : null,
-      createEl(
-        "div",
-        { class: "muted" },
-        `座標: ${place.lat.toFixed(5)}, ${place.lng.toFixed(5)}`,
-      ),
-      createEl(
+      editing
+      ? createEl(
         "div",
         { class: "row" },
         createEl(
@@ -208,7 +251,8 @@ export function installRouteTab(ctx) {
             },
           }),
         ),
-      ),
+      )
+      : createEl("div", { class: "muted" }, `滞在 ${settings.stays[place.id] ?? settings.defaultStay} 分`),
     );
     return listItem;
   }
@@ -218,32 +262,7 @@ export function installRouteTab(ctx) {
     if (gateView) return gateView;
     const settings = getLocal().settings;
     ctx.syncAdoptedPlaces();
-    const num = (key, minValue, step) =>
-      createEl("input", {
-        type: "number",
-        min: minValue,
-        step,
-        value: settings[key],
-        onchange: async (event) => {
-          const value = parseFloat(event.target.value);
-          const valid = key.startsWith("detour")
-            ? value >= 1
-            : value > 0 || (key === "defaultStay" && value >= 0);
-          if (valid) {
-            settings[key] = value;
-            await saveLocal();
-            render();
-          } else {
-            flash(
-              key.startsWith("detour")
-                ? "迂回係数は 1.0 以上の数値にしてください"
-                : "正しい数値を入力してください",
-              "err",
-            );
-            event.target.value = settings[key];
-          }
-        },
-      });
+    ensureCurrentLocation();
     const sec1 = createEl(
       "section",
       {},
@@ -278,19 +297,6 @@ export function installRouteTab(ctx) {
             },
           }),
         ),
-        createEl("label", {}, "標準滞在(分)", num("defaultStay", 0, 5)),
-      ),
-      createEl(
-        "div",
-        { class: "row" },
-        createEl("label", {}, "車の速度(km/h)", num("speedCar", 1, 1)),
-        createEl("label", {}, "電車の速度(km/h)", num("speedTrain", 1, 1)),
-      ),
-      createEl(
-        "div",
-        { class: "row" },
-        createEl("label", {}, "迂回係数・車", num("detourCar", 1, 0.05)),
-        createEl("label", {}, "迂回係数・電車", num("detourTrain", 1, 0.05)),
       ),
       createEl(
         "p",

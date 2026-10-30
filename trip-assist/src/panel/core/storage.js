@@ -1,6 +1,10 @@
 // 幹事のローカル保存（chrome.storage.local）と旅行の切り替え
 import { DEF_LOCAL, STORAGE_KEYS, localKey } from "../constants.js";
 
+// 画面で編集しない固定項目（既定値を使う）
+const FIXED_KEYS = ["speedCar", "speedTrain", "detourCar", "detourTrain", "defaultStay"];
+const pickFixed = (settings) => Object.fromEntries(FIXED_KEYS.map((key) => [key, settings[key]]));
+
 export function installStorage(ctx) {
   const { state, flash, callFirebase, scheduleRender } = ctx;
   const render = (...args) => ctx.render(...args);
@@ -15,6 +19,8 @@ export function installStorage(ctx) {
       ...saved,
       settings: { ...base.settings, ...(saved.settings || {}) },
     };
+    // 標準滞在・速度・迂回係数は固定値（画面では編集しない）。保存済みの値があっても既定値に戻す
+    Object.assign(state.local.settings, pickFixed(base.settings));
     for (const key of Object.keys(state.local.legModes))
       if (state.local.legModes[key] !== "train") delete state.local.legModes[key];
   }
@@ -24,7 +30,12 @@ export function installStorage(ctx) {
       return;
     }
     const stored = await chrome.storage.local.get(localKey(state.tripId));
-    applyLocal(stored[localKey(state.tripId)]);
+    const saved = stored[localKey(state.tripId)];
+    applyLocal(saved);
+    // 保存済みの固定項目が古い値のままなら、保存データも書き換える
+    const savedSettings = (saved && saved.settings) || {};
+    if (Object.keys(pickFixed(state.local.settings)).some((key) => savedSettings[key] !== state.local.settings[key]))
+      await saveLocal();
   }
   async function saveLocal() {
     if (!state.tripId || !state.local) return false;

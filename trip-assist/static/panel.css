@@ -1588,6 +1588,31 @@ tr.sel {
 .icon-delete:hover {
   background: var(--warn-bg);
 }
+.icon-edit {
+  flex-shrink: 0;
+  display: inline-flex;
+  padding: 2px;
+  margin: -2px 0 0 0;
+  border: none;
+  background: none;
+  color: inherit;
+  opacity: 0.6;
+  line-height: 0;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.icon-edit:hover, .icon-edit[aria-pressed="true"] {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
+}
+.pname-text {
+  flex: 1;
+  min-width: 0;
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ---- カレンダー（日程タブ） ---- */
 .cal { position: relative; }

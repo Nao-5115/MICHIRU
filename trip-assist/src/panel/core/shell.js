@@ -1,7 +1,7 @@
 // パネル本体（Shadow DOM）・ボタン（FAB）・開閉・通知
 
 export function installShell(ctx) {
-  const { createEl, makeButton, state, makeMsIcon } = ctx;
+  const { createEl, makeButton, state, makeSvgIcon } = ctx;
   const applyGhost = (...args) => ctx.applyGhost(...args);
   const saveUi = (...args) => ctx.saveUi(...args);
   const startDrag = (...args) => ctx.startDrag(...args);
@@ -28,11 +28,11 @@ export function installShell(ctx) {
   const switchEl = createEl("div", { class: "trip-switch", hidden: true });
   const subEl = createEl("span", { class: "sub" });
   // 設定（歯車）: 半透明・テーマカラー・サインアウト
-  const SETTINGS_PATH = `<path d="M433-80q-27 0-46.5-18T363-142l-9-66q-13-5-24.5-12T307-235l-62 26q-25 11-50 2t-39-32l-47-82q-14-23 6-41l53-40q-1-7-1-13.5v-27q0-6.5 1-13.5l-53-40q-20-16-6-41l47-82q14-23 39-32t50 2l62 26q11-8 23-15t24-12l9-66q4-26 23.5-44t46.5-18h94q27 0 46.5 18t23.5 44l9 66q13 5 24.5 12t22.5 15l62-26q25-11 50-2t39 32l47 82q14 23-6 41l-53 40q1 7 1 13.5v27q0 6.5-2 13.5l53 40q20 16 6 41l-47 82q-14 23-39 32t-50-2l-62-26q-11 8-23 15t-24 12l-9 66q-4 26-23.5 44T527-80h-94Zm7-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z"/>`;
+  const SETTINGS_PATH = '<path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32C19.37,13.29,19.32,13.1,19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>';
   const settingsBtn = makeButton("", () => toggleSettings(), "icon");
   settingsBtn.title = "設定";
   settingsBtn.setAttribute("aria-label", "設定を開く");
-  settingsBtn.append(makeMsIcon(SETTINGS_PATH, 22));
+  settingsBtn.append(makeSvgIcon(SETTINGS_PATH, 22));
   const settingsPop = createEl("div", { class: "settings-pop colorSelect-pop", hidden: true });
   const panel = createEl(
     "div",

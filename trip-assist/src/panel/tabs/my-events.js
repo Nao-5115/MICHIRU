@@ -51,6 +51,7 @@ export function installMyEvents(ctx) {
             type: "button",
             onclick: () => {
               state.tab = key;
+              state.pendingScroll = 0; // タブを切り替えたら一番上から表示する
               render();
             },
           },

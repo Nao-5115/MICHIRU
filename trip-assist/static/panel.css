@@ -2457,3 +2457,7 @@ tr.sel {
   border-top: 1px solid var(--miniline);
   font-size: 12px;
 }
+
+.tabs[hidden] {
+  display: none;
+}

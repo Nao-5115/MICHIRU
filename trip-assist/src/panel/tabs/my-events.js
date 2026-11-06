@@ -3,6 +3,7 @@
 export function installMyEvents(ctx) {
   const {
     viewMembersTab,
+    signinCard,
     viewSchedule,
     viewVote,
     viewRoute,
@@ -40,6 +41,9 @@ export function installMyEvents(ctx) {
       trip && trip.meta
         ? `／ ${trip.meta.name}${isOwner() ? "（幹事）" : ""}`
         : "";
+    // サインイン前は、タブを隠してサインインの案内だけを表示する
+    const signedIn = state.auth.state === "signedIn";
+    tabsEl.hidden = !signedIn;
     tabsEl.replaceChildren(
       ...TABS.map(([key, label]) =>
         createEl(
@@ -56,8 +60,12 @@ export function installMyEvents(ctx) {
         ),
       ),
     );
-    const view = TABS.find(([key]) => key === state.tab)[2];
-    body.replaceChildren(...view().filter(Boolean));
+    if (!signedIn) {
+      body.replaceChildren(signinCard());
+    } else {
+      const view = TABS.find(([key]) => key === state.tab)[2];
+      body.replaceChildren(...(view() || []).filter(Boolean));
+    }
     navBar.hidden = !(state.nav && isDirPage());
     if (!navBar.hidden) {
       navBar.replaceChildren(

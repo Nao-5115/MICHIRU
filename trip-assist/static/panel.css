@@ -2538,3 +2538,8 @@ tr.sel {
   color: var(--accent);
   opacity: 1;
 }
+
+/* カテゴリのボタン（希望カテゴリ・スポット登録で共通）の枠線は薄いグレーにする */
+.cat-grid {
+  --line: #c5c5c5;
+}

@@ -107,17 +107,17 @@ export function installTripTab(ctx) {
                         title: "メンバーを解除",
                         "aria-label": "メンバーを解除",
                         onclick: async () => {
-                        if (
-                          confirm(
-                            `${member.email} を、この旅行から外します。よろしいですか？`,
+                          if (
+                            confirm(
+                              `${member.email} を、この旅行から外します。よろしいですか？`,
+                            )
                           )
-                        )
-                          await runAction(
-                            "removeMember",
-                            { tripId: state.tripId, email: member.email },
-                            "メンバーを解除しました",
-                          );
-                      },
+                            await runAction(
+                              "removeMember",
+                              { tripId: state.tripId, email: member.email },
+                              "メンバーを解除しました",
+                            );
+                        },
                       },
                       makeMsIcon(TRASH_PATH, 18),
                     )

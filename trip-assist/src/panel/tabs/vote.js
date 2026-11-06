@@ -546,7 +546,11 @@ export function installVoteTab(ctx) {
         summaryButton.disabled = true;
         summaryEl.className = "review-summary";
         summaryEl.textContent = "口コミを要約しています…";
-        const result = await sendMessage({ type: "review:summarize", name, lat, lng });
+        // 仮データ: 口コミ要約の API 呼び出しは一時的に止めている（429 制限対策）
+        const result = {
+          ok: true,
+          summary: `（仮データ）「${name}」の口コミは、雰囲気が良く料理の評判も高いという内容が多いです。`,
+        };
         summaryButton.disabled = false;
         if (result.ok) {
           summaryEl.textContent = "💬 " + result.summary;

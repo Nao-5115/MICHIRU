@@ -157,6 +157,19 @@ export function installVoteTab(ctx) {
       myPlaces.forEach((wishPlace) => {
         const row = createEl("div", { class: "wish-place-row wish-place-existing" },
           createEl("span", { class: "wish-place-name" }, wishPlace.name),
+          createEl("button", {
+            type: "button",
+            class: "wish-place-remove",
+            title: "削除",
+            onclick: async () => {
+              if (!confirm(`「${wishPlace.name}」を候補地点から削除します。よろしいですか？`)) return;
+              await runAction("removePlace", { tripId: state.tripId, placeId: wishPlace.id }, "候補地点を削除しました");
+              const index = myPlaces.findIndex((wishPlace) => wishPlace.id === wishPlace.id);
+              if (index !== -1) myPlaces.splice(index, 1);
+              buildExistingPlaceRows();
+              updateAddBtn();
+            },
+          }, "×"),
         );
         existingPlaceList.appendChild(row);
       });

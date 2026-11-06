@@ -222,10 +222,11 @@ async function callGeminiAPI(prompt, { search = false } = {}) {
     // Google 検索を使って、実際の経路や道路を調べさせる
     ...(search ? { tools: [{ google_search: {} }] } : {}),
   });
-  // 503 のときは最大3回、指数バックオフでリトライ
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // 503（混雑）のときは最大5回、指数バックオフでリトライ（2s, 4s, 8s, 16s）
+  const MAX_ATTEMPTS = 5;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     if (attempt > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 2000 * attempt)); // 2s, 4s
+      await new Promise((resolve) => setTimeout(resolve, 2000 * 2 ** (attempt - 1)));
     }
     const response = await fetch(url, {
       method: "POST",
@@ -233,7 +234,10 @@ async function callGeminiAPI(prompt, { search = false } = {}) {
       body,
     });
     if (response.status === 503) {
-      if (attempt < 2) continue; // リトライ
+      if (attempt < MAX_ATTEMPTS - 1) continue; // リトライ
+      throw new Error(
+        "Gemini API エラー (503): サーバーが混雑しています。しばらく待ってから再度お試しください。",
+      );
     }
     if (!response.ok) {
       const errorBody = await response.json().catch(() => ({}));

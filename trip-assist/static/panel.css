@@ -2520,3 +2520,15 @@ tr.sel {
 .member-name {
   color: var(--accent);
 }
+
+/* スポット一覧のカテゴリ表示（希望カテゴリと同じ見た目・押せない） */
+.cat-btn.cat-mark {
+  flex-shrink: 0;
+  width: 56px;
+  padding: 4px 2px;
+  cursor: default;
+}
+.cat-btn.cat-mark:hover {
+  border-color: inherit;
+  background: inherit;
+}

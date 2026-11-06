@@ -735,6 +735,20 @@ export function installVoteTab(ctx) {
       svgElement.innerHTML = svgPath;
       return svgElement;
     }
+    // スポット一覧のカテゴリ表示: 希望カテゴリと同じ「アイコン＋名前」の見た目（色はカテゴリの色）
+    function categoryMark(spotCategory, color) {
+      const icon = SPOT_ICONS[spotCategory] || SPOT_ICONS["その他"];
+      return createEl(
+        "span",
+        {
+          class: "cat-btn cat-mark",
+          title: spotCategory,
+          style: `color:${color};border-color:${color}66;background:${color}12`,
+        },
+        makeSvgIcon(icon.svg),
+        createEl("span", { class: "cat-label" }, icon.label),
+      );
+    }
     let _categoryValue = "";
     const catBtns = {};
     const catGrid = createEl(
@@ -922,14 +936,7 @@ export function installVoteTab(ctx) {
                 },
               },
               createEl("b", {}, spot.name),
-              createEl(
-                "span",
-                {
-                  class: "spot-cat",
-                  style: `color:${color};border-color:${color}66;background:${color}18`,
-                },
-                spot.category,
-              ),
+              categoryMark(spot.category, color),
               spotStars(+spot.rating),
             ),
             canDelete

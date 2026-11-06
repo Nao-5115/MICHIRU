@@ -2515,3 +2515,8 @@ tr.sel {
   overflow-wrap: anywhere;
   font-size: 12px;
 }
+
+/* メンバーの名前はテーマのメインカラー */
+.member-name {
+  color: var(--accent);
+}

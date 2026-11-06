@@ -83,7 +83,7 @@ export function installTripTab(ctx) {
               createEl(
                 "div",
                 {},
-                createEl("b", {}, T.memberLabel(member)),
+                createEl("b", { class: "member-name" }, T.memberLabel(member)),
                 member.displayName ? createEl("div", { class: "muted" }, member.email) : null,
               ),
               createEl(

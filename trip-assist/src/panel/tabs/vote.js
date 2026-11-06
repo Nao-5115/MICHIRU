@@ -512,24 +512,6 @@ export function installVoteTab(ctx) {
                         "採用（幹事）",
                       )
                     : null,
-                  wishPlace.addedBy === myMember.key || owner
-                    ? makeButton(
-                        "削除",
-                        async () => {
-                          if (
-                            confirm(
-                              `候補地点「${wishPlace.name}」を削除します。よろしいですか？`,
-                            )
-                          )
-                            await runAction(
-                              "removePlace",
-                              { tripId: state.tripId, placeId: wishPlace.id },
-                              "候補地点を削除しました",
-                            );
-                        },
-                        "small danger",
-                      )
-                    : null,
                 ),
               );
             }),

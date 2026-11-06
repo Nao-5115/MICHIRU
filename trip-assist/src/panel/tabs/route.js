@@ -598,7 +598,6 @@ export function installRouteTab(ctx) {
     const settings = getLocal().settings;
     ctx.syncAdoptedPlaces();
     ctx.ensureTransitTimes();
-    ensureCurrentLocation();
     const local = getLocal();
     if (local.currentLocationAdded) {
       if (local.places[0]?.name === "現在地") {

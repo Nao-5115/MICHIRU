@@ -519,6 +519,5 @@ export function installOverlay(ctx) {
     flash("並べ替えました。しおりの時刻とルートリンクを更新しました。");
   }
 
-  Object.assign(ctx, { transitMinutesOf, ensureTransitTimes, activeSpotPopup, closeSpotPopup, mercatorY, mapViewFromUrl, spotScreenPoint, showSpotPopup, updateOverlay, overlayHref, mapDrag, addAdoptedPlace, syncAdoptedPlaces, modeOf, currentItinerary, pruneLegModes, placesChanged, movePlace });
-  Object.assign(ctx, { activeSpotPopup, closeSpotPopup, mercatorY, mapViewFromUrl, spotScreenPoint, showSpotPopup, updateOverlay, overlayHref, mapDrag, addAdoptedPlace, syncAdoptedPlaces, modeOf, routePlaces, currentItinerary, pruneLegModes, placesChanged, movePlace });
+  Object.assign(ctx, { transitMinutesOf, ensureTransitTimes, routePlaces, activeSpotPopup, closeSpotPopup, mercatorY, mapViewFromUrl, spotScreenPoint, showSpotPopup, updateOverlay, overlayHref, mapDrag, addAdoptedPlace, syncAdoptedPlaces, modeOf, currentItinerary, pruneLegModes, placesChanged, movePlace });
 }

@@ -785,7 +785,7 @@ export function installRouteTab(ctx) {
                     { class: "stop" },
                     createEl("b", {}, row.place.name),
                     createEl("br", {}),
-                    `(${T.fmtTime(row.arrive)}〜${T.fmtTime(row.depart)})`,
+                    `${T.fmtTime(row.arrive)}〜${T.fmtTime(row.depart)}`,
                   ),
                 ),
               );

@@ -2,6 +2,9 @@
 import * as T from "../../lib.js";
 import { localKey } from "../constants.js";
 
+const TRASH_PATH =
+  '<path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/>';
+
 export function installTripTab(ctx) {
   const { state, signinCard, currentMember, createEl, makeButton, callFirebase, flash, selectTrip, body, sendMessage, gate, isOwner, runAction, makeMsIcon } = ctx;
 
@@ -96,9 +99,14 @@ export function installTripTab(ctx) {
                   ? createEl("span", { class: "badge ok" }, "参加済み")
                   : createEl("span", { class: "badge wait" }, "招待中（未参加）"),
                 owner && member.role !== "owner"
-                  ? makeButton(
-                      "解除",
-                      async () => {
+                  ? createEl(
+                      "button",
+                      {
+                        class: "icon-delete",
+                        type: "button",
+                        title: "メンバーを解除",
+                        "aria-label": "メンバーを解除",
+                        onclick: async () => {
                         if (
                           confirm(
                             `${member.email} を、この旅行から外します。よろしいですか？`,
@@ -110,7 +118,8 @@ export function installTripTab(ctx) {
                             "メンバーを解除しました",
                           );
                       },
-                      "small danger",
+                      },
+                      makeMsIcon(TRASH_PATH, 18),
                     )
                   : null,
               ),

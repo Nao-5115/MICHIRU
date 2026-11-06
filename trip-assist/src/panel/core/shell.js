@@ -134,7 +134,7 @@ export function installShell(ctx) {
         "section",
         { class: "settings-sec" },
         createEl("div", { class: "form-label" }, "表示"),
-        createEl("label", { class: "settings-row" }, createEl("span", {}, "離れたら半透明にする"), ghostIn),
+        createEl("label", { class: "settings-row" }, createEl("span", {}, "離れたら薄く表示"), ghostIn),
       ),
       createEl(
         "section",

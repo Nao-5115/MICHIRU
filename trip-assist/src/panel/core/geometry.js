@@ -1,7 +1,7 @@
 // パネルの位置・サイズ・半透明表示・ドラッグ／リサイズ
 
 export function installGeometry(ctx) {
-  const { createEl, state, panel, ghostBtn } = ctx;
+  const { createEl, state, panel } = ctx;
 
   // ---------- パネル位置・サイズ・半透明 ----------
   const MIN_W = 300,

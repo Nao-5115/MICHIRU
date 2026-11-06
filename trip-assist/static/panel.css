@@ -2478,3 +2478,39 @@ tr.sel {
 .empty-state p {
   margin: 0;
 }
+
+/* 設定（歯車）のポップアップ */
+.settings-pop {
+  width: 300px;
+  max-width: calc(100% - 20px);
+  max-height: calc(100% - 70px);
+  overflow-y: auto;
+  padding: 6px 14px 10px;
+  box-sizing: border-box;
+}
+.settings-pop[hidden] {
+  display: none;
+}
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0 6px;
+}
+.settings-sec {
+  padding: 8px 0;
+  border-top: 1px solid var(--miniline);
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+.settings-email {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}

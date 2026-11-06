@@ -44,7 +44,9 @@ export function installCommon(ctx) {
         createEl(
           "p",
           { class: "muted" },
-          "「旅行」タブで旅行を選択、または新規作成してください。",
+          state.trips.length
+            ? "上の「旅行」の欄から旅行を選択してください。"
+            : "上の「旅行」の欄に旅行名を入力すると、新しい旅行を作成できます。",
         ),
       ];
     const currentTrip = state.trip && state.trip.id === state.tripId ? state.trip : null;

@@ -2,7 +2,7 @@
 
 export function installMyEvents(ctx) {
   const {
-    viewTrip,
+    viewMembersTab,
     viewSchedule,
     viewVote,
     viewRoute,
@@ -24,15 +24,16 @@ export function installMyEvents(ctx) {
 
   // ======================= 描画・起動 =======================
   const TABS = [
-    ["trip", "旅行", viewTrip],
     ["schedule", "日程", viewSchedule],
     ["vote", "投票", viewVote],
     ["route", "ルート", viewRoute],
     ["spots", "スポット", viewSpots],
+    ["members", "メンバー", viewMembersTab],
   ];
   function render() {
     if (!state.open) return;
     state.dirty = false;
+    ctx.renderSwitch();
     const keep = body.scrollTop;
     const trip = tripData();
     subEl.textContent =

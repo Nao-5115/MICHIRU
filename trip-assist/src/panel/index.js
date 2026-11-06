@@ -8,6 +8,7 @@ import { installStorage } from "./core/storage.js";
 import { installCommon } from "./core/common.js";
 import { installColorSelect } from "./core/colorSelect.js";
 import { installTripTab } from "./tabs/trip.js";
+import { installTripSwitch } from "./tabs/trip-switch.js";
 import { installScheduleTab } from "./tabs/schedule.js";
 import { installPrefsFloat } from "./map/prefs-float.js";
 import { installVoteTab } from "./tabs/vote.js";
@@ -31,6 +32,7 @@ export function main() {
   installStorage(ctx);
   installCommon(ctx);
   installTripTab(ctx);
+  installTripSwitch(ctx);
   installScheduleTab(ctx);
   installPrefsFloat(ctx);
   installVoteTab(ctx);

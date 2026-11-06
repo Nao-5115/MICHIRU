@@ -2301,3 +2301,159 @@ tr.sel {
   cursor: pointer;
   color: inherit;
 }
+
+/* ---------- 旅行の切り替え（タブ一覧の上。GitHub のブランチ切り替えと同じ操作） ---------- */
+.trip-switch {
+  position: relative;
+  padding: 8px 10px 0;
+}
+.trip-switch[hidden],
+.trip-switch__menu[hidden] {
+  display: none;
+}
+.trip-switch__btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-input);
+  background: var(--card);
+  color: var(--fg);
+  font: inherit;
+  font-weight: bold;
+  text-align: left;
+  cursor: pointer;
+}
+.trip-switch__btn:hover {
+  background: var(--accent-soft);
+}
+.trip-switch__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trip-switch__caret {
+  color: var(--muted);
+}
+.trip-switch__menu {
+  position: absolute;
+  top: 100%;
+  left: 10px;
+  right: 10px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  max-height: 60vh;
+  margin-top: 4px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-panel);
+  overflow: hidden;
+  animation: toast-in 0.18s ease-out;
+}
+.trip-switch__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 6px;
+}
+.trip-switch__search {
+  box-sizing: border-box;
+  width: calc(100% - 24px);
+  margin: 0 12px 8px;
+}
+.trip-switch__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--miniline);
+}
+.trip-switch__item,
+.trip-switch__create {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--miniline);
+  cursor: pointer;
+}
+.trip-switch__item:hover,
+.trip-switch__create:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.trip-switch__item.sel {
+  background: var(--accent-soft);
+}
+.trip-switch__check {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  color: var(--accent);
+  font-weight: bold;
+}
+.trip-switch__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.trip-switch__text b {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.trip-switch__text .muted {
+  font-size: 12px;
+}
+.trip-switch__create {
+  color: var(--accent);
+  font-weight: bold;
+}
+.trip-switch__plus {
+  width: 14px;
+  text-align: center;
+}
+.trip-switch__empty {
+  padding: 12px;
+  cursor: default;
+}
+.trip-switch__empty:hover {
+  background: none;
+}
+.trip-switch__actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.trip-switch__route {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.trip-switch__route:hover {
+  background: var(--accent-soft);
+}
+.trip-switch__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--miniline);
+  font-size: 12px;
+}

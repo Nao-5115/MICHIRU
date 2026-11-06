@@ -72,6 +72,15 @@ export function installRouteTab(ctx) {
       await saveLocal();
       render();
     };
+    // この区間を各移動手段で移動した場合の目安時間（分）
+    const legMinutes = (mode) => {
+      const s = getLocal().settings;
+      const speed = mode === "car" ? s.speedCar : s.speedTrain;
+      const detour = mode === "car" ? s.detourCar : s.detourTrain;
+      const v = speed > 0 ? speed : T.DEFAULT_SPEED[mode];
+      const d = detour >= 1 ? detour : T.DEFAULT_DETOUR;
+      return Math.max(1, Math.round(((next.km * d) / v) * 60));
+    };
     const segmentButton = (mode) =>
       createEl(
         "button",
@@ -79,7 +88,7 @@ export function installRouteTab(ctx) {
           class: "seg seg-mode" + (next.mode === mode ? " on" : ""),
           type: "button",
           title: T.MODE_LABEL[mode],
-          "aria-label": T.MODE_LABEL[mode],
+          "aria-label": `${T.MODE_LABEL[mode]} 約${legMinutes(mode)}分`,
           onclick: async (event) => {
             // 移動手段を保存してから、その移動手段のルート案内を開く
             const url = T.mapsDirUrl(fromPlace, toPlace, mode);
@@ -88,6 +97,7 @@ export function installRouteTab(ctx) {
           },
         },
         makeSvgIcon(MODE_ICON[mode], 22),
+        createEl("span", { class: "seg-time" }, `${legMinutes(mode)} 分`),
       );
     return createEl(
       "div",

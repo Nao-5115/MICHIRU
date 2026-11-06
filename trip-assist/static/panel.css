@@ -2532,3 +2532,9 @@ tr.sel {
   border-color: inherit;
   background: inherit;
 }
+
+/* 旅のしおりの編集ボタンはテーマのメインカラー */
+.icon-edit.itin-edit {
+  color: var(--accent);
+  opacity: 1;
+}

@@ -711,7 +711,7 @@ export function installRouteTab(ctx) {
             createEl(
               "button",
               {
-                class: "icon-edit",
+                class: "icon-edit itin-edit",
                 type: "button",
                 title: "地点名・滞在時間を編集",
                 "aria-label": "しおりの地点名・滞在時間を編集",

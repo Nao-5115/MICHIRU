@@ -323,30 +323,32 @@ ${prefSummary}
     );
   }
 
-  const results = [];
-  for (const spot of spots.slice(0, 5)) {
-    if (!spot || !spot.name) continue;
-    let lat = null,
-      lng = null;
-    if (MAPS_API_KEY) {
-      try {
-        const geocoded = await geocodePlace(`${spot.name} ${spot.area || ""}`);
-        if (geocoded) {
-          lat = geocoded.lat;
-          lng = geocoded.lng;
-        }
-      } catch (_) {}
-    }
-    results.push({
-      name: spot.name,
-      category: spot.category || "その他",
-      area: spot.area || "",
-      reason: spot.reason || "",
-      lat,
-      lng,
-    });
-  }
-  return results;
+  // 5件の座標を並列に取得する（1件ずつ順番に問い合わせると、件数分だけ待つため）
+  const results = await Promise.all(
+    spots.slice(0, 5).map(async (spot) => {
+      if (!spot || !spot.name) return null;
+      let lat = null,
+        lng = null;
+      if (MAPS_API_KEY) {
+        try {
+          const geocoded = await geocodePlace(`${spot.name} ${spot.area || ""}`);
+          if (geocoded) {
+            lat = geocoded.lat;
+            lng = geocoded.lng;
+          }
+        } catch (_) {}
+      }
+      return {
+        name: spot.name,
+        category: spot.category || "その他",
+        area: spot.area || "",
+        reason: spot.reason || "",
+        lat,
+        lng,
+      };
+    }),
+  );
+  return results.filter(Boolean);
 }
 
 // ---------- メッセージ ----------

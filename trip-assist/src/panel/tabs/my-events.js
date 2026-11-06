@@ -37,10 +37,8 @@ export function installMyEvents(ctx) {
     ctx.renderSwitch();
     const keep = body.scrollTop;
     const trip = tripData();
-    subEl.textContent =
-      trip && trip.meta
-        ? `／ ${trip.meta.name}${isOwner() ? "（幹事）" : ""}`
-        : "";
+    // ヘッダーのロゴ横には旅行名を表示しない
+    subEl.textContent = "";
     // サインイン前は、タブを隠してサインインの案内だけを表示する
     const signedIn = state.auth.state === "signedIn";
     tabsEl.hidden = !signedIn;

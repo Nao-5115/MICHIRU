@@ -585,7 +585,6 @@ export function installRouteTab(ctx) {
     if (gateView) return gateView;
     const settings = getLocal().settings;
     ctx.syncAdoptedPlaces();
-    ctx.ensureTransitTimes();
     const local = getLocal();
     if (local.currentLocationAdded) {
       if (local.places[0]?.name === "現在地") {

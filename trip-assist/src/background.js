@@ -259,35 +259,6 @@ async function geocodePlace(name) {
   return { lat: location.lat, lng: location.lng };
 }
 
-// 区間の所要時間（分）を Gemini に問い合わせる。地点名で指示し、実際の経路・道路を調べさせる
-// mode: "train"（公共交通機関）または "car"（車）
-function routePrompt(mode, from, to) {
-  // 「現在地」など名前で探せない地点だけ、座標を補足する
-  const place = (point) =>
-    ["現在地", "名称未設定の地点"].includes(point.name)
-      ? `${point.name}（緯度 ${point.lat}, 経度 ${point.lng}）`
-      : point.name;
-  const common = `出発地点: ${place(from)}
-到着地点: ${place(to)}`;
-  const tail = `最後の行には「分: 数字」の形式で、所要時間の分数だけを書いてください（例: 分: 25）。`;
-  if (mode === "train") {
-    return `Google 検索で「${from.name} から ${to.name} 電車 行き方」を調べ、実際の公共交通機関（電車・地下鉄）の経路を確認してください。駅までの徒歩、乗換、待ち時間を含めた所要時間を答えてください。
-${common}
-${tail}`;
-  }
-  return `Google 検索と地図で、「${from.name}」から「${to.name}」まで車で移動する実際の道路の経路を確認してください。渋滞は考えず、通常の所要時間を答えてください。
-${common}
-${tail}`;
-}
-
-async function geminiRouteMinutes({ mode, from, to }) {
-  const text = String(await callGeminiAPI(routePrompt(mode, from, to), { search: true }));
-  const match = text.match(/分[:：]\s*(\d+)/g);
-  if (!match) throw new Error("所要時間を読み取れませんでした");
-  const last = match[match.length - 1].match(/(\d+)/)[1];
-  return Math.min(600, Math.max(1, Number(last)));
-}
-
 async function suggestSpotsWithGemini({ preferences, tripName }) {
   const budgetLabels = {
     5000: "〜5,000円",
@@ -573,9 +544,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           patch["settings:placesKey"] = message.placesKey.trim();
         if (Object.keys(patch).length) await chrome.storage.local.set(patch);
         sendResponse({ ok: true });
-      } else if (type === "gemini:routeTime") {
-        const minutes = await geminiRouteMinutes(message);
-        sendResponse({ ok: true, minutes });
       } else if (type === "review:summarize") {
         sendResponse({ ok: true, ...(await summarizeReviews(message)) });
       } else if (type === "mail:send") {

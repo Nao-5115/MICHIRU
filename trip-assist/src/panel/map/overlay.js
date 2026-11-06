@@ -376,8 +376,6 @@ export function installOverlay(ctx) {
     return hash.toString(36);
   };
   const transitKey = (from, to, mode) => `${mode}_${hashText(transitSig(from, to))}`;
-  const transitFailed = new Set(); // 失敗した区間は、ページを開き直すまで再問い合わせしない
-  const transitRequests = new Set();
   // 保存済みの値を探す（同じ地点の組み合わせなら、順番を逆にした区間の値も使う）
   function transitMinutesOf(from, to, mode) {
     const trip = tripData();
@@ -388,40 +386,6 @@ export function installOverlay(ctx) {
     }
     return null;
   }
-  // 訪問順の隣り合う区間で、まだ保存されていない（電車・車）だけ Gemini に問い合わせて保存する
-  async function ensureTransitTimes() {
-    const places = getLocal() ? getLocal().places : [];
-    for (let index = 1; index < places.length; index++) {
-      const from = places[index - 1], to = places[index];
-      for (const mode of ["train", "car"]) {
-        const key = transitKey(from, to, mode);
-        if (transitMinutesOf(from, to, mode) != null || transitRequests.has(key) || transitFailed.has(key)) continue;
-        transitRequests.add(key);
-        const result = await sendMessage({
-          type: "gemini:routeTime",
-          mode,
-          from: { name: from.name, lat: from.lat, lng: from.lng },
-          to: { name: to.name, lat: to.lat, lng: to.lng },
-        });
-        if (!result.ok) {
-          transitFailed.add(key);
-          transitRequests.delete(key);
-          flash(`所要時間を取得できませんでした: ${result.error || ""}`, "err");
-          continue;
-        }
-        const saved = await callFirebase("setTransitMinutes", {
-          tripId: state.tripId,
-          key,
-          minutes: result.minutes,
-          sig: transitSig(from, to),
-          mode,
-        });
-        transitRequests.delete(key);
-        if (!saved.ok) flash(`所要時間を保存できませんでした: ${saved.error || ""}`, "err");
-      }
-    }
-  }
-
   // 同じ候補地点（sourceId）か、座標と名前が両方一致する場合だけ重複とみなす
   // （地図の中心座標を使うと別の施設でも座標が同じになるため、座標だけでは判定しない）
   const findDuplicateLocal = (place, lat, lng) =>
@@ -519,5 +483,5 @@ export function installOverlay(ctx) {
     flash("並べ替えました。しおりの時刻とルートリンクを更新しました。");
   }
 
-  Object.assign(ctx, { transitMinutesOf, ensureTransitTimes, routePlaces, activeSpotPopup, closeSpotPopup, mercatorY, mapViewFromUrl, spotScreenPoint, showSpotPopup, updateOverlay, overlayHref, mapDrag, addAdoptedPlace, syncAdoptedPlaces, modeOf, currentItinerary, pruneLegModes, placesChanged, movePlace });
+  Object.assign(ctx, { transitMinutesOf, routePlaces, activeSpotPopup, closeSpotPopup, mercatorY, mapViewFromUrl, spotScreenPoint, showSpotPopup, updateOverlay, overlayHref, mapDrag, addAdoptedPlace, syncAdoptedPlaces, modeOf, currentItinerary, pruneLegModes, placesChanged, movePlace });
 }

@@ -2461,3 +2461,20 @@ tr.sel {
 .tabs[hidden] {
   display: none;
 }
+
+/* 旅行が未選択のときの案内は、パネルの表示領域の上下中央に置く */
+.body:has(> .empty-state) {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 12px;
+}
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.empty-state p {
+  margin: 0;
+}

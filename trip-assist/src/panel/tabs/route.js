@@ -23,8 +23,14 @@ export function installRouteTab(ctx) {
     const page = (n) => {
       canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H; g = canvas.getContext("2d"); g.fillStyle = "white"; g.fillRect(0, 0, W, H);
       g.fillStyle = accent; g.fillRect(0, 0, W, 18); g.fillRect(margin, 100, 8, 100); g.fillStyle = "#202124"; g.font = 'bold 48px "Yu Gothic",Meiryo,sans-serif'; g.fillText(title, margin + 32, 145, 620);
-      if (logo) g.drawImage(logo, W - margin - 330, 105, 205, 68); if (ghost) g.drawImage(ghost, W - margin - 105, 90, 92, 92);
-      g.strokeStyle = soft; g.lineWidth = 5; g.beginPath(); g.moveTo(margin, 225); g.lineTo(W - margin, 225); g.stroke(); pages.push(canvas);
+      if (logo) g.drawImage(logo, W - margin - 355, 99, 235, 78);
+      if (ghost) {
+        const scale = Math.min(110 / ghost.width, 140 / ghost.height);
+        const ghostWidth = ghost.width * scale, ghostHeight = ghost.height * scale;
+        g.drawImage(ghost, W - margin - ghostWidth, 70, ghostWidth, ghostHeight);
+      }
+      g.strokeStyle = soft; g.lineWidth = 5; g.beginPath(); g.moveTo(margin, 225); g.lineTo(W - margin, 225); g.stroke();
+      g.fillStyle = accent; g.fillRect(0, H - 18, W, 18); pages.push(canvas);
     };
     page(0); let y = 280;
     itinerary.rows.forEach((row, i) => {

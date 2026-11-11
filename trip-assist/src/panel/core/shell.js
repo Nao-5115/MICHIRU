@@ -24,6 +24,7 @@ export function installShell(ctx) {
   const statusEl = createEl("div", { class: "status", hidden: true });
   const body = createEl("div", { class: "body" });
   const tabsEl = createEl("div", { class: "tabs" });
+  const progressEl = createEl("div", { class: "trip-progress", hidden: true });
   const navBar = createEl("div", { class: "navbar", hidden: true });
   const switchEl = createEl("div", { class: "trip-switch", hidden: true });
   const subEl = createEl("span", { class: "sub" });
@@ -60,6 +61,7 @@ export function installShell(ctx) {
     navBar,
     switchEl,
     tabsEl,
+    progressEl,
     settingsPop,
     statusEl,
     body,

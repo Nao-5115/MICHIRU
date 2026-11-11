@@ -194,6 +194,72 @@
   background: var(--card);
   box-shadow: inset 0 -3px 0 var(--accent);
 }
+.trip-progress {
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid var(--miniline);
+  background: var(--card);
+}
+.trip-progress[hidden] {
+  display: none;
+}
+.progress-steps {
+  display: flex;
+  gap: 4px;
+}
+.progress-step {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 3px 2px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+}
+button.progress-step {
+  cursor: pointer;
+}
+.progress-step.current {
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+.progress-step.done {
+  color: var(--fg);
+}
+.progress-step__mark {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--miniline);
+  border-radius: 50%;
+  font-size: 11px;
+}
+.progress-step.current .progress-step__mark,
+.progress-step.done .progress-step__mark {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.progress-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 5px 2px 0;
+}
+.progress-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
 
 /* ---------- メッセージ（下に浮かぶトースト） ---------- */
 .status {

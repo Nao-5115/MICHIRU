@@ -19,7 +19,8 @@ export function installScheduleTab(ctx) {
     warnFor,
   } = ctx;
   const render = (...args) => ctx.render(...args);
-  const calendarRegistration = (...args) => ctx.viewCalendarRegistration(...args);
+  const calendarRegistration = (...args) =>
+    ctx.viewCalendarRegistration(...args);
 
   // ======================= 定数・状態 =======================
   const MEMBER_COLORS = [
@@ -58,11 +59,14 @@ export function installScheduleTab(ctx) {
   function setPopupOutsideClose(on) {
     if (on && !popupOutside) {
       popupOutside = (event) => {
-        const inside = event.composedPath().some(
-          (node) =>
-            node.classList &&
-            (node.classList.contains("cal-pop") || node.classList.contains("cal-cell")),
-        );
+        const inside = event
+          .composedPath()
+          .some(
+            (node) =>
+              node.classList &&
+              (node.classList.contains("cal-pop") ||
+                node.classList.contains("cal-cell")),
+          );
         if (inside) return;
         calSelected = null;
         setPopupOutsideClose(false);
@@ -105,20 +109,28 @@ export function installScheduleTab(ctx) {
             { class: "row" },
             createEl("label", {}, "開始", startDateInput),
             createEl("label", {}, "終了(任意)", endDateInput),
-            makeButton("追加", async () => {
-              if (!startDateInput.value)
-                return flash("開始日を入力してください", "err");
-              const dateValue = endDateInput.value || startDateInput.value;
-              if (dateValue < startDateInput.value)
-                return flash("終了日は開始日以降にしてください", "err");
-              if (dates.length >= T.MAX_DATES)
-                return flash(`候補日は最大 ${T.MAX_DATES} 件です`, "err");
-              await runAction(
-                "addDate",
-                { tripId: state.tripId, s: startDateInput.value, e: dateValue },
-                "候補日を追加しました",
-              );
-            }, "primary"),
+            makeButton(
+              "追加",
+              async () => {
+                if (!startDateInput.value)
+                  return flash("開始日を入力してください", "err");
+                const dateValue = endDateInput.value || startDateInput.value;
+                if (dateValue < startDateInput.value)
+                  return flash("終了日は開始日以降にしてください", "err");
+                if (dates.length >= T.MAX_DATES)
+                  return flash(`候補日は最大 ${T.MAX_DATES} 件です`, "err");
+                await runAction(
+                  "addDate",
+                  {
+                    tripId: state.tripId,
+                    s: startDateInput.value,
+                    e: dateValue,
+                  },
+                  "候補日を追加しました",
+                );
+              },
+              "primary",
+            ),
           ),
         )
       : null;
@@ -579,8 +591,9 @@ export function installScheduleTab(ctx) {
       createEl(
         "div",
         { class: "row" },
-        makeButton("カレンダーから予定を確認", () =>
-          refreshEvents(true),
+        makeButton(
+          "カレンダーから予定を確認",
+          () => refreshEvents(true),
           "primary",
         ),
       ),
@@ -607,7 +620,7 @@ export function installScheduleTab(ctx) {
       events.length
         ? createEl(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             ...events.map((event) =>
               createEl(
                 "li",

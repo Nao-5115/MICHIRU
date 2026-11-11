@@ -196,6 +196,7 @@ export function installShell(ctx) {
     statusEl,
     body,
     tabsEl,
+    progressEl,
     navBar,
     switchEl,
     subEl,

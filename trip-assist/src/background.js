@@ -214,16 +214,19 @@ const GEMINI_API_KEY = __GEMINI_KEY__;
 const MAPS_API_KEY = __MAPS_KEY__;
 
 // ---------- Gemini AI スポット提案 ----------
-async function callGeminiAPI(prompt) {
+async function callGeminiAPI(prompt, { search = false } = {}) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
   const body = JSON.stringify({
     contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+    generationConfig: { temperature: 0.2, maxOutputTokens: 1024 },
+    // Google 検索を使って、実際の経路や道路を調べさせる
+    ...(search ? { tools: [{ google_search: {} }] } : {}),
   });
-  // 503 のときは最大3回、指数バックオフでリトライ
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // 503（混雑）のときは最大5回、指数バックオフでリトライ（2s, 4s, 8s, 16s）
+  const MAX_ATTEMPTS = 5;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     if (attempt > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 2000 * attempt)); // 2s, 4s
+      await new Promise((resolve) => setTimeout(resolve, 2000 * 2 ** (attempt - 1)));
     }
     const response = await fetch(url, {
       method: "POST",
@@ -231,7 +234,10 @@ async function callGeminiAPI(prompt) {
       body,
     });
     if (response.status === 503) {
-      if (attempt < 2) continue; // リトライ
+      if (attempt < MAX_ATTEMPTS - 1) continue; // リトライ
+      throw new Error(
+        "Gemini API エラー (503): サーバーが混雑しています。しばらく待ってから再度お試しください。",
+      );
     }
     if (!response.ok) {
       const errorBody = await response.json().catch(() => ({}));
@@ -321,30 +327,32 @@ ${prefSummary}
     );
   }
 
-  const results = [];
-  for (const spot of spots.slice(0, 5)) {
-    if (!spot || !spot.name) continue;
-    let lat = null,
-      lng = null;
-    if (MAPS_API_KEY) {
-      try {
-        const geocoded = await geocodePlace(`${spot.name} ${spot.area || ""}`);
-        if (geocoded) {
-          lat = geocoded.lat;
-          lng = geocoded.lng;
-        }
-      } catch (_) {}
-    }
-    results.push({
-      name: spot.name,
-      category: spot.category || "その他",
-      area: spot.area || "",
-      reason: spot.reason || "",
-      lat,
-      lng,
-    });
-  }
-  return results;
+  // 5件の座標を並列に取得する（1件ずつ順番に問い合わせると、件数分だけ待つため）
+  const results = await Promise.all(
+    spots.slice(0, 5).map(async (spot) => {
+      if (!spot || !spot.name) return null;
+      let lat = null,
+        lng = null;
+      if (MAPS_API_KEY) {
+        try {
+          const geocoded = await geocodePlace(`${spot.name} ${spot.area || ""}`);
+          if (geocoded) {
+            lat = geocoded.lat;
+            lng = geocoded.lng;
+          }
+        } catch (_) {}
+      }
+      return {
+        name: spot.name,
+        category: spot.category || "その他",
+        area: spot.area || "",
+        reason: spot.reason || "",
+        lat,
+        lng,
+      };
+    }),
+  );
+  return results.filter(Boolean);
 }
 
 // ---------- メッセージ ----------

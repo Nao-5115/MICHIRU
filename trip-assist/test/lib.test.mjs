@@ -201,6 +201,38 @@ test("カレンダー description: 全体ルートは上限を超えると警告
   assert.ok(html.includes("経由地の表示上限に達しました"));
 });
 
+test("しおり description: 集合場所を訪問地点の前に表示し、訪問地点の番号から除外する", () => {
+  const rows = [
+    {
+      place: {
+        id: "meeting",
+        name: "東京駅",
+        lat: 35.6812,
+        lng: 139.7671,
+        isMeetingPlace: true,
+      },
+      arrive: 540,
+      depart: 540,
+      stay: 0,
+      travel: 0,
+      mode: null,
+    },
+    {
+      place: { id: "visit", name: "浅草寺", lat: 35.7148, lng: 139.7967 },
+      arrive: 570,
+      depart: 630,
+      stay: 60,
+      travel: 30,
+      mode: "car",
+    },
+  ];
+  const html = T.itineraryHtml(rows, { title: "東京日帰り" });
+  assert.ok(html.includes("<b>集合場所: 東京駅</b> 09:00出発"));
+  assert.ok(html.includes("<b>1. 浅草寺</b>"));
+  assert.ok(!html.includes("<b>1. 東京駅</b>"));
+  assert.ok(html.includes("origin=%E6%9D%B1%E4%BA%AC%E9%A7%85"));
+});
+
 test("迂回係数: 移動時間 = 直線距離 × 迂回係数 ÷ 想定速度", () => {
   const a = { id: "a", name: "A", lat: 35, lng: 139 },
     b = { id: "b", name: "B", lat: 35.2, lng: 139 };

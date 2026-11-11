@@ -217,6 +217,27 @@
               ".validate": "false"
             }
           }
+        },
+        "transit": {
+          "$key": {
+            ".write": "auth != null && auth.token.email_verified === true && root.child('trips').child($tripId).child('members').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
+            ".validate": "newData.hasChildren(['minutes', 'sig', 'mode', 'updatedAt'])",
+            "minutes": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 600"
+            },
+            "sig": {
+              ".validate": "newData.isString() && newData.val().length <= 200"
+            },
+            "updatedAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "mode": {
+              ".validate": "newData.val() === 'train' || newData.val() === 'car'"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
         }
       }
     }

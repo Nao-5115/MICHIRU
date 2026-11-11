@@ -2,7 +2,8 @@
 
 export function installMyEvents(ctx) {
   const {
-    viewTrip,
+    viewMembersTab,
+    signinCard,
     viewSchedule,
     viewVote,
     viewRoute,
@@ -24,21 +25,23 @@ export function installMyEvents(ctx) {
 
   // ======================= 描画・起動 =======================
   const TABS = [
-    ["trip", "旅行", viewTrip],
     ["schedule", "日程", viewSchedule],
     ["vote", "投票", viewVote],
     ["route", "ルート", viewRoute],
     ["spots", "スポット", viewSpots],
+    ["members", "メンバー", viewMembersTab],
   ];
   function render() {
     if (!state.open) return;
     state.dirty = false;
+    ctx.renderSwitch();
     const keep = body.scrollTop;
     const trip = tripData();
-    subEl.textContent =
-      trip && trip.meta
-        ? `／ ${trip.meta.name}${isOwner() ? "（幹事）" : ""}`
-        : "";
+    // ヘッダーのロゴ横には旅行名を表示しない
+    subEl.textContent = "";
+    // サインイン前は、タブを隠してサインインの案内だけを表示する
+    const signedIn = state.auth.state === "signedIn";
+    tabsEl.hidden = !signedIn;
     tabsEl.replaceChildren(
       ...TABS.map(([key, label]) =>
         createEl(
@@ -48,6 +51,7 @@ export function installMyEvents(ctx) {
             type: "button",
             onclick: () => {
               state.tab = key;
+              state.pendingScroll = 0; // タブを切り替えたら一番上から表示する
               render();
             },
           },
@@ -55,8 +59,12 @@ export function installMyEvents(ctx) {
         ),
       ),
     );
-    const view = TABS.find(([key]) => key === state.tab)[2];
-    body.replaceChildren(...view().filter(Boolean));
+    if (!signedIn) {
+      body.replaceChildren(signinCard());
+    } else {
+      const view = TABS.find(([key]) => key === state.tab)[2];
+      body.replaceChildren(...(view() || []).filter(Boolean));
+    }
     navBar.hidden = !(state.nav && isDirPage());
     if (!navBar.hidden) {
       navBar.replaceChildren(

@@ -33,7 +33,7 @@ export function installRender(ctx) {
           await chrome.storage.local.set({ [STORAGE_KEYS.cur]: state.tripId });
         }
         state.tab = [
-          "trip",
+          "members",
           "schedule",
           "vote",
           "route",

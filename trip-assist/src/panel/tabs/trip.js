@@ -1,164 +1,12 @@
-// 「旅行」タブ（作成・一覧・削除・招待）とメンバー管理
+// 「メンバー」タブ（招待・解除）と旅行の削除。旅行の切り替え・作成は trip-switch.js
 import * as T from "../../lib.js";
 import { localKey } from "../constants.js";
 
-function tripDateSummary(trip) {
-  if (!Object.prototype.hasOwnProperty.call(trip, "dates")) return "日程を読み込み中…";
-  if (trip.dates === null) return "日程情報を取得できません";
-  const dates = Array.isArray(trip.dates)
-    ? trip.dates
-    : Object.entries(trip.dates || {}).map(([id, date]) => ({ id, ...date }));
-  if (!dates.length) return "日程: 候補日は未登録";
-  const from = dates.map((date) => date.s).sort()[0];
-  const to = dates.map((date) => date.e).sort().slice(-1)[0];
-  const range = from === to ? T.fmtDate(from) : `${T.fmtDate(from)}〜${T.fmtDate(to)}`;
-  return `日程: ${range}（候補${dates.length}件）`;
-}
+const TRASH_PATH =
+  '<path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/>';
 
 export function installTripTab(ctx) {
   const { state, signinCard, currentMember, createEl, makeButton, callFirebase, flash, selectTrip, body, sendMessage, gate, isOwner, runAction, makeMsIcon } = ctx;
-
-  // ======================= 旅行タブ =======================
-  function viewTrip() {
-    if (state.auth.state !== "signedIn") return [signinCard()];
-    const myMember = currentMember();
-    const nameIn = createEl("input", {
-      type: "text",
-      placeholder: "新しい旅行の名前（例: 箱根旅行）",
-      maxlength: 60,
-    });
-    const secUser = createEl(
-      "section",
-      {},
-      createEl(
-        "div",
-        { class: "line" },
-        createEl("span", { class: "muted" }, `サインイン中: ${myMember.email}`),
-        makeButton(
-          "サインアウト",
-          async () => {
-            const result = await callFirebase("signOut");
-            if (!result.ok) flash(result.error, "err");
-          },
-          "small",
-        ),
-      ),
-    );
-    const secList = createEl(
-      "section",
-      {},
-      createEl("h3", {}, "旅行の選択"),
-      state.trips.length
-        ? createEl(
-            "ul",
-            { class: "trip-list" },
-            state.trips.map((trip) => {
-              const isMine = trip.ownerEmail === myMember.email;
-              const currentTrip =
-                state.trip && state.trip.id === trip.id && state.trip.data
-                  ? { ...trip, dates: state.trip.data.dates }
-                  : trip;
-              return createEl(
-                "li",
-                {
-                  class: "trip-row" + (trip.id === state.tripId ? " sel" : ""),
-                  onclick: () => {
-                    if (trip.id !== state.tripId) selectTrip(trip.id);
-                  },
-                },
-                createEl(
-                  "div",
-                  { class: "trip-row__info" },
-                  createEl(
-                    "div",
-                    { class: "trip-row__head" },
-                    createEl("b", { class: "trip-row__name" }, trip.name),
-                    isMine
-                      ? createEl(
-                          "button",
-                          {
-                            class: "icon-delete",
-                            type: "button",
-                            title: "旅行を削除",
-                            "aria-label": "旅行を削除",
-                            onclick: (event) => {
-                              event.stopPropagation();
-                              deleteTrip(trip);
-                            },
-                          },
-                          makeMsIcon(
-                            '<path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/>',
-                            18,
-                          ),
-                        )
-                      : null,
-                  ),
-                  createEl("div", { class: "muted" }, tripDateSummary(currentTrip)),
-                ),
-                createEl(
-                  "button",
-                  {
-                    class: "trip-route-btn",
-                    type: "button",
-                    title: "この旅行のルートを表示",
-                    "aria-label": "この旅行のルートを表示",
-                    onclick: async (event) => {
-                      event.stopPropagation();
-                      state.tab = "route";
-                      await selectTrip(trip.id);
-                    },
-                  },
-                  makeMsIcon(
-                    '<path d="M320-360h80v-120h140v100l140-140-140-140v100H360q-17 0-28.5 11.5T320-520v160ZM480-80q-15 0-29.5-6T424-104L104-424q-12-12-18-26.5T80-480q0-15 6-29.5t18-26.5l320-320q12-12 26.5-18t29.5-6q15 0 29.5 6t26.5 18l320 320q12 12 18 26.5t6 29.5q0 15-6 29.5T856-424L536-104q-12 12-26.5 18T480-80ZM320-320l160 160 320-320-320-320-320 320 160 160Zm160-160Z"/>',
-                    22,
-                  ),
-                  createEl("span", {}, "ルート"),
-                ),
-              );
-            }),
-          )
-        : createEl(
-            "section",
-            { class: "onboarding" },
-            createEl(
-              "p",
-              { class: "muted" },
-              "まだ参加している旅行はありません。はじめての方は次の順で進めてください。",
-            ),
-            createEl(
-              "ol",
-              { class: "onboarding__steps" },
-              createEl("li", {}, "下の「新しい旅行を作る」で旅行を作成する（あなたが幹事になります）"),
-              createEl("li", {}, "「日程」タブで候補日を追加する"),
-              createEl("li", {}, "旅行を選んだ後、「メンバー」欄で友達を招待する（Googleアカウントのメールアドレス）"),
-            ),
-            createEl(
-              "p",
-              { class: "muted" },
-              "友達に招待された場合は、幹事に招待を送ってもらってください。",
-            ),
-          ),
-    );
-    const secCreate = createEl(
-      "section",
-      {},
-      createEl("h3", {}, "新しい旅行を作る"),
-      nameIn,
-      makeButton(
-        "作成",
-        async () => {
-          const name = nameIn.value.trim();
-          if (!name) return flash("旅行名を入力してください", "err");
-          const result = await callFirebase("createTrip", { name });
-          if (!result.ok) return flash(result.error, "err");
-          flash("旅行を作成しました");
-          await selectTrip(result.id);
-        },
-        "primary",
-      ),
-    );
-    return [secUser, secCreate, secList, viewMembers()];
-  }
 
   async function deleteTrip(trip) {
     const registeredEvents =
@@ -203,6 +51,14 @@ export function installTripTab(ctx) {
     window.open(url, "_blank");
   }
 
+  // 「メンバー」タブ: 旅行が選ばれていれば、その旅行のメンバー一覧と招待欄
+  function viewMembersTab() {
+    if (state.auth.state !== "signedIn") return [signinCard()];
+    if (!state.tripId) return gate() || [];
+    const section = viewMembers();
+    return section ? [section] : gate() || [];
+  }
+
   function viewMembers() {
     const currentTrip = state.trip && state.trip.id === state.tripId ? state.trip : null;
     if (!state.tripId || !currentTrip) return null;
@@ -230,7 +86,7 @@ export function installTripTab(ctx) {
               createEl(
                 "div",
                 {},
-                createEl("b", {}, T.memberLabel(member)),
+                createEl("b", { class: "member-name" }, T.memberLabel(member)),
                 member.displayName ? createEl("div", { class: "muted" }, member.email) : null,
               ),
               createEl(
@@ -243,21 +99,27 @@ export function installTripTab(ctx) {
                   ? createEl("span", { class: "badge ok" }, "参加済み")
                   : createEl("span", { class: "badge wait" }, "招待中（未参加）"),
                 owner && member.role !== "owner"
-                  ? makeButton(
-                      "解除",
-                      async () => {
-                        if (
-                          confirm(
-                            `${member.email} を、この旅行から外します。よろしいですか？`,
+                  ? createEl(
+                      "button",
+                      {
+                        class: "icon-delete",
+                        type: "button",
+                        title: "メンバーを解除",
+                        "aria-label": "メンバーを解除",
+                        onclick: async () => {
+                          if (
+                            confirm(
+                              `${member.email} を、この旅行から外します。よろしいですか？`,
+                            )
                           )
-                        )
-                          await runAction(
-                            "removeMember",
-                            { tripId: state.tripId, email: member.email },
-                            "メンバーを解除しました",
-                          );
+                            await runAction(
+                              "removeMember",
+                              { tripId: state.tripId, email: member.email },
+                              "メンバーを解除しました",
+                            );
+                        },
                       },
-                      "small danger",
+                      makeMsIcon(TRASH_PATH, 18),
                     )
                   : null,
               ),
@@ -306,5 +168,5 @@ export function installTripTab(ctx) {
     );
   }
 
-  Object.assign(ctx, { viewTrip, deleteTrip, inviteMailText, notifyInvite, viewMembers });
+  Object.assign(ctx, { viewMembersTab, deleteTrip, inviteMailText, notifyInvite, viewMembers });
 }

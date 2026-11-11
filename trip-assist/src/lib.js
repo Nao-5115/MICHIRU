@@ -280,7 +280,7 @@ export function fmtTime(minutes) {
 // places: 訪問順の地点配列 / speeds, detours: {car, train} / modeOf(前の地点, 次の地点) → 'car' | 'train'
 export function buildItinerary(
   places,
-  { startMin, speeds, detours, defaultStay, stays, modeOf },
+  { startMin, speeds, detours, defaultStay, stays, modeOf, knownMinutes },
 ) {
   const rows = [];
   let totalKm = 0,
@@ -301,6 +301,8 @@ export function buildItinerary(
       distanceKm = haversine(places[index - 1], place);
       roadKm = distanceKm * detour;
       travel = Math.max(1, Math.round((roadKm / speed) * 60));
+      const known = knownMinutes ? knownMinutes(places[index - 1], place, mode) : null;
+      if (known != null) travel = known; // 取得済みの所要時間（Gemini の目安）があればそれを使う
       arrive = rows[index - 1].depart + travel;
       totalKm += distanceKm;
       totalRoadKm += roadKm;
@@ -398,6 +400,7 @@ export function itineraryHtml(
   const out = [`<b>${escapeHtml(title)}</b>`];
   if (dateText) out.push(escapeHtml(dateText));
   out.push("");
+  let visitNumber = 0;
   rows.forEach((row, index) => {
     if (index > 0) {
       const prev = rows[index - 1];
@@ -406,9 +409,14 @@ export function itineraryHtml(
         line += ` <a href="${escapeHtml(mapsDirUrl(prev.place, row.place, row.mode))}">この区間のルート案内</a>`;
       out.push(line);
     }
-    out.push(
-      `<b>${index + 1}. ${escapeHtml(row.place.name)}</b> ${fmtTime(row.arrive)}到着 → ${fmtTime(row.depart)}出発（滞在${row.stay}分）`,
-    );
+    if (row.place.isMeetingPlace)
+      out.push(
+        `<b>集合場所: ${escapeHtml(row.place.name)}</b> ${fmtTime(row.depart)}出発`,
+      );
+    else
+      out.push(
+        `<b>${++visitNumber}. ${escapeHtml(row.place.name)}</b> ${fmtTime(row.arrive)}到着 → ${fmtTime(row.depart)}出発（滞在${row.stay}分）`,
+      );
   });
   const whole = mapsDirAllUrl(
     rows.map((row) => row.place),

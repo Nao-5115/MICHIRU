@@ -2774,6 +2774,7 @@ tr.sel {
   padding: 12px 14px;
   border-radius: 10px;
   background: #e8f0fe;
+  background: color-mix(in srgb, var(--accent) 12%, white);
 }
 .tab-intro__text {
   margin: 0 0 8px;

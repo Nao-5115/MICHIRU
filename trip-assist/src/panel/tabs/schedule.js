@@ -222,8 +222,8 @@ export function installScheduleTab(ctx) {
   }
 
   // ======================= カレンダー =======================
-  // 日ごとの印（個人の予定）は trips/{旅行}/schedules/{メンバー}/{日付} に保存する。
-  // 範囲を選んで登録すると、選んだ日だけに印が付く。
+  // 日ごとの印（個人の予定）は trips/{旅行}/schedules/{メンバー}/{日付} に保存する
+  // 範囲を選んで登録すると、選んだ日だけに印が付く
   function buildCalendar(trip, members, dates, myMember, owner) {
     const schedules = trip.schedules || {};
     const markOf = (member, day) => (schedules[member.key] || {})[day];

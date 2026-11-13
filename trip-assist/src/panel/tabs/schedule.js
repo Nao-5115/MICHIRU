@@ -34,6 +34,54 @@ export function installScheduleTab(ctx) {
     "#d81b60",
   ];
   const ANSWER_LABEL = { 1: "○ 参加可", 2: "△ 未定", 0: "× 不可" };
+  // 候補日の優先順位（第1候補〜）。順位は候補日のデータ（date.rank）に持たせて全員で共有する
+  const RANK_COLORS = ["#e53935", "#fb8c00", "#43a047", "#1a73e8", "#8e24aa"];
+  const rankLabel = (n) => `第${n}候補`;
+  const rankColor = (n) => RANK_COLORS[n - 1];
+  const rankOf = (date) => date.rank || null;
+  // 優先順位のバッジ（未設定なら「未設定」）
+  const rankBadge = (date) =>
+    rankOf(date)
+      ? createEl(
+          "span",
+          {
+            class: "badge",
+            style: `background:${rankColor(rankOf(date))};color:#fff`,
+          },
+          rankLabel(rankOf(date)),
+        )
+      : createEl("span", { class: "muted" }, "未設定");
+  // 優先順位のセレクト（幹事用）。選ぶと全員に共有される
+  const rankSelect = (date) =>
+    createEl(
+      "select",
+      {
+        "aria-label": `${T.fmtRange(date)}の優先順位`,
+        onchange: async (event) => {
+          const value = event.target.value;
+          event.target.blur();
+          await runAction(
+            "setDateRank",
+            {
+              tripId: state.tripId,
+              dateId: date.id,
+              rank: value === "" ? null : +value,
+            },
+            "優先順位を更新しました",
+          );
+        },
+      },
+      [
+        ["", "未設定"],
+        ...RANK_COLORS.map((_, i) => [String(i + 1), rankLabel(i + 1)]),
+      ].map(([value, label]) =>
+        createEl(
+          "option",
+          { value, selected: String(rankOf(date) ?? "") === value },
+          label,
+        ),
+      ),
+    );
   const pad2 = (n) => String(n).padStart(2, "0");
   const ymd = (y, m, d) => `${y}-${pad2(m)}-${pad2(d)}`;
   const shiftMonth = (ym, delta) => {
@@ -134,8 +182,43 @@ export function installScheduleTab(ctx) {
           ),
         )
       : null;
+    const overlapNote = (date) => {
+      const others = dates.filter(
+        (other) =>
+          other.id !== date.id && other.s <= date.e && date.s <= other.e,
+      );
+      return;
+    };
+    // 候補日の優先順位（登録とは別のセクション）
+    const secRank = dates.length
+      ? createEl(
+          "section",
+          {},
+          createEl("h3", {}, "候補日の優先順位"),
+          owner
+            ? null
+            : createEl("p", { class: "muted" }, "優先順位は幹事が決めます。"),
+          createEl(
+            "ul",
+            { class: "list trip-list" },
+            ...dates.map((date) =>
+              createEl(
+                "li",
+                {},
+                createEl(
+                  "div",
+                  { class: "line" },
+                  createEl("b", {}, T.fmtRange(date)),
+                  owner ? rankSelect(date) : rankBadge(date),
+                ),
+                overlapNote(date),
+              ),
+            ),
+          ),
+        )
+      : null;
     const secCal = buildCalendar(trip, members, dates, myMember, owner);
-    return [secAdd, secCal];
+    return [secAdd, secRank, secCal];
   }
 
   // ======================= カレンダー =======================
@@ -210,6 +293,25 @@ export function installScheduleTab(ctx) {
     for (let d = 1; d <= daysInMonth; d++) {
       const day = ymd(year, month, d);
       const covering = coveringOn(day);
+      // 重なっている候補日のうち、いちばん上の順位（数字が小さいほど上）
+      const ranks = covering.map(rankOf).filter(Boolean);
+      const topRank = ranks.length ? Math.min(...ranks) : null;
+      // 候補日が重なっている日は、候補ごとに色の棒を並べる（順位未設定はグレー）
+      const bars =
+        covering.length > 1
+          ? createEl(
+              "div",
+              {
+                class: "cal-cand-bars",
+                style: "display:flex;gap:2px;height:4px;margin:2px 0",
+              },
+              ...covering.map((date) =>
+                createEl("span", {
+                  style: `flex:1;border-radius:2px;background:${rankOf(date) ? rankColor(rankOf(date)) : "#9aa0a6"}`,
+                }),
+              ),
+            )
+          : null;
       const dow = new Date(year, month - 1, d).getDay();
       const row = createEl(
         "div",
@@ -248,6 +350,7 @@ export function installScheduleTab(ctx) {
       );
       const classes = ["cal-cell"];
       if (covering.length) classes.push("is-cand");
+      if (covering.length > 1) classes.push("is-overlap");
       if (day === todayStr) classes.push("is-today");
       if (day === calSelected) classes.push("is-sel");
       if (dow === 0) classes.push("sun");
@@ -257,6 +360,9 @@ export function installScheduleTab(ctx) {
         {
           class: classes.join(" "),
           type: "button",
+          style: topRank
+            ? `background:${rankColor(topRank)}33;box-shadow:inset 0 0 0 2px ${rankColor(topRank)}`
+            : "",
           "aria-label": covering.length
             ? `${month}月${d}日：候補日 ${covering.length} 件`
             : `${month}月${d}日`,
@@ -285,6 +391,7 @@ export function installScheduleTab(ctx) {
           },
         },
         createEl("span", { class: "cal-day" }, String(d)),
+        bars,
         row,
       );
       cellEls.set(day, el);
@@ -293,7 +400,7 @@ export function installScheduleTab(ctx) {
     while (cells.length % 7)
       cells.push(createEl("div", { class: "cal-cell blank" }));
 
-    // 候補日の情報（幹事だけ：確定・削除）
+    // 候補日の情報（幹事だけ：削除。優先順位は専用セクションで決める）
     const candidateInfo = (date) => {
       const answers = trip.answers || {};
       const hasLegacyAnswers = members.some((member) =>
@@ -308,22 +415,12 @@ export function installScheduleTab(ctx) {
         createEl(
           "div",
           { class: "cal-pop__range" },
-          `候補日 ${T.fmtRange(date)}`,
+          `候補日 ${T.fmtRange(date)}${rankOf(date) ? `（${rankLabel(rankOf(date))}）` : ""}`,
         ),
         owner
           ? createEl(
               "div",
               { class: "row" },
-              makeButton(
-                getLocal().confirmedId === date.id ? "確定中" : "この日で確定",
-                async () => {
-                  getLocal().confirmedId = date.id;
-                  await saveLocal();
-                  state.regResults = null;
-                  render();
-                },
-                "small",
-              ),
               makeButton(
                 "削除",
                 async () => {
@@ -502,6 +599,11 @@ export function installScheduleTab(ctx) {
       ),
     );
 
+    // 凡例に出す、実際に使われている順位
+    const usedRanks = RANK_COLORS.map((_, i) => i + 1).filter((n) =>
+      dates.some((date) => rankOf(date) === n),
+    );
+
     return createEl(
       "section",
       { class: "cal" },
@@ -588,6 +690,23 @@ export function installScheduleTab(ctx) {
           "× 不可",
         ),
       ),
+      usedRanks.length
+        ? createEl(
+            "div",
+            { class: "cal-legend" },
+            ...usedRanks.map((n) =>
+              createEl(
+                "span",
+                {},
+                createEl("span", {
+                  class: "cal-dot",
+                  style: `background:${rankColor(n)}`,
+                }),
+                rankLabel(n),
+              ),
+            ),
+          )
+        : null,
       createEl(
         "div",
         { class: "row" },
@@ -635,5 +754,5 @@ export function installScheduleTab(ctx) {
     );
   }
 
-  Object.assign(ctx, { viewSchedule });
+  Object.assign(ctx, { viewSchedule, rankOf, rankLabel, rankColor });
 }

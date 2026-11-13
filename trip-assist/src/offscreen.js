@@ -100,35 +100,49 @@ function startTripsWatch(user) {
     ref(db, path("userTrips", key)),
     (snap) => {
       const revision = ++snapshotRevision;
-      const trips = Object.entries(snap.val() || {}).map(([entryId, value]) => ({
-        id: entryId,
-        name: (value || {}).name,
-        ownerEmail: (value || {}).ownerEmail,
-        invitedAt: (value || {}).invitedAt || 0,
-      }));
+      const trips = Object.entries(snap.val() || {}).map(
+        ([entryId, value]) => ({
+          id: entryId,
+          name: (value || {}).name,
+          ownerEmail: (value || {}).ownerEmail,
+          invitedAt: (value || {}).invitedAt || 0,
+        }),
+      );
       trips.sort((first, second) => second.invitedAt - first.invitedAt);
       publish("fb:trips", { list: trips, ts: Date.now() });
       Promise.all(
         trips.map(async (trip) => {
           try {
-            const datesSnap = await get(ref(db, path("trips", trip.id, "dates")));
-            const dates = Object.entries(datesSnap.val() || {}).map(([dateId, date]) => ({
-              id: dateId,
-              ...date,
-            }));
+            const datesSnap = await get(
+              ref(db, path("trips", trip.id, "dates")),
+            );
+            const dates = Object.entries(datesSnap.val() || {}).map(
+              ([dateId, date]) => ({
+                id: dateId,
+                ...date,
+              }),
+            );
             return { ...trip, dates };
           } catch (_) {
             return { ...trip, dates: null };
           }
         }),
       ).then((list) => {
-        if (generation !== tripsWatchGeneration || revision !== snapshotRevision) return;
+        if (
+          generation !== tripsWatchGeneration ||
+          revision !== snapshotRevision
+        )
+          return;
         publish("fb:trips", { list, ts: Date.now() });
       });
     },
     (error) => {
       if (generation === tripsWatchGeneration)
-        publish("fb:trips", { list: [], error: humanize(error), ts: Date.now() });
+        publish("fb:trips", {
+          list: [],
+          error: humanize(error),
+          ts: Date.now(),
+        });
     },
   );
 }
@@ -393,6 +407,23 @@ const handlers = {
     return {};
   },
 
+  async setDateRank({ tripId, dateId, rank }) {
+    user();
+    need(
+      rank == null || (Number.isInteger(rank) && rank >= 1 && rank <= 5),
+      "優先順位の値が正しくありません",
+    );
+    // 削除済みの候補日に順位だけ残らないように、候補日があるか確認する
+    const exists = await get(
+      ref(db, path("trips", tripId, "dates", dateId, "s")),
+    );
+    need(exists.exists(), "候補日が見つかりません");
+    const rankRef = ref(db, path("trips", tripId, "dates", dateId, "rank"));
+    if (rank == null) await remove(rankRef);
+    else await set(rankRef, rank);
+    return {};
+  },
+
   async setAnswer({ tripId, dateId, v: answer }) {
     // v: 1=○ 2=△ 0=× / null=未回答
     const currentUser = user();
@@ -416,7 +447,8 @@ const handlers = {
     );
     const parsedDay = new Date(`${day}T00:00:00.000Z`);
     need(
-      Number.isFinite(parsedDay.getTime()) && parsedDay.toISOString().slice(0, 10) === day,
+      Number.isFinite(parsedDay.getTime()) &&
+        parsedDay.toISOString().slice(0, 10) === day,
       "日付が正しくありません",
     );
     need(
@@ -456,8 +488,13 @@ const handlers = {
   async renamePlace({ tripId, placeId, name }) {
     user();
     const clean = String(name || "").trim();
-    need(clean.length > 0 && clean.length <= 60, "地点名は1〜60文字で入力してください");
-    await update(ref(db, path("trips", tripId, "places", placeId)), { name: clean });
+    need(
+      clean.length > 0 && clean.length <= 60,
+      "地点名は1〜60文字で入力してください",
+    );
+    await update(ref(db, path("trips", tripId, "places", placeId)), {
+      name: clean,
+    });
     return {};
   },
   async setVote({ tripId, placeId, on: enabled }) {
@@ -479,7 +516,8 @@ const handlers = {
   },
   async setTransitMinutes({ tripId, key, minutes, sig, mode }) {
     user();
-    if (!/^[A-Za-z0-9_-]{1,120}$/.test(key) || !Number.isFinite(minutes)) throw new Error("保存できない値です");
+    if (!/^[A-Za-z0-9_-]{1,120}$/.test(key) || !Number.isFinite(minutes))
+      throw new Error("保存できない値です");
     await set(ref(db, path("trips", tripId, "transit", key)), {
       minutes,
       sig: String(sig).slice(0, 200),

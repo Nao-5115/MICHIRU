@@ -3,7 +3,7 @@
 export function installState(ctx) {
 
   const state = {
-    tab: "schedule",
+    tab: "members",
     open: false,
     auth: { state: "unknown" },
     trips: [],

@@ -26,6 +26,7 @@ import {
 } from "firebase/database";
 import config from "../firebase-config.json";
 import { emailKey, normalizeEmail, isValidEmail, shortName } from "./lib.js";
+import { createSchedule2Handlers } from "./offscreen-schedule2.js";
 
 const configured =
   config.apiKey &&
@@ -503,6 +504,9 @@ const handlers = {
     return {};
   },
 };
+
+// 「日程２」の操作（trips/{旅行}/schedule2）を handlers に追加する
+Object.assign(handlers, createSchedule2Handlers({ getDb: () => db, user, need, path }));
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (

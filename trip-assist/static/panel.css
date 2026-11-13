@@ -1542,6 +1542,10 @@ tr.sel {
 .vote-option--locked:not(.mine):hover {
   border-color: transparent;
 }
+/* 「投票を変更」を押すまでは、選択の丸を表示しない */
+.vote-option--locked .vote-option__check {
+  display: none;
+}
 .vote-option.mine .vote-option__bar {
   background: var(--accent);
   opacity: 0.15;
@@ -2181,23 +2185,33 @@ tr.sel {
   margin-top: 6px;
 }
 .cal-paint {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
   margin-top: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 .cal-paint__btn {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 4px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
   background: var(--card);
   color: var(--fg);
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: bold;
   cursor: pointer;
 }
+.cal-paint__btn:nth-child(1) .cal-paint__sym { color: #2e7d32; }
+.cal-paint__btn:nth-child(2) .cal-paint__sym { color: #b26a00; }
+.cal-paint__btn:nth-child(3) .cal-paint__sym { color: #c62828; }
 .cal-paint__btn.on {
   background: var(--accent-soft);
   border-color: var(--accent);
@@ -2205,7 +2219,8 @@ tr.sel {
 }
 .cal-paint__sym {
   font-weight: bold;
-  font-size: 14px;
+  font-size: 30px;
+  line-height: 1;
 }
 .cal-grid.painting {
   touch-action: none;

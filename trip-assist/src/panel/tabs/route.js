@@ -1034,6 +1034,11 @@ export function installRouteTab(ctx) {
             ),
           ),
           createEl(
+            "p",
+            { class: "note itin-note" },
+            "幹事が、日程タブの行きたい場所の採用ボタンを押したらルートに追加されます",
+          ),
+          createEl(
             "ol",
             { class: "timeline" },
             itinerary.rows.map((row, index) => {

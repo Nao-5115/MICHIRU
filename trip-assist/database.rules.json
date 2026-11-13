@@ -4,9 +4,7 @@
     ".write": false,
     "spots": {
       ".read": "auth != null && auth.token.email_verified === true",
-      ".indexOn": [
-        "registeredAt"
-      ],
+      ".indexOn": ["registeredAt"],
       "$spotId": {
         ".write": "auth != null && auth.token.email_verified === true && ((!data.exists() && newData.child('registeredByEmail').val() === auth.token.email.toLowerCase()) || (data.exists() && !newData.exists() && data.child('registeredByEmail').val() === auth.token.email.toLowerCase()))",
         ".validate": "newData.hasChildren(['name', 'lat', 'lng', 'category', 'rating', 'description', 'recommendation', 'registeredBy', 'registeredByEmail', 'registeredAt'])",
@@ -131,6 +129,9 @@
             },
             "createdAt": {
               ".validate": "newData.isNumber()"
+            },
+            "rank": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 5 && newData.val() % 1 === 0"
             },
             "$other": {
               ".validate": false

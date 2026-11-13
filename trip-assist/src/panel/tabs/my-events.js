@@ -31,14 +31,6 @@ export function installMyEvents(ctx) {
     ["route", "ルート", viewRoute],
     ["spots", "スポット", viewSpots],
   ];
-  // 各タブの一番上に表示する説明文
-  const TAB_INTRO = {
-    members: "旅行に参加するメンバーを確認・追加できます。",
-    schedule: "旅程の日程を決めましょう。旅程の候補日を登録し、各自の出欠を確認入力できます。",
-    vote: "予算等の希望や、行きたい場所を入力できます。AIがおすすめのスポットを提案する機能もあります。",
-    route: "旅のしおりを作り、集合場所とルートを確認できます。",
-    spots: "おすすめのスポットを共有・確認できます。",
-  };
   function render() {
     if (!state.open) return;
     state.dirty = false;
@@ -70,15 +62,8 @@ export function installMyEvents(ctx) {
     if (!signedIn) {
       body.replaceChildren(signinCard());
     } else {
-      const [tabKey, , view] = TABS.find(([key]) => key === state.tab);
-      body.replaceChildren(
-        createEl(
-          "div",
-          { class: "tab-intro" },
-          createEl("p", { class: "tab-intro__text" }, TAB_INTRO[tabKey]),
-        ),
-        ...(view() || []).filter(Boolean),
-      );
+      const view = TABS.find(([key]) => key === state.tab)[2];
+      body.replaceChildren(...(view() || []).filter(Boolean));
     }
     navBar.hidden = !(state.nav && isDirPage());
     if (!navBar.hidden) {

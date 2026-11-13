@@ -2771,7 +2771,9 @@ tr.sel {
 /* ---- 各タブの一番上の説明文と、メインカラーのライン ---- */
 .tab-intro {
   margin: 0 0 12px;
-  padding-top: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f0f5fd;
 }
 .tab-intro__text {
   margin: 0 0 8px;

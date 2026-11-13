@@ -453,6 +453,13 @@ const handlers = {
     await remove(ref(db, path("trips", tripId, "places", placeId)));
     return {};
   },
+  async renamePlace({ tripId, placeId, name }) {
+    user();
+    const clean = String(name || "").trim();
+    need(clean.length > 0 && clean.length <= 60, "地点名は1〜60文字で入力してください");
+    await update(ref(db, path("trips", tripId, "places", placeId)), { name: clean });
+    return {};
+  },
   async setVote({ tripId, placeId, on: enabled }) {
     const currentUser = user();
     const voteRef = ref(
@@ -468,6 +475,17 @@ const handlers = {
     const adoptedRef = ref(db, path("trips", tripId, "adopted", placeId));
     if (enabled) await set(adoptedRef, true);
     else await remove(adoptedRef);
+    return {};
+  },
+  async setTransitMinutes({ tripId, key, minutes, sig, mode }) {
+    user();
+    if (!/^[A-Za-z0-9_-]{1,120}$/.test(key) || !Number.isFinite(minutes)) throw new Error("保存できない値です");
+    await set(ref(db, path("trips", tripId, "transit", key)), {
+      minutes,
+      sig: String(sig).slice(0, 200),
+      mode: mode === "car" ? "car" : "train",
+      updatedAt: Date.now(),
+    });
     return {};
   },
   async setPreferences({ tripId, prefs }) {

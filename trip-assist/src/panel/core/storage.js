@@ -57,7 +57,10 @@ export function installStorage(ctx) {
     if (tripId) await chrome.storage.local.set({ [STORAGE_KEYS.cur]: tripId });
     else await chrome.storage.local.remove(STORAGE_KEYS.cur);
     await loadLocal();
-    callFirebase("watchTrip", { tripId: tripId || null }); // 開いた旅行を同期（招待された人は、ここで「参加済み」になる）
+    // 開いた旅行を同期（招待された人は、ここで「参加済み」になる）。失敗したら理由を表示する
+    callFirebase("watchTrip", { tripId: tripId || null }).then((result) => {
+      if (!result.ok) flash(result.error, "err");
+    });
     render();
   }
 

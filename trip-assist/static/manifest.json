@@ -9,7 +9,8 @@
     "identity",
     "storage",
     "offscreen",
-    "tabs"
+    "tabs",
+    "downloads"
   ],
   "host_permissions": [
     "https://www.googleapis.com/*",

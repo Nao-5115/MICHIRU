@@ -2,6 +2,9 @@
 // 検索欄に旅行名を入力すると一覧を絞り込み、登録されていない名前なら新しい旅行として作成する
 import * as T from "../../lib.js";
 
+const LOGOUT_PATH =
+  '<path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm421-320H360v-80h261l-99-99 57-57 196 196-196 196-57-57 99-99Z"/>';
+
 const TRASH_PATH =
   '<path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/>';
 
@@ -76,6 +79,8 @@ export function installTripSwitch(ctx) {
       queryIn.value = "";
       renderList();
       queryIn.focus();
+    } else if (root.activeElement === queryIn) {
+      queryIn.blur();
     }
   }
 
@@ -186,13 +191,19 @@ export function installTripSwitch(ctx) {
     const me = currentMember();
     footEl.replaceChildren(
       createEl("span", { class: "muted" }, me ? `サインイン中: ${me.email}` : ""),
-      makeButton(
-        "サインアウト",
-        async () => {
-          const result = await callFirebase("signOut");
-          if (!result.ok) flash(result.error, "err");
+      createEl(
+        "button",
+        {
+          class: "btn small trip-switch__signout",
+          type: "button",
+          title: "サインアウト",
+          "aria-label": "サインアウト",
+          onclick: async () => {
+            const result = await callFirebase("signOut");
+            if (!result.ok) flash(result.error, "err");
+          },
         },
-        "small",
+        makeMsIcon(LOGOUT_PATH, 18),
       ),
     );
   }

@@ -453,6 +453,13 @@ const handlers = {
     await remove(ref(db, path("trips", tripId, "places", placeId)));
     return {};
   },
+  async renamePlace({ tripId, placeId, name }) {
+    user();
+    const clean = String(name || "").trim();
+    need(clean.length > 0 && clean.length <= 60, "地点名は1〜60文字で入力してください");
+    await update(ref(db, path("trips", tripId, "places", placeId)), { name: clean });
+    return {};
+  },
   async setVote({ tripId, placeId, on: enabled }) {
     const currentUser = user();
     const voteRef = ref(

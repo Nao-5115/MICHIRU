@@ -33,7 +33,7 @@ export function installMyEvents(ctx) {
   ];
   // 各タブの一番上に表示する説明文
   const TAB_INTRO = {
-    members: "旅行に参加するメンバーを確認できます。",
+    members: "旅行に参加するメンバーを確認・追加できます。",
     schedule: "候補日を登録し、各自の出欠（○△×）を入力できます。",
     vote: "旅行の希望や行きたい場所に投票できます。",
     route: "旅のしおりを作り、集合場所とルートを確認できます。",

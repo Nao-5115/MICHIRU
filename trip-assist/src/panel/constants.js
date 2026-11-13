@@ -21,6 +21,7 @@ export const DEF_LOCAL = () => ({
   events: [],
   settings: {
     meetingPlace: null,
+    hotelPlace: null,
     speedCar: 40,
     speedTrain: 35,
     detourCar: 1.3,

@@ -33,6 +33,24 @@ export function installRouteTab(ctx) {
   };
   let itinEditor = null; // しおりの編集ポップアップ（開いていないときは null）
   let activeItineraryDay = null;
+  let routeMapUrl = location.href;
+  let meetingNameInputRef = null;
+  let hotelNameInputRef = null;
+  let activeRouteNameTarget = null;
+
+  // 地図で選択地点を変えたら、ルートタブの名前欄も追従させる。
+  setInterval(() => {
+    if (location.href === routeMapUrl) return;
+    routeMapUrl = location.href;
+    const name = T.extractPlaceName(routeMapUrl);
+    if (!name) return;
+    const input = activeRouteNameTarget === "meeting"
+      ? meetingNameInputRef
+      : activeRouteNameTarget === "hotel"
+        ? hotelNameInputRef
+        : null;
+    if (input?.isConnected) input.value = name;
+  }, 150);
 
   // ルート一覧をドラッグ中、パネルの上下端に近づくと自動でスクロールする。
   body.addEventListener("dragover", (event) => {
@@ -950,7 +968,13 @@ export function installRouteTab(ctx) {
       maxlength: 100,
       placeholder: "駅名・施設名など",
       "aria-label": "集合場所の名前",
+      onfocus: () => {
+        activeRouteNameTarget = "meeting";
+        const name = T.extractPlaceName(location.href);
+        if (name) meetingNameInput.value = name;
+      },
     });
+    meetingNameInputRef = meetingNameInput;
     const meetingSection = createEl(
       "section",
       { class: "route-section" },
@@ -960,15 +984,18 @@ export function installRouteTab(ctx) {
       makeButton(
         "現在の地図の場所を集合場所に設定",
         async () => {
+          activeRouteNameTarget = "meeting";
           const point = T.extractLatLng(location.href);
           if (!point)
             return flash(
               "Google マップで集合場所を開いてから設定してください",
               "err",
             );
+          const selectedName = T.extractPlaceName(location.href);
+          if (selectedName) meetingNameInput.value = selectedName;
           const name =
+            selectedName ||
             meetingNameInput.value.trim() ||
-            T.extractPlaceName(location.href) ||
             "集合場所";
           let meetingId = meetingPlace?.id || randomId();
           while (local.places.some((place) => place.id === meetingId))
@@ -1006,6 +1033,67 @@ export function installRouteTab(ctx) {
           )
         : null,
     );
+    const hotelPlace = settings.hotelPlace;
+    const hotelNameInput = createEl("input", {
+      type: "text",
+      value: hotelPlace?.name || "",
+      maxlength: 100,
+      placeholder: "ホテル名・施設名など",
+      "aria-label": "ホテルの名前",
+      onfocus: () => {
+        activeRouteNameTarget = "hotel";
+        const name = T.extractPlaceName(location.href);
+        if (name) hotelNameInput.value = name;
+      },
+    });
+    hotelNameInputRef = hotelNameInput;
+    const hotelSection = createEl(
+      "section",
+      { class: "route-section" },
+      createEl("h3", {}, "ホテルの場所"),
+      createEl("p", {}, hotelPlace ? `設定中: ${hotelPlace.name}` : "宿泊先を登録できます"),
+      createEl("label", {}, "場所の名前", hotelNameInput),
+      makeButton(
+        "現在の地図の場所をホテルに設定",
+        async () => {
+          activeRouteNameTarget = "hotel";
+          const point = T.extractLatLng(location.href);
+          if (!point)
+            return flash(
+              "Google マップでホテルの場所を開いてから設定してください",
+              "err",
+            );
+          const selectedName = T.extractPlaceName(location.href);
+          if (selectedName) hotelNameInput.value = selectedName;
+          const name =
+            selectedName ||
+            hotelNameInput.value.trim() ||
+            "ホテル";
+          settings.hotelPlace = {
+            id: hotelPlace?.id || randomId(),
+            name,
+            lat: point.lat,
+            lng: point.lng,
+          };
+          if (!(await saveLocal())) return;
+          flash("ホテルの場所を設定しました");
+          render();
+        },
+        "primary",
+      ),
+      hotelPlace
+        ? makeButton(
+            "ホテルの場所を解除",
+            async () => {
+              settings.hotelPlace = null;
+              await saveLocal();
+              render();
+            },
+            "small",
+          )
+        : null,
+    );
+
     // しおりの並べ替え（訪問地点リストと同じ動き）
     const clearDragMarks = () =>
       root
@@ -1134,6 +1222,8 @@ export function installRouteTab(ctx) {
                 createEl("div", { class: "stop" }, createEl("b", {}, row.place.name), createEl("br", {}), `${T.fmtTime(row.arrive)}〜${T.fmtTime(row.depart)}`),
               ),
             );
+
+
             return item;
           }));
           return createEl("section", { class: "itin-day-section" },
@@ -1230,7 +1320,7 @@ export function installRouteTab(ctx) {
             : null,
         )
       : null;
-    return [meetingSection, sec3, sec4];
+    return [meetingSection, hotelSection, sec3, sec4];
   }
 
   // ======================= 登録タブ（幹事のみ: カレンダー登録・削除） =======================

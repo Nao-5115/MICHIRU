@@ -163,11 +163,17 @@ export function extractLatLng(href) {
     return { lat: +match[1], lng: +match[2] };
   return null;
 }
-// /maps/place/<場所名>/@lat,lng,zoom... の <場所名> を取り出す。無ければ null
+// /maps/place/<場所名>/... や /maps/search/<検索語>/... から名前を取り出す。
 export function extractPlaceName(href) {
-  const match = href.match(/\/maps\/place\/([^/@?#]+)/);
-  if (!match) return null;
-  let name = match[1].replace(/\+/g, " "); // + は空白に戻してからデコード（%2B はそのまま + になる）
+  let rawName = href.match(/\/maps\/(?:place|search)\/([^/@?#]+)/)?.[1];
+  if (!rawName) {
+    try {
+      const url = new URL(href);
+      rawName = url.searchParams.get("query") || url.searchParams.get("q");
+    } catch (_) {}
+  }
+  if (!rawName) return null;
+  let name = rawName.replace(/\+/g, " "); // + は空白に戻してからデコード（%2B はそのまま + になる）
   try {
     name = decodeURIComponent(name);
   } catch (_) {}

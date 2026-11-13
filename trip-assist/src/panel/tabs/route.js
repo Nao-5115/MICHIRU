@@ -32,8 +32,25 @@ export function installRouteTab(ctx) {
       '<path d="M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h2.23l2-2H14l2 2h2v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zm0 2c3.51 0 5.44.48 5.93 1H6.07C6.56 4.48 8.49 4 12 4zM6 7h5v3H6V7zm12 0v3h-5V7h5zM7.5 17C6.67 17 6 16.33 6 15.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>',
   };
   let itinEditor = null; // しおりの編集ポップアップ（開いていないときは null）
+  let activeItineraryDay = null;
 
-  async function saveItineraryPdf(itinerary, trip, date) {
+  // ルート一覧をドラッグ中、パネルの上下端に近づくと自動でスクロールする。
+  body.addEventListener("dragover", (event) => {
+    if (!state.dragId || body.scrollHeight <= body.clientHeight) return;
+    const rect = body.getBoundingClientRect();
+    const edge = Math.min(88, rect.height * 0.18);
+    const topDistance = event.clientY - rect.top;
+    const bottomDistance = rect.bottom - event.clientY;
+    if (topDistance >= 0 && topDistance < edge) {
+      const strength = 1 - topDistance / edge;
+      body.scrollTop -= Math.ceil(4 + strength * 16);
+    } else if (bottomDistance >= 0 && bottomDistance < edge) {
+      const strength = 1 - bottomDistance / edge;
+      body.scrollTop += Math.ceil(4 + strength * 16);
+    }
+  });
+
+  async function saveItineraryPdf(dayPlans, trip, date) {
     const W = 1240,
       H = 1754,
       margin = 100,
@@ -93,43 +110,54 @@ export function installRouteTab(ctx) {
     };
     page(0);
     let y = 280;
-    itinerary.rows.forEach((row, i) => {
-      if (y + 150 + (i ? 55 : 0) > H - 100) {
+    dayPlans.forEach(({ day, itinerary }, dayIndex) => {
+      if (dayIndex > 0) {
         page(pages.length);
         y = 280;
       }
-      if (i) {
-        g.fillStyle = accent;
-        g.font = 'bold 24px "Yu Gothic",Meiryo,sans-serif';
-        g.fillText(
-          `↓ ${T.MODE_LABEL[row.mode] || "移動"}・約${row.travel}分`,
-          margin + 30,
-          y + 20,
-        );
-        y += 55;
+      if (y + 75 > H - 100) {
+        page(pages.length);
+        y = 280;
       }
-      g.fillStyle = soft;
-      g.fillRect(margin + 60, y - 8, W - margin * 2 - 60, 126);
       g.fillStyle = accent;
-      g.fillRect(margin + 60, y - 8, 6, 126);
-      g.beginPath();
-      g.arc(margin + 25, y + 55, 25, 0, Math.PI * 2);
-      g.fill();
-      g.fillStyle = "white";
-      g.font = "bold 24px Arial";
-      g.textAlign = "center";
-      g.fillText(String(i + 1), margin + 25, y + 64);
-      g.textAlign = "left";
-      g.fillStyle = "#202124";
-      g.font = 'bold 32px "Yu Gothic",Meiryo,sans-serif';
-      g.fillText(row.place.name, margin + 75, y + 43, W - margin * 2 - 90);
-      g.font = '25px "Yu Gothic",Meiryo,sans-serif';
-      g.fillText(
-        `${T.fmtTime(row.arrive)} 到着　〜　${T.fmtTime(row.depart)} 出発`,
-        margin + 75,
-        y + 82,
-      );
-      y += 150;
+      g.font = 'bold 30px "Yu Gothic",Meiryo,sans-serif';
+      g.fillText(day ? `${T.fmtDate(day)}の予定` : "旅程", margin + 25, y + 28);
+      y += 60;
+      itinerary.rows.forEach((row, i) => {
+        const legHeight = i ? 55 : 0;
+        if (y + 150 + legHeight > H - 100) {
+          page(pages.length);
+          y = 280;
+          g.fillStyle = accent;
+          g.font = 'bold 30px "Yu Gothic",Meiryo,sans-serif';
+          g.fillText(`${day ? T.fmtDate(day) : "旅程"}の予定（続き）`, margin + 25, y + 28);
+          y += 60;
+        }
+        if (i) {
+          g.fillStyle = accent;
+          g.font = 'bold 24px "Yu Gothic",Meiryo,sans-serif';
+          g.fillText(`↓ ${T.MODE_LABEL[row.mode] || "移動"}・約${row.travel}分`, margin + 30, y + 20);
+          y += 55;
+        }
+        g.fillStyle = soft;
+        g.fillRect(margin + 60, y - 8, W - margin * 2 - 60, 126);
+        g.fillStyle = accent;
+        g.fillRect(margin + 60, y - 8, 6, 126);
+        g.beginPath();
+        g.arc(margin + 25, y + 55, 25, 0, Math.PI * 2);
+        g.fill();
+        g.fillStyle = "white";
+        g.font = "bold 24px Arial";
+        g.textAlign = "center";
+        g.fillText(String(i + 1), margin + 25, y + 64);
+        g.textAlign = "left";
+        g.fillStyle = "#202124";
+        g.font = 'bold 32px "Yu Gothic",Meiryo,sans-serif';
+        g.fillText(row.place.name, margin + 75, y + 43, W - margin * 2 - 90);
+        g.font = '25px "Yu Gothic",Meiryo,sans-serif';
+        g.fillText(`${T.fmtTime(row.arrive)} 到着　〜　${T.fmtTime(row.depart)} 出発`, margin + 75, y + 82);
+        y += 150;
+      });
     });
     const enc = new TextEncoder(),
       txt = (s) => enc.encode(s),
@@ -355,7 +383,7 @@ export function installRouteTab(ctx) {
     const editing = editingPlaceId === place.id;
     const clearMarks = () =>
       root
-        .querySelectorAll(".dragging, .drop-before, .drop-after")
+        .querySelectorAll(".dragging, .drop-before, .drop-after, .timeline[data-drag-preview]")
         .forEach((node) =>
           node.classList.remove("dragging", "drop-before", "drop-after"),
         );
@@ -500,12 +528,12 @@ export function installRouteTab(ctx) {
 
   // しおりの編集ポップアップ（地点名・到着/出発時刻・滞在時間・並べ替え）。
   // 変更は下書きとして持ち、「編集」または Enter で確定する。×・Esc・外側クリックでは破棄する。
-  function openItineraryEditor() {
+  function openItineraryEditor(dayId = null) {
     if (itinEditor && itinEditor.isConnected) return;
-    const base = currentItinerary();
+    const base = currentItinerary(dayId);
     if (!base) return;
     const settings = getLocal().settings;
-    const originalStart = T.parseTime(settings.startTime);
+    const originalStart = T.parseTime((settings.dayStartTimes || {})[dayId] || settings.startTime);
     let startMin = originalStart; // 先頭の地点の到着時刻（＝出発時刻）
     const basePlaces = new Map(
       ctx.routePlaces().map((place) => [place.id, place]),
@@ -575,7 +603,7 @@ export function installRouteTab(ctx) {
     const listEl = createEl("ol", { class: "itin-edit-list" });
     const clearMarks = () =>
       itinEditor
-        .querySelectorAll(".dragging, .drop-before, .drop-after")
+        .querySelectorAll(".dragging, .drop-before, .drop-after, .timeline[data-drag-preview]")
         .forEach((node) =>
           node.classList.remove("dragging", "drop-before", "drop-after"),
         );
@@ -607,16 +635,29 @@ export function installRouteTab(ctx) {
           else delete settings.stays[item.id];
         }
       });
-      if (startMin !== originalStart) settings.startTime = hhmm(startMin);
+      if (startMin !== originalStart) {
+        settings.dayStartTimes ||= {};
+        if (dayId) settings.dayStartTimes[dayId] = hhmm(startMin);
+        else settings.startTime = hhmm(startMin);
+      }
       const ordered = draft
         .filter((item) => !item.isMeetingPlace)
         .map((item) => byId.get(item.id))
         .filter(Boolean);
-      const rest = local.places.filter(
-        (place) =>
-          !draft.some((item) => !item.isMeetingPlace && item.id === place.id),
-      );
-      local.places = [...ordered, ...rest];
+      if (dayId) {
+        let next = 0;
+        local.places = local.places.map((place) =>
+          ((local.dayAssignments || {})[place.id] || dayId) === dayId
+            ? ordered[next++] || place
+            : place,
+        );
+      } else {
+        const rest = local.places.filter(
+          (place) =>
+            !draft.some((item) => !item.isMeetingPlace && item.id === place.id),
+        );
+        local.places = [...ordered, ...rest];
+      }
       close();
       await placesChanged();
     };
@@ -970,7 +1011,10 @@ export function installRouteTab(ctx) {
       root
         .querySelectorAll(".dragging, .drop-before, .drop-after")
         .forEach((node) =>
-          node.classList.remove("dragging", "drop-before", "drop-after"),
+          {
+            node.classList.remove("dragging", "drop-before", "drop-after");
+            delete node.dataset.dragPreview;
+          },
         );
     const optimizeButton = makeButton(
       "訪問順を自動最適化（手動の並べ替えを上書き）",
@@ -990,10 +1034,118 @@ export function installRouteTab(ctx) {
       },
       "primary",
     );
-    const itinerary = currentItinerary();
     const confirmedDate = T.datesOf(tripData()).find(
       (date) => date.id === getLocal().confirmedId,
     );
+    const itineraryDays = confirmedDate
+      ? Array.from({ length: Math.min(60, Math.max(1, Math.round((new Date(confirmedDate.e + "T00:00:00Z") - new Date(confirmedDate.s + "T00:00:00Z")) / 86400000) + 1)) }, (_, i) => {
+          const id = T.addDays(confirmedDate.s, i);
+          return { id, label: T.fmtDate(id) };
+        })
+      : [];
+    if (itineraryDays.length) {
+      getLocal().dayAssignments ||= {};
+      let initializedAssignments = false;
+      getLocal().places.forEach((place) => {
+        if (!getLocal().dayAssignments[place.id]) {
+          getLocal().dayAssignments[place.id] = itineraryDays[0].id;
+          initializedAssignments = true;
+        }
+      });
+      if (initializedAssignments) saveLocal();
+    }
+    if (itineraryDays.length && !itineraryDays.some((day) => day.id === activeItineraryDay)) activeItineraryDay = itineraryDays[0].id;
+    const itinerary = currentItinerary(activeItineraryDay);
+    const pdfPlans = itineraryDays.length
+      ? itineraryDays.map((day) => ({ day: day.id, itinerary: currentItinerary(day.id) }))
+      : [{ day: null, itinerary: currentItinerary() }];
+    const daySections = itineraryDays.length
+      ? itineraryDays.map((day) => {
+          const dayItinerary = currentItinerary(day.id);
+          const rows = dayItinerary?.rows || [];
+          const list = createEl("ol", {
+            class: "timeline",
+            ondragover: (event) => {
+              if (!state.dragId || event.target.closest("li")) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              const dragged = getLocal().places.find((place) => place.id === state.dragId);
+              if (dragged) list.dataset.dragPreview = dragged.name;
+            },
+            ondrop: async (event) => {
+              if (event.target.closest("li")) return;
+              event.preventDefault();
+              clearDragMarks();
+              const from = state.dragId;
+              state.dragId = null;
+              if (!from || getLocal().dayAssignments?.[from] === day.id) return;
+              getLocal().dayAssignments ||= {};
+              getLocal().dayAssignments[from] = day.id;
+              await saveLocal();
+              render();
+            },
+          });
+          list.append(...rows.map((row, index) => {
+            const item = createEl("li", {
+              ondragover: (event) => {
+                if (!state.dragId || row.place.isMeetingPlace) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                const dragged = getLocal().places.find((place) => place.id === state.dragId);
+                if (dragged) item.dataset.dragPreview = dragged.name;
+                const rect = item.getBoundingClientRect();
+                item.classList.toggle("drop-before", event.clientY <= rect.top + rect.height / 2);
+                item.classList.toggle("drop-after", event.clientY > rect.top + rect.height / 2);
+              },
+              ondragleave: (event) => {
+                if (!item.contains(event.relatedTarget)) {
+                  item.classList.remove("drop-before", "drop-after");
+                  delete item.dataset.dragPreview;
+                }
+              },
+              ondrop: async (event) => {
+                event.preventDefault();
+                const after = item.classList.contains("drop-after");
+                const from = state.dragId;
+                clearDragMarks();
+                state.dragId = null;
+                if (!from || from === row.place.id || row.place.isMeetingPlace) return;
+                getLocal().dayAssignments ||= {};
+                getLocal().dayAssignments[from] = day.id;
+                await saveLocal();
+                await movePlace(from, row.place.id, after);
+              },
+            },
+              index > 0 ? legView(rows[index - 1], row) : null,
+              createEl("div", { class: "stop-row" },
+                row.place.isMeetingPlace
+                  ? createEl("span", { class: "muted" }, "集合")
+                  : createEl("span", {
+                      class: "handle", draggable: "true", title: "別の日へドラッグして移動",
+                      ondragstart: (event) => {
+                        state.dragId = row.place.id;
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", row.place.id);
+                        event.dataTransfer.setDragImage(item, 12, 12);
+                        item.classList.add("dragging");
+                      },
+                      ondragend: () => { state.dragId = null; clearDragMarks(); },
+                    }, "☰"),
+                createEl("div", { class: "stop" }, createEl("b", {}, row.place.name), createEl("br", {}), `${T.fmtTime(row.arrive)}〜${T.fmtTime(row.depart)}`),
+              ),
+            );
+            return item;
+          }));
+          return createEl("section", { class: "itin-day-section" },
+            createEl("div", { class: "itin-day-heading" },
+              createEl("h4", {}, `${day.label}の予定`),
+              createEl("button", { class: "icon-edit itin-edit", type: "button", title: "この日のしおりを編集", "aria-label": `${day.label}のしおりを編集`, onclick: () => openItineraryEditor(day.id) }, makeMsIcon(EDIT_ICON, 18)),
+            ),
+            !rows.length ? createEl("p", { class: "muted itin-empty-day" }, "この日の予定はありません。地点をここへドラッグすると追加できます。") : null,
+            list,
+          );
+        })
+      : [];
     const sec3 = itinerary
       ? createEl(
           "section",
@@ -1013,101 +1165,13 @@ export function installRouteTab(ctx) {
                   )
                 : null,
             ),
-            createEl(
-              "button",
-              {
-                class: "icon-edit itin-edit",
-                type: "button",
-                title: "地点名・滞在時間を編集",
-                "aria-label": "しおりの地点名・滞在時間を編集",
-                onclick: () => openItineraryEditor(),
-              },
-              makeMsIcon(EDIT_ICON, 18),
-            ),
             makeButton(
               "PDFで保存",
-              () =>
-                saveItineraryPdf(itinerary, tripData(), confirmedDate).catch(
-                  (error) => flash(error.message, "err"),
-                ),
+              () => saveItineraryPdf(pdfPlans, tripData(), confirmedDate).catch((error) => flash(error.message, "err")),
               "small primary",
             ),
           ),
-          createEl(
-            "ol",
-            { class: "timeline" },
-            itinerary.rows.map((row, index) => {
-              const item = createEl(
-                "li",
-                {
-                  ondragover: (event) => {
-                    if (!state.dragId || row.place.isMeetingPlace) return;
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = "move";
-                    const rect = item.getBoundingClientRect(),
-                      after = event.clientY > rect.top + rect.height / 2;
-                    item.classList.toggle("drop-before", !after);
-                    item.classList.toggle("drop-after", after);
-                  },
-                  ondragleave: (event) => {
-                    if (!item.contains(event.relatedTarget))
-                      item.classList.remove("drop-before", "drop-after");
-                  },
-                  ondrop: (event) => {
-                    event.preventDefault();
-                    const after = item.classList.contains("drop-after"),
-                      from = state.dragId;
-                    clearDragMarks();
-                    state.dragId = null;
-                    if (
-                      from &&
-                      from !== row.place.id &&
-                      !row.place.isMeetingPlace
-                    )
-                      movePlace(from, row.place.id, after);
-                  },
-                },
-                index > 0 ? legView(itinerary.rows[index - 1], row) : null,
-                createEl(
-                  "div",
-                  { class: "stop-row" },
-                  row.place.isMeetingPlace
-                    ? createEl("span", { class: "muted" }, "集合")
-                    : createEl(
-                        "span",
-                        {
-                          class: "handle",
-                          draggable: "true",
-                          title: "ドラッグして並べ替え",
-                          ondragstart: (event) => {
-                            state.dragId = row.place.id;
-                            event.dataTransfer.effectAllowed = "move";
-                            event.dataTransfer.setData(
-                              "text/plain",
-                              row.place.id,
-                            );
-                            event.dataTransfer.setDragImage(item, 12, 12);
-                            item.classList.add("dragging");
-                          },
-                          ondragend: () => {
-                            state.dragId = null;
-                            clearDragMarks();
-                          },
-                        },
-                        "☰",
-                      ),
-                  createEl(
-                    "div",
-                    { class: "stop" },
-                    createEl("b", {}, row.place.name),
-                    createEl("br", {}),
-                    `${T.fmtTime(row.arrive)}〜${T.fmtTime(row.depart)}`,
-                  ),
-                ),
-              );
-              return item;
-            }),
-          ),
+          daySections.length ? createEl("div", { class: "itin-days-stack" }, daySections) : null,
           optimizeButton,
         )
       : null;

@@ -430,15 +430,19 @@ export function installOverlay(ctx) {
       ? [{ ...meetingPlace, isMeetingPlace: true }, ...getLocal().places]
       : getLocal().places;
   }
-  function currentItinerary() {
-    const places = routePlaces();
-    if (!places.length) return null;
+  function currentItinerary(dayId = null, defaultDayId = dayId) {
+    const local = getLocal();
+    const assignments = local.dayAssignments || {};
+    const places = routePlaces().filter((place) =>
+      place.isMeetingPlace || !dayId || (assignments[place.id] || defaultDayId) === dayId,
+    );
+    if (!places.length) return dayId ? { rows: [], totalKm: 0, totalRoadKm: 0 } : null;
     const settings = getLocal().settings;
     const stays = { ...settings.stays };
     if (settings.meetingPlace && !Number.isFinite(stays[settings.meetingPlace.id]))
       stays[settings.meetingPlace.id] = 0;
     return T.buildItinerary(places, {
-      startMin: T.parseTime(settings.startTime),
+      startMin: T.parseTime((settings.dayStartTimes || {})[dayId] || settings.startTime),
       speeds: { car: settings.speedCar, train: settings.speedTrain },
       detours: { car: settings.detourCar, train: settings.detourTrain },
       defaultStay: settings.defaultStay,

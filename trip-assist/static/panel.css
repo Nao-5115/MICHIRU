@@ -610,6 +610,31 @@ tr.sel {
 }
 
 /* ---------- しおり ---------- */
+.itin-days-stack { display: flex; flex-direction: column; }
+.itin-day-section { padding: 12px 0 20px; margin-bottom: 18px; border-bottom: 2px dotted var(--line, #c8ced5); }
+.itin-day-section:last-child { border-bottom: 0; margin-bottom: 0; }
+.itin-day-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.itin-day-heading h4 { flex: 1; margin: 0; font-size: 1rem; }
+.itin-day-heading .itin-edit { flex: 0 0 auto; }
+.itin-day-section .timeline:empty { min-height: 46px; border: 1px dashed var(--line, #c8ced5); border-radius: 10px; }
+.itin-day-section .timeline:empty[data-drag-preview]::before,
+.itin-day-section .timeline li.drop-before::before,
+.itin-day-section .timeline li.drop-after::after {
+  content: attr(data-drag-preview);
+  display: block;
+  min-height: 42px;
+  box-sizing: border-box;
+  margin: 6px 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--accent, #246b55);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent-soft, #e7f2ed) 58%, transparent);
+  color: var(--muted, #687078);
+  opacity: .72;
+  font-weight: 600;
+}
+.itin-day-section .timeline li.drop-after::after { margin-bottom: 0; }
+.itin-empty-day { margin: 4px 0 8px; }
 .timeline {
   list-style: none;
   padding: 0;

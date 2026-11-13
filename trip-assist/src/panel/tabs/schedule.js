@@ -107,7 +107,7 @@ export function installScheduleTab(ctx) {
           createEl(
             "div",
             { class: "row" },
-            createEl("label", {}, "開始", startDateInput),
+            createEl("label", {}, "旅の開始日", startDateInput),
             createEl("label", {}, "終了(任意)", endDateInput),
             makeButton(
               "追加",

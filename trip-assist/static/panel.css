@@ -2767,3 +2767,20 @@ tr.sel {
   height: 40px;
   line-height: 1;
 }
+
+/* ---- 各タブの一番上の説明文と、メインカラーのライン ---- */
+.tab-intro {
+  margin: 0 0 12px;
+  padding-top: 12px;
+}
+.tab-intro__text {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: #4a4a4f;
+  line-height: 1.6;
+}
+.tab-intro__line {
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}

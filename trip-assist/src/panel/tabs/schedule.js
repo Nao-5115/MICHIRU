@@ -607,7 +607,7 @@ export function installScheduleTab(ctx) {
       events.length
         ? createEl(
             "ul",
-            { class: "list" },
+            { class: "list trip-list" },
             ...events.map((event) =>
               createEl(
                 "li",

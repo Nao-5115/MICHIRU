@@ -25,11 +25,11 @@ export function installMyEvents(ctx) {
 
   // ======================= 描画・起動 =======================
   const TABS = [
+    ["members", "メンバー", viewMembersTab],
     ["schedule", "日程", viewSchedule],
     ["vote", "投票", viewVote],
     ["route", "ルート", viewRoute],
     ["spots", "スポット", viewSpots],
-    ["members", "メンバー", viewMembersTab],
   ];
   function render() {
     if (!state.open) return;

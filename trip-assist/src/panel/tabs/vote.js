@@ -12,6 +12,23 @@ export function installVoteTab(ctx) {
 
   let submittingVotes = false;
   let pendingVoteAnimation = null;
+  let candidateNameInput = null;
+  let candidateMapUrl = location.href;
+  let awaitingNextMapPlace = false;
+
+  // Google マップで別の場所を選ぶと URL が変わるため、投票欄の名前も追従させる。
+  setInterval(() => {
+    if (location.href === candidateMapUrl) return;
+    candidateMapUrl = location.href;
+    const input = candidateNameInput;
+    if (!input?.isConnected) return;
+    const name = T.extractPlaceName(candidateMapUrl);
+    if (!name) return;
+    awaitingNextMapPlace = false;
+    input.value = name;
+    state.candidateNameDraft = name;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }, 150);
 
   function viewVote() {
     const gateView = gate();
@@ -367,12 +384,14 @@ export function installVoteTab(ctx) {
     // 入力した地点は地名から座標を調べ、そのまま候補地点として登録する。空欄なら Google マップで開いている場所を使う
     function candidateAddRow() {
       let busy = false;
+      const selectedPlaceName = T.extractPlaceName(location.href);
+      if (!awaitingNextMapPlace && selectedPlaceName) state.candidateNameDraft = selectedPlaceName;
       const input = createEl("input", {
         type: "text",
         maxlength: 60,
         placeholder: "地点名を入力（空欄なら地図で開いている場所）",
         "aria-label": "新しい候補地点の名前",
-        value: state.candidateNameDraft || "",
+        value: awaitingNextMapPlace ? "" : selectedPlaceName || state.candidateNameDraft || "",
         oninput: () => {
           state.candidateNameDraft = input.value;
           // 文字を入力したら「投票する」を押せるようにする（押すと、この地名も登録して投票する）
@@ -386,6 +405,7 @@ export function installVoteTab(ctx) {
           }
         },
       });
+      candidateNameInput = input;
       // 丸いボタン（選択中の丸と同じ見た目）。追加して、そのまま投票する
       const addVoteBtn = createEl("button", {
         type: "button",
@@ -428,6 +448,8 @@ export function installVoteTab(ctx) {
           }
           input.value = "";
           state.candidateNameDraft = "";
+          awaitingNextMapPlace = true;
+          candidateMapUrl = location.href;
           if (alsoVote) {
             // 追加した地点にそのまま投票する（保存済みの票として扱い、下書きにも入れる）
             const voted = await callFirebase("setVote", { tripId: state.tripId, placeId: result.id, on: true });

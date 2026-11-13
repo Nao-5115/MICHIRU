@@ -76,7 +76,6 @@ export function installMyEvents(ctx) {
           "div",
           { class: "tab-intro" },
           createEl("p", { class: "tab-intro__text" }, TAB_INTRO[tabKey]),
-          createEl("div", { class: "tab-intro__line" }),
         ),
         ...(view() || []).filter(Boolean),
       );

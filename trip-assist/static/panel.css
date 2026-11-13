@@ -2781,8 +2781,3 @@ tr.sel {
   color: #4a4a4f;
   line-height: 1.6;
 }
-.tab-intro__line {
-  height: 2px;
-  border-radius: 2px;
-  background: var(--accent);
-}

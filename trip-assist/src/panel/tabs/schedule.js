@@ -505,7 +505,8 @@ export function installScheduleTab(ctx) {
     return createEl(
       "section",
       { class: "cal" },
-      createEl("h3", {}, "カレンダー"),
+      createEl("h3", {}, "出欠表"),
+      paintBar,
       createEl(
         "div",
         { class: "cal-nav-row" },
@@ -539,7 +540,6 @@ export function installScheduleTab(ctx) {
           "›",
         ),
       ),
-      paintBar,
       createEl(
         "div",
         { class: "cal-grid" + (calPaint !== null ? " painting" : "") },

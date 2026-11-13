@@ -3,7 +3,7 @@
   --card: #ffffff;
   --fg: #3a3a3c;
   --muted: #7b7b80;
-  --line: #000000;
+  --line: #c5c5c5;
   --miniline: #c5c5c5;
   --accent: #1a73e8;
   --accent-strong: #1557b0;
@@ -2189,6 +2189,7 @@ tr.sel {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-top: 8px;
+  margin-bottom: 8px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -2197,10 +2198,10 @@ tr.sel {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 0;
   width: 100%;
   box-sizing: border-box;
-  padding: 10px 4px;
+  padding: 0 4px 8px;
   border: 1.5px solid var(--line);
   border-radius: 14px;
   background: var(--card);
@@ -2209,16 +2210,24 @@ tr.sel {
   font-weight: bold;
   cursor: pointer;
 }
-.cal-paint__btn:nth-child(1) .cal-paint__sym { color: #2e7d32; }
-.cal-paint__btn:nth-child(2) .cal-paint__sym { color: #b26a00; }
-.cal-paint__btn:nth-child(3) .cal-paint__sym { color: #c62828; }
+/* ○△× の背景色（薄い色）と記号の大きさ。○は丸みがあり小さく見えるため、少し大きくする */
+.cal-paint__btn:nth-child(1) { background: #eef8ef; border-color: #a5d6a7; }
+.cal-paint__btn:nth-child(2) { background: #fff7e8; border-color: #ffcc80; }
+.cal-paint__btn:nth-child(3) { background: #fdeeee; border-color: #ef9a9a; }
+.cal-paint__btn:nth-child(1) .cal-paint__sym { color: #2e7d32; font-size: 30px; }
+.cal-paint__btn:nth-child(2) .cal-paint__sym { color: #b26a00; font-size: 24px; }
+.cal-paint__btn:nth-child(3) .cal-paint__sym { color: #c62828; font-size: 30px; }
+/* 選択中の記号は、もう少し濃い背景 */
+.cal-paint__btn.on:nth-child(1) { background: #c8e6c9; border-color: #2e7d32; }
+.cal-paint__btn.on:nth-child(2) { background: #ffe0b2; border-color: #b26a00; }
+.cal-paint__btn.on:nth-child(3) { background: #ffcdd2; border-color: #c62828; }
 .cal-paint__btn.on {
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent-strong);
 }
 .cal-paint__sym {
-  font-weight: bold;
+  font-weight: normal;
   font-size: 30px;
   line-height: 1;
 }
@@ -2741,4 +2750,20 @@ tr.sel {
   margin: 0;
   padding: 4px 10px;
   line-height: 0;
+}
+
+/* ○△× ボタンのラベル（参加可・未定・不可）: 小さく濃いグレー。選択中も同じ色 */
+.cal-paint__btn,
+.cal-paint__btn.on {
+  font-size: 10px;
+  color: #4a4a4f;
+}
+
+/* 記号の表示領域を同じ高さにして、「参加可」などの文字の高さを揃える */
+.cal-paint__btn .cal-paint__sym {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  line-height: 1;
 }

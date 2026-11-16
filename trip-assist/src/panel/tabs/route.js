@@ -560,10 +560,11 @@ export function installRouteTab(ctx) {
       id: row.place.id,
       name: row.place.name,
       isMeetingPlace: Boolean(row.place.isMeetingPlace),
+      isHotelPlace: Boolean(row.place.isHotelPlace),
       nameDirty: false,
       stay: row.place.isMeetingPlace
         ? (settings.stays[row.place.id] ?? 0)
-        : (settings.stays[row.place.id] ?? settings.defaultStay),
+        : (settings.stays[row.place.id] ?? (row.place.isHotelPlace ? 0 : settings.defaultStay)),
       stayDirty: false,
     }));
     const hhmm = (minutes) => {
@@ -644,6 +645,13 @@ export function installRouteTab(ctx) {
             settings.stays[item.id] = item.stay;
           return;
         }
+        if (item.isHotelPlace) {
+          if (item.nameDirty && settings.hotelPlace)
+            settings.hotelPlace.name = item.name.trim() || "ホテル";
+          if (item.stayDirty && Number.isFinite(item.stay) && item.stay >= 0)
+            settings.stays[item.id] = item.stay;
+          return;
+        }
         const place = byId.get(item.id);
         if (!place) return;
         if (item.nameDirty) place.name = item.name.trim() || T.UNNAMED_PLACE;
@@ -659,7 +667,7 @@ export function installRouteTab(ctx) {
         else settings.startTime = hhmm(startMin);
       }
       const ordered = draft
-        .filter((item) => !item.isMeetingPlace)
+        .filter((item) => !item.isMeetingPlace && !item.isHotelPlace)
         .map((item) => byId.get(item.id))
         .filter(Boolean);
       if (dayId) {
@@ -708,8 +716,10 @@ export function installRouteTab(ctx) {
       if (
         from < 0 ||
         draft[from].isMeetingPlace ||
+        draft[from].isHotelPlace ||
         !target ||
-        target.isMeetingPlace
+        target.isMeetingPlace ||
+        target.isHotelPlace
       )
         return;
       const [moving] = draft.splice(from, 1);
@@ -825,8 +835,8 @@ export function installRouteTab(ctx) {
             if (from && from !== item.id) moveDraft(from, item.id, after);
           },
         },
-        item.isMeetingPlace
-          ? createEl("span", { class: "muted" }, "集合")
+        item.isMeetingPlace || item.isHotelPlace
+          ? createEl("span", { class: "muted" }, item.isMeetingPlace ? "集合" : "ホテル")
           : createEl(
               "span",
               {
@@ -851,6 +861,7 @@ export function installRouteTab(ctx) {
           "span",
           { class: "itin-edit-idx" },
           item.isMeetingPlace
+          || item.isHotelPlace
             ? ""
             : `${index + 1 - (draft[0]?.isMeetingPlace ? 1 : 0)}.`,
         ),
@@ -1069,8 +1080,14 @@ export function installRouteTab(ctx) {
             selectedName ||
             hotelNameInput.value.trim() ||
             "ホテル";
+          let hotelId = hotelPlace?.id || randomId();
+          while (
+            local.places.some((place) => place.id === hotelId) ||
+            settings.meetingPlace?.id === hotelId
+          )
+            hotelId = randomId();
           settings.hotelPlace = {
-            id: hotelPlace?.id || randomId(),
+            id: hotelId,
             name,
             lat: point.lat,
             lng: point.lng,
@@ -1085,7 +1102,13 @@ export function installRouteTab(ctx) {
         ? makeButton(
             "ホテルの場所を解除",
             async () => {
+              const hotelId = settings.hotelPlace.id;
               settings.hotelPlace = null;
+              delete settings.stays[hotelId];
+              delete local.dayAssignments?.[hotelId];
+              for (const key of Object.keys(local.legModes))
+                if (key.startsWith(hotelId + ">") || key.endsWith(">" + hotelId))
+                  delete local.legModes[key];
               await saveLocal();
               render();
             },
@@ -1109,10 +1132,10 @@ export function installRouteTab(ctx) {
       async () => {
         if (getLocal().places.length < 2)
           return flash("地点を 2 件以上登録してください", "err");
-        const routePlaces = ctx.routePlaces();
+        const routePlaces = ctx.routePlaces().filter((place) => !place.isHotelPlace);
         getLocal().places = T.optimize(routePlaces, 0)
           .map((index) => routePlaces[index])
-          .filter((place) => !place.isMeetingPlace);
+          .filter((place) => !place.isMeetingPlace && !place.isHotelPlace);
         await placesChanged();
         flash(
           settings.meetingPlace
@@ -1140,6 +1163,13 @@ export function installRouteTab(ctx) {
           initializedAssignments = true;
         }
       });
+      if (settings.hotelPlace) {
+        const lastDayId = itineraryDays[itineraryDays.length - 1].id;
+        if (getLocal().dayAssignments[settings.hotelPlace.id] !== lastDayId) {
+          getLocal().dayAssignments[settings.hotelPlace.id] = lastDayId;
+          initializedAssignments = true;
+        }
+      }
       if (initializedAssignments) saveLocal();
     }
     if (itineraryDays.length && !itineraryDays.some((day) => day.id === activeItineraryDay)) activeItineraryDay = itineraryDays[0].id;
@@ -1200,14 +1230,19 @@ export function installRouteTab(ctx) {
                 if (!from || from === row.place.id || row.place.isMeetingPlace) return;
                 getLocal().dayAssignments ||= {};
                 getLocal().dayAssignments[from] = day.id;
+                if (row.place.isHotelPlace) {
+                  await saveLocal();
+                  render();
+                  return;
+                }
                 await saveLocal();
                 await movePlace(from, row.place.id, after);
               },
             },
               index > 0 ? legView(rows[index - 1], row) : null,
               createEl("div", { class: "stop-row" },
-                row.place.isMeetingPlace
-                  ? createEl("span", { class: "muted" }, "集合")
+                row.place.isMeetingPlace || row.place.isHotelPlace
+                  ? createEl("span", { class: "muted" }, row.place.isMeetingPlace ? "集合" : "ホテル")
                   : createEl("span", {
                       class: "handle", draggable: "true", title: "別の日へドラッグして移動",
                       ondragstart: (event) => {
@@ -1235,8 +1270,60 @@ export function installRouteTab(ctx) {
             list,
           );
         })
-      : [];
-    const sec3 = itinerary
+      : itinerary
+        ? [
+            createEl(
+              "section",
+              { class: "itin-day-section" },
+              createEl(
+                "div",
+                { class: "itin-day-heading" },
+                createEl("h4", {}, "予定"),
+                createEl(
+                  "button",
+                  {
+                    class: "icon-edit itin-edit",
+                    type: "button",
+                    title: "しおりを編集",
+                    "aria-label": "しおりを編集",
+                    onclick: () => openItineraryEditor(),
+                  },
+                  makeMsIcon(EDIT_ICON, 18),
+                ),
+              ),
+              createEl(
+                "ol",
+                { class: "timeline" },
+                ...itinerary.rows.map((row, index) =>
+                  createEl(
+                    "li",
+                    {},
+                    index > 0 ? legView(itinerary.rows[index - 1], row) : null,
+                    createEl(
+                      "div",
+                      { class: "stop-row" },
+                      row.place.isMeetingPlace || row.place.isHotelPlace
+                        ? createEl(
+                            "span",
+                            { class: "muted" },
+                            row.place.isMeetingPlace ? "集合" : "ホテル",
+                          )
+                        : createEl("span", { class: "muted" }, `${index}.`),
+                      createEl(
+                        "div",
+                        { class: "stop" },
+                        createEl("b", {}, row.place.name),
+                        createEl("br", {}),
+                        `${T.fmtTime(row.arrive)}〜${T.fmtTime(row.depart)}`,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ]
+        : [];
+    const sec3 = confirmedDate && itineraryDays.length > 0
       ? createEl(
           "section",
           {},
@@ -1261,7 +1348,7 @@ export function installRouteTab(ctx) {
               "small primary",
             ),
           ),
-          daySections.length ? createEl("div", { class: "itin-days-stack" }, daySections) : null,
+          createEl("div", { class: "itin-days-stack" }, daySections),
           optimizeButton,
         )
       : null;

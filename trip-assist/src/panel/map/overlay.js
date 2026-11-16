@@ -421,26 +421,53 @@ export function installOverlay(ctx) {
   }
 
   // ======================= ルートタブ（幹事のローカル） =======================
-  // 訪問順は L().places の並び。集合場所を設定した場合は先頭に加えて計算する
+  // 訪問順は L().places の並び。集合場所は先頭、ホテルは末尾に加える
   const modeOf = (from, to) =>
     getLocal().legModes[from.id + ">" + to.id] || getLocal().legModes[to.id + ">" + from.id] || "car";
   function routePlaces() {
-    const meetingPlace = getLocal().settings.meetingPlace;
-    return meetingPlace
-      ? [{ ...meetingPlace, isMeetingPlace: true }, ...getLocal().places]
-      : getLocal().places;
+    const { meetingPlace, hotelPlace } = getLocal().settings;
+    return [
+      ...(meetingPlace ? [{ ...meetingPlace, isMeetingPlace: true }] : []),
+      ...getLocal().places,
+      ...(hotelPlace ? [{ ...hotelPlace, isHotelPlace: true }] : []),
+    ];
   }
   function currentItinerary(dayId = null, defaultDayId = dayId) {
     const local = getLocal();
     const assignments = local.dayAssignments || {};
     const places = routePlaces().filter((place) =>
-      place.isMeetingPlace || !dayId || (assignments[place.id] || defaultDayId) === dayId,
+      !place.isHotelPlace &&
+      (place.isMeetingPlace || !dayId || (assignments[place.id] || defaultDayId) === dayId),
     );
+    const hotel = local.settings.hotelPlace
+      ? { ...local.settings.hotelPlace, isHotelPlace: true }
+      : null;
+    if (hotel && dayId) {
+      const confirmed = T.datesOf(tripData()).find((date) => date.id === local.confirmedId);
+      if (confirmed) {
+        const totalDays = Math.min(60, Math.max(1, Math.round(
+          (new Date(confirmed.e + "T00:00:00Z") - new Date(confirmed.s + "T00:00:00Z")) / 86400000,
+        ) + 1));
+        const dayIndex = Math.round(
+          (new Date(dayId + "T00:00:00Z") - new Date(confirmed.s + "T00:00:00Z")) / 86400000,
+        );
+        if (dayIndex > 0) places.unshift(hotel);
+        if (dayIndex < totalDays - 1 && (dayIndex === 0 || totalDays >= 3)) {
+          if (places.at(-1)?.isHotelPlace !== true) places.push(hotel);
+        }
+      } else {
+        places.push(hotel);
+      }
+    } else if (hotel && !dayId) {
+      places.push(hotel);
+    }
     if (!places.length) return dayId ? { rows: [], totalKm: 0, totalRoadKm: 0 } : null;
     const settings = getLocal().settings;
     const stays = { ...settings.stays };
     if (settings.meetingPlace && !Number.isFinite(stays[settings.meetingPlace.id]))
       stays[settings.meetingPlace.id] = 0;
+    if (settings.hotelPlace && !Number.isFinite(stays[settings.hotelPlace.id]))
+      stays[settings.hotelPlace.id] = 0;
     return T.buildItinerary(places, {
       startMin: T.parseTime((settings.dayStartTimes || {})[dayId] || settings.startTime),
       speeds: { car: settings.speedCar, train: settings.speedTrain },

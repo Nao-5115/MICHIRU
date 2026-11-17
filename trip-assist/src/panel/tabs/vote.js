@@ -312,8 +312,12 @@ export function installVoteTab(ctx) {
     const sameIds = (first, second) => first.size === second.size && [...first].every((id) => second.has(id));
     let draft = state.voteDraft;
     if (!draft || draft.tripId !== state.tripId) {
-      draft = { tripId: state.tripId, ids: new Set(savedVoteIds), base: savedVoteIds.slice(), editing: false };
+      draft = { tripId: state.tripId, ids: new Set(savedVoteIds), base: savedVoteIds.slice(), editing: false, awaitingSync: false };
       state.voteDraft = draft;
+    } else if (draft.awaitingSync) {
+      // 書き込み応答が先に返り、Realtime Database の購読更新が遅れて届くことがある。
+      // 保存済みの票が追いつくまでは、古いスナップショットで下書きを巻き戻さない。
+      if (sameIds(new Set(savedVoteIds), new Set(draft.base))) draft.awaitingSync = false;
     } else if (sameIds(draft.ids, new Set(draft.base))) {
       draft.ids = new Set(savedVoteIds);
       draft.base = savedVoteIds.slice();
@@ -338,16 +342,20 @@ export function installVoteTab(ctx) {
         registerFailed = status === "fail";
         registered = status === "ok";
       }
-      if (!dirty) {
+      // ボタン生成時に閉じ込めた dirty / Set ではなく、クリック時点の下書きから差分を作る。
+      // 投票の購読更新と再描画が重なった場合でも、古いレンダー状態で送信を早期終了しない。
+      const submittedIds = new Set(draft.ids);
+      const submittedBase = new Set(draft.base);
+      if (sameIds(submittedIds, submittedBase)) {
         if (registered) {
           draft.editing = false;
           render();
         }
         return;
       }
-      const addIds = [...draftIds].filter((id) => !draft.base.includes(id));
-      const removeIds = draft.base.filter((id) => !draftIds.has(id));
-      pendingVoteAnimation = new Set(draftIds);
+      const addIds = [...submittedIds].filter((id) => !submittedBase.has(id));
+      const removeIds = [...submittedBase].filter((id) => !submittedIds.has(id));
+      pendingVoteAnimation = new Set(submittedIds);
       submittingVotes = true;
       render();
       try {
@@ -360,8 +368,9 @@ export function installVoteTab(ctx) {
           pendingVoteAnimation = null;
           return flash(result.error, "err");
         }
-        draft.base = [...draftIds];
+        draft.base = [...submittedIds];
         draft.editing = false;
+        draft.awaitingSync = true;
         // 地名の登録に失敗していたら、そのエラーを残すため成功の表示は出さない
         if (!registerFailed) flash("投票を反映しました", "ok");
       } finally {

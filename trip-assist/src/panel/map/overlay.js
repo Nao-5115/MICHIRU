@@ -435,15 +435,20 @@ export function installOverlay(ctx) {
   function currentItinerary(dayId = null, defaultDayId = dayId) {
     const local = getLocal();
     const assignments = local.dayAssignments || {};
+    const confirmed = dayId
+      ? T.datesOf(tripData()).find((date) => date.id === local.confirmedId)
+      : null;
+    const includeMeetingPlace = !dayId || !confirmed || dayId === confirmed.s;
     const places = routePlaces().filter((place) =>
       !place.isHotelPlace &&
-      (place.isMeetingPlace || !dayId || (assignments[place.id] || defaultDayId) === dayId),
+      (place.isMeetingPlace
+        ? includeMeetingPlace
+        : !dayId || (assignments[place.id] || defaultDayId) === dayId),
     );
     const hotel = local.settings.hotelPlace
       ? { ...local.settings.hotelPlace, isHotelPlace: true }
       : null;
     if (hotel && dayId) {
-      const confirmed = T.datesOf(tripData()).find((date) => date.id === local.confirmedId);
       if (confirmed) {
         const totalDays = Math.min(60, Math.max(1, Math.round(
           (new Date(confirmed.e + "T00:00:00Z") - new Date(confirmed.s + "T00:00:00Z")) / 86400000,

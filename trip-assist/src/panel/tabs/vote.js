@@ -351,14 +351,14 @@ export function installVoteTab(ctx) {
       submittingVotes = true;
       render();
       try {
-        const results = await Promise.all([
-          ...addIds.map((placeId) => callFirebase("setVote", { tripId: state.tripId, placeId, on: true })),
-          ...removeIds.map((placeId) => callFirebase("setVote", { tripId: state.tripId, placeId, on: false })),
-        ]);
-        const failed = results.find((result) => !result.ok);
-        if (failed) {
+        const result = await callFirebase("setVotes", {
+          tripId: state.tripId,
+          addIds,
+          removeIds,
+        });
+        if (!result.ok) {
           pendingVoteAnimation = null;
-          return flash(failed.error, "err");
+          return flash(result.error, "err");
         }
         draft.base = [...draftIds];
         draft.editing = false;

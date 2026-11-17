@@ -470,6 +470,26 @@ const handlers = {
     else await remove(voteRef);
     return {};
   },
+  async setVotes({ tripId, addIds = [], removeIds = [] }) {
+    const currentUser = user();
+    need(Array.isArray(addIds) && Array.isArray(removeIds), "投票データが正しくありません");
+    const changes = {};
+    for (const placeId of addIds) {
+      need(typeof placeId === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(placeId), "投票先が正しくありません");
+      changes[placeId] = true;
+    }
+    for (const placeId of removeIds) {
+      need(typeof placeId === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(placeId), "投票先が正しくありません");
+      changes[placeId] = null;
+    }
+    if (Object.keys(changes).length) {
+      await update(
+        ref(db, path("trips", tripId, "votes", currentUser.key)),
+        changes,
+      );
+    }
+    return {};
+  },
   async setAdopted({ tripId, placeId, on: enabled }) {
     user();
     const adoptedRef = ref(db, path("trips", tripId, "adopted", placeId));

@@ -334,7 +334,9 @@ test("メンバー: 投票は得票順・投票者を表示。採用チェック
     (e) => e.tag === "input" && e.attrs.type === "checkbox",
   )[0];
   await cb.fire("change", { target: Object.assign(cb, { checked: true }) });
-  assert.equal(sent.findLast((x) => x.type === "fb:setVote").on, true);
+  const submittedVotes = sent.findLast((x) => x.type === "fb:setVotes");
+  assert.deepEqual(submittedVotes.addIds, ["p1"]);
+  assert.deepEqual(submittedVotes.removeIds, []);
 });
 
 test("メンバー: ルート・登録は幹事のみ（案内を表示し操作不可）", async () => {

@@ -692,16 +692,37 @@ export function installVoteTab(ctx) {
           type: "button",
           onclick: async () => {
             if (_added) return;
+            addBtn.disabled = true;
+            addBtn.textContent = "場所を確認中…";
+            let location =
+              Number.isFinite(spot.lat) && Number.isFinite(spot.lng)
+                ? { lat: spot.lat, lng: spot.lng }
+                : null;
+            if (!location) {
+              const geoResult = await sendMessage({
+                type: "maps:geocode",
+                name: spot.name,
+                area: spot.area,
+              });
+              location = geoResult.ok ? geoResult.location : null;
+            }
             const addResult = await callFirebase("addPlace", {
               tripId: state.tripId,
-              place: { name: spot.name, lat: spot.lat, lng: spot.lng },
+              place: {
+                name: spot.name,
+                lat: location?.lat ?? null,
+                lng: location?.lng ?? null,
+              },
             });
             if (addResult.ok) {
               _added = true;
-              addBtn.disabled = true;
               addBtn.textContent = "追加済み";
               addedBadge.hidden = false;
+              if (!location)
+                flash("位置を特定できなかったため、名前のみで候補に追加しました", "err");
             } else {
+              addBtn.disabled = false;
+              addBtn.textContent = "候補に追加";
               flash(addResult.error || "追加に失敗しました", "err");
             }
           },

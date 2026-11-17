@@ -212,41 +212,62 @@ const LEGACY_TYPES = new Set(["listEvents", "createEvent", "deleteEvent"]);
 // ビルド時に rollup の replace プラグインが実際のキーに置き換える
 const GEMINI_API_KEY = __GEMINI_KEY__;
 const MAPS_API_KEY = __MAPS_KEY__;
+const GEMINI_MODEL = "gemini-3.5-flash-lite";
 
 // ---------- Gemini AI スポット提案 ----------
 async function callGeminiAPI(prompt, { search = false } = {}) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
   const body = JSON.stringify({
     contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.2, maxOutputTokens: 1024 },
+    generationConfig: {
+      maxOutputTokens: 1024,
+      responseMimeType: "application/json",
+      thinkingConfig: { thinkingLevel: "minimal" },
+    },
     // Google 検索を使って、実際の経路や道路を調べさせる
     ...(search ? { tools: [{ google_search: {} }] } : {}),
   });
-  // 503（混雑）のときは最大5回、指数バックオフでリトライ（2s, 4s, 8s, 16s）
-  const MAX_ATTEMPTS = 5;
+  // 一時的な混雑だけ短く再試行する。旧設定では最大30秒以上待つことがあった。
+  const MAX_ATTEMPTS = 2;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     if (attempt > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 2000 * 2 ** (attempt - 1)));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-    });
-    if (response.status === 503) {
-      if (attempt < MAX_ATTEMPTS - 1) continue; // リトライ
-      throw new Error(
-        "Gemini API エラー (503): サーバーが混雑しています。しばらく待ってから再度お試しください。",
-      );
+    let response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        signal: AbortSignal.timeout(20000),
+      });
+    } catch (error) {
+      if (attempt < MAX_ATTEMPTS - 1 && error.name !== "TimeoutError") continue;
+      if (error.name === "TimeoutError")
+        throw new Error("Gemini の応答が20秒以内に届きませんでした。通信状態を確認して再度お試しください。");
+      throw error;
     }
     if (!response.ok) {
+      if ([429, 500, 502, 503, 504].includes(response.status) && attempt < MAX_ATTEMPTS - 1)
+        continue;
       const errorBody = await response.json().catch(() => ({}));
       throw new Error(
         `Gemini API エラー (${response.status}): ${(errorBody.error || {}).message || ""}`,
       );
     }
     const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const candidate = data.candidates?.[0];
+    const text = candidate?.content?.parts
+      ?.map((part) => part.text || "")
+      .join("")
+      .trim();
+    if (text) return text;
+    const reason = candidate?.finishReason || data.promptFeedback?.blockReason;
+    throw new Error(
+      reason
+        ? `Gemini が回答を生成できませんでした（${reason}）。希望条件を調整して再度お試しください。`
+        : "Gemini から空の回答が返りました。もう一度お試しください。",
+    );
   }
   throw new Error(
     "Gemini API エラー (503): サーバーが混雑しています。しばらく待ってから再度お試しください。",
@@ -255,7 +276,7 @@ async function callGeminiAPI(prompt, { search = false } = {}) {
 
 async function geocodePlace(name) {
   const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(name)}&language=ja&region=jp&key=${MAPS_API_KEY}`;
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
   if (!response.ok) return null;
   const data = await response.json();
   if (data.status !== "OK" || !data.results?.[0]) return null;
@@ -308,13 +329,16 @@ ${prefSummary}
 - 5件すべて異なるエリアから選ぶ
 - JSONのみ返す（余分なテキスト不要）`;
 
+  if (!GEMINI_API_KEY)
+    throw new Error("Gemini API キーが設定されていません。.env を確認して拡張機能を再ビルドしてください。");
+
   const text = await callGeminiAPI(prompt);
   console.log("[MICHIRU] Gemini raw response:", text);
 
   let spots = [];
   try {
     // ```json ... ``` のマークダウンブロックを除去してから抽出
-    const stripped = text.replace(/```[a-z]*\n?/gi, "").replace(/```/g, "");
+    const stripped = text.replace(/```[a-z]*\n?/gi, "").replace(/```/g, "").trim();
     console.log("[MICHIRU] stripped:", stripped);
     const match = stripped.match(/\[[\s\S]*\]/);
     console.log("[MICHIRU] match:", match ? match[0].slice(0, 200) : null);
@@ -327,32 +351,18 @@ ${prefSummary}
     );
   }
 
-  // 5件の座標を並列に取得する（1件ずつ順番に問い合わせると、件数分だけ待つため）
-  const results = await Promise.all(
-    spots.slice(0, 5).map(async (spot) => {
-      if (!spot || !spot.name) return null;
-      let lat = null,
-        lng = null;
-      if (MAPS_API_KEY) {
-        try {
-          const geocoded = await geocodePlace(`${spot.name} ${spot.area || ""}`);
-          if (geocoded) {
-            lat = geocoded.lat;
-            lng = geocoded.lng;
-          }
-        } catch (_) {}
-      }
-      return {
-        name: spot.name,
-        category: spot.category || "その他",
-        area: spot.area || "",
-        reason: spot.reason || "",
-        lat,
-        lng,
-      };
-    }),
-  );
-  return results.filter(Boolean);
+  // 提案一覧の表示は座標検索を待たずに返す。座標は候補追加時に取得する。
+  return spots
+    .filter((spot) => spot && typeof spot.name === "string" && spot.name.trim())
+    .slice(0, 5)
+    .map((spot) => ({
+      name: spot.name.trim(),
+      category: spot.category || "その他",
+      area: spot.area || "",
+      reason: spot.reason || "",
+      lat: null,
+      lng: null,
+    }));
 }
 
 // ---------- メッセージ ----------
@@ -544,6 +554,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       } else if (type === "gemini:suggest") {
         const spots = await suggestSpotsWithGemini(message);
         sendResponse({ ok: true, spots });
+      } else if (type === "maps:geocode") {
+        const name = [message.name, message.area].filter(Boolean).join(" ");
+        if (!MAPS_API_KEY) throw new Error("Google Maps API キーが設定されていません。");
+        sendResponse({ ok: true, location: await geocodePlace(name) });
       } else if (type === "settings:save") {
         const patch = {};
         if (typeof message.placesKey === "string" && message.placesKey.trim())

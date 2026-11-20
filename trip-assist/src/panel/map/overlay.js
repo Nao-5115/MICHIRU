@@ -351,14 +351,30 @@ export function installOverlay(ctx) {
     const trip = tripData();
     if (!trip || !getLocal()) return false;
     const adopted = trip.adopted || {};
+    const confirmedDate = T.datesOf(trip).find(
+      (date) => date.id === getLocal().confirmedId,
+    );
     let changed = false;
     for (const place of T.placesOf(trip)) {
       if (!adopted[place.id] || place.lat == null || place.lng == null) continue;
       const lat = +place.lat, lng = +place.lng;
       if (Number.isNaN(lat) || Number.isNaN(lng)) continue;
-      if (findDuplicateLocal(place, lat, lng)) continue;
+      const existing = findDuplicateLocal(place, lat, lng);
+      if (existing) {
+        if (confirmedDate && !getLocal().dayAssignments?.[existing.id]) {
+          getLocal().dayAssignments ||= {};
+          getLocal().dayAssignments[existing.id] = confirmedDate.s;
+          changed = true;
+        }
+        continue;
+      }
       if (getLocal().places.length >= T.MAX_LOCAL_PLACES) break;
-      getLocal().places.push({ id: randomId(), name: place.name, lat, lng, sourceId: place.id });
+      const localPlace = { id: randomId(), name: place.name, lat, lng, sourceId: place.id };
+      getLocal().places.push(localPlace);
+      if (confirmedDate) {
+        getLocal().dayAssignments ||= {};
+        getLocal().dayAssignments[localPlace.id] = confirmedDate.s;
+      }
       changed = true;
     }
     if (changed) saveLocal();
@@ -406,15 +422,33 @@ export function installOverlay(ctx) {
       flash(`「${place.name}」の緯度経度が正しくないため、訪問地点リストに追加できませんでした`, "err");
       return;
     }
-    if (findDuplicateLocal(place, lat, lng)) {
-      flash(`「${place.name}」はすでに訪問地点リストに入っています`, "err");
+    const existing = findDuplicateLocal(place, lat, lng);
+    if (existing) {
+      const confirmedDate = T.datesOf(tripData()).find(
+        (date) => date.id === getLocal().confirmedId,
+      );
+      if (confirmedDate && !getLocal().dayAssignments?.[existing.id]) {
+        getLocal().dayAssignments ||= {};
+        getLocal().dayAssignments[existing.id] = confirmedDate.s;
+      }
+      await saveLocal();
+      flash(`「${place.name}」は訪問地点リストにあるため、しおりに反映しました`);
+      render();
       return;
     }
     if (getLocal().places.length >= T.MAX_LOCAL_PLACES) {
       flash(`訪問地点は最大 ${T.MAX_LOCAL_PLACES} 件までです`, "err");
       return;
     }
-    getLocal().places.push({ id: randomId(), name: place.name, lat, lng, sourceId: place.id });
+    const localPlace = { id: randomId(), name: place.name, lat, lng, sourceId: place.id };
+    getLocal().places.push(localPlace);
+    const confirmedDate = T.datesOf(tripData()).find(
+      (date) => date.id === getLocal().confirmedId,
+    );
+    if (confirmedDate) {
+      getLocal().dayAssignments ||= {};
+      getLocal().dayAssignments[localPlace.id] = confirmedDate.s;
+    }
     await saveLocal();
     flash(`「${place.name}」を訪問地点リストに追加しました`);
     render();

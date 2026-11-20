@@ -33,10 +33,64 @@ export function installRouteTab(ctx) {
   };
   let itinEditor = null; // しおりの編集ポップアップ（開いていないときは null）
   let activeItineraryDay = null;
+  let routeDragId = null;
   let routeMapUrl = location.href;
   let meetingNameInputRef = null;
   let hotelNameInputRef = null;
   let activeRouteNameTarget = null;
+
+  async function moveDroppedPlaceToDay(placeId, dayId, targetPlaceId = null, after = true) {
+    const local = getLocal();
+    if (!placeId || !local.places.some((place) => place.id === placeId)) return;
+    local.dayAssignments ||= {};
+    local.dayAssignments[placeId] = dayId;
+    const moving = local.places.find((place) => place.id === placeId);
+    const remaining = local.places.filter((place) => place.id !== placeId);
+    const targetIndex = targetPlaceId
+      ? remaining.findIndex((place) => place.id === targetPlaceId)
+      : -1;
+    if (targetIndex >= 0) {
+      remaining.splice(targetIndex + (after ? 1 : 0), 0, moving);
+    } else if (targetPlaceId && local.settings.hotelPlace?.id === targetPlaceId && after) {
+      // 2日目以降のホテルは日別しおりの先頭に置かれるため、その次の地点より前に挿入する。
+      const firstDayPlace = remaining.findIndex(
+        (place) => local.dayAssignments[place.id] === dayId,
+      );
+      remaining.splice(firstDayPlace >= 0 ? firstDayPlace : remaining.length, 0, moving);
+    } else {
+      let lastDayPlace = -1;
+      remaining.forEach((place, index) => {
+        if (local.dayAssignments[place.id] === dayId) lastDayPlace = index;
+      });
+      remaining.splice(lastDayPlace + 1, 0, moving);
+    }
+    local.places = remaining;
+    routeDragId = null;
+    state.dragId = null;
+    await placesChanged();
+    flash(`${moving.name}を${T.fmtDate(dayId)}の予定に追加しました`);
+  }
+
+  // 日別のしおり欄をキャプチャ段階で受け、ブラウザのドロップ先判定に依存しない。
+  root.addEventListener("drop", async (event) => {
+    const daySection = event.composedPath().find(
+      (node) => node instanceof Element && node.matches(".itin-day-section[data-day-id]"),
+    );
+    if (!daySection) return;
+    const placeId = event.dataTransfer?.getData("text/plain") || state.dragId || routeDragId || "";
+    if (!placeId) return;
+    const dayId = daySection.dataset.dayId;
+    if ((getLocal().dayAssignments || {})[placeId] === dayId) return;
+    const target = event.composedPath().find(
+      (node) => node instanceof Element && node.matches(".timeline li[data-place-id]")
+        && node.dataset.placeKind !== "meeting",
+    );
+    const targetPlaceId = target?.dataset.placeId || null;
+    const after = target ? target.classList.contains("drop-after") : true;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    moveDroppedPlaceToDay(placeId, dayId, targetPlaceId, after);
+  }, true);
 
   // 地図で選択地点を変えたら、ルートタブの名前欄も追従させる。
   setInterval(() => {
@@ -441,6 +495,7 @@ export function installRouteTab(ctx) {
             title: "ドラッグして並べ替え",
             ondragstart: (event) => {
               state.dragId = place.id;
+              routeDragId = place.id;
               event.dataTransfer.effectAllowed = "move";
               event.dataTransfer.setData("text/plain", place.id);
               event.dataTransfer.setDragImage(listItem, 12, 12);
@@ -1127,6 +1182,8 @@ export function installRouteTab(ctx) {
             delete node.dataset.dragPreview;
           },
         );
+    const droppedPlaceId = (event) =>
+      event.dataTransfer?.getData("text/plain") || state.dragId || routeDragId || "";
     const optimizeButton = makeButton(
       "訪問順を自動最適化（手動の並べ替えを上書き）",
       async () => {
@@ -1184,29 +1241,27 @@ export function installRouteTab(ctx) {
           const list = createEl("ol", {
             class: "timeline",
             ondragover: (event) => {
-              if (!state.dragId || event.target.closest("li")) return;
+              if (!(state.dragId || routeDragId) || event.target.closest("li")) return;
               event.preventDefault();
               event.dataTransfer.dropEffect = "move";
               const dragged = getLocal().places.find((place) => place.id === state.dragId);
               if (dragged) list.dataset.dragPreview = dragged.name;
             },
             ondrop: async (event) => {
-              if (event.target.closest("li")) return;
               event.preventDefault();
+              event.stopPropagation();
               clearDragMarks();
-              const from = state.dragId;
+              const from = droppedPlaceId(event);
               state.dragId = null;
-              if (!from || getLocal().dayAssignments?.[from] === day.id) return;
-              getLocal().dayAssignments ||= {};
-              getLocal().dayAssignments[from] = day.id;
-              await saveLocal();
-              render();
+              await moveDroppedPlaceToDay(from, day.id);
             },
           });
           list.append(...rows.map((row, index) => {
             const item = createEl("li", {
+              "data-place-id": row.place.id,
+              "data-place-kind": row.place.isMeetingPlace ? "meeting" : row.place.isHotelPlace ? "hotel" : "stop",
               ondragover: (event) => {
-                if (!state.dragId || row.place.isMeetingPlace) return;
+              if (!(state.dragId || routeDragId) || row.place.isMeetingPlace) return;
                 event.preventDefault();
                 event.dataTransfer.dropEffect = "move";
                 const dragged = getLocal().places.find((place) => place.id === state.dragId);
@@ -1223,18 +1278,19 @@ export function installRouteTab(ctx) {
               },
               ondrop: async (event) => {
                 event.preventDefault();
+                event.stopPropagation();
                 const after = item.classList.contains("drop-after");
-                const from = state.dragId;
+                const from = droppedPlaceId(event);
                 clearDragMarks();
                 state.dragId = null;
                 if (!from || from === row.place.id || row.place.isMeetingPlace) return;
-                getLocal().dayAssignments ||= {};
-                getLocal().dayAssignments[from] = day.id;
                 if (row.place.isHotelPlace) {
-                  await saveLocal();
-                  render();
+                  await moveDroppedPlaceToDay(from, day.id, row.place.id, after);
                   return;
                 }
+                getLocal().dayAssignments ||= {};
+                getLocal().dayAssignments[from] = day.id;
+                routeDragId = null;
                 await saveLocal();
                 await movePlace(from, row.place.id, after);
               },
@@ -1247,6 +1303,7 @@ export function installRouteTab(ctx) {
                       class: "handle", draggable: "true", title: "別の日へドラッグして移動",
                       ondragstart: (event) => {
                         state.dragId = row.place.id;
+                        routeDragId = row.place.id;
                         event.dataTransfer.effectAllowed = "move";
                         event.dataTransfer.setData("text/plain", row.place.id);
                         event.dataTransfer.setDragImage(item, 12, 12);
@@ -1261,7 +1318,23 @@ export function installRouteTab(ctx) {
 
             return item;
           }));
-          return createEl("section", { class: "itin-day-section" },
+          return createEl("section", {
+            class: "itin-day-section",
+            "data-day-id": day.id,
+            ondragover: (event) => {
+              if (!(state.dragId || routeDragId)) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+            },
+            ondrop: async (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              clearDragMarks();
+              const from = droppedPlaceId(event);
+              state.dragId = null;
+              await moveDroppedPlaceToDay(from, day.id);
+            },
+          },
             createEl("div", { class: "itin-day-heading" },
               createEl("h4", {}, `${day.label}の予定`),
               createEl("button", { class: "icon-edit itin-edit", type: "button", title: "この日のしおりを編集", "aria-label": `${day.label}のしおりを編集`, onclick: () => openItineraryEditor(day.id) }, makeMsIcon(EDIT_ICON, 18)),

@@ -1498,10 +1498,11 @@ export function installRouteTab(ctx) {
     const cand = T.datesOf(trip).find(
       (date) => date.id === getLocal().confirmedId,
     );
-    if (!cand) return flash("日程を確定してください", "err");
+    if (!cand) return flash("日程を選択してください", "err");
     const itinerary = currentItinerary(),
       title = trip.meta.name,
       dateText = T.fmtRange(cand);
+    const rankText = cand.rank ? `【第${cand.rank}候補】` : "";
     const others = T.membersOf(trip).filter(
       (member) => member.key !== myMember.key,
     );
@@ -1528,7 +1529,7 @@ export function installRouteTab(ctx) {
       }
     }
     const main = {
-      summary: title,
+      summary: rankText + title,
       description: desc,
       start: { date: cand.s },
       end: { date: T.addDays(cand.e, 1) },
@@ -1554,7 +1555,7 @@ export function installRouteTab(ctx) {
         events.push({
           sendUpdates: "none",
           ev: {
-            summary: `${title}: ${row.place.name}`,
+            summary: `${rankText}${title}: ${row.place.name}`,
             location:
               row.place.name === T.UNNAMED_PLACE
                 ? `${row.place.lat},${row.place.lng}`

@@ -22,6 +22,10 @@ export function installRegisterTab(ctx) {
   const warnFor = (...args) => ctx.warnFor(...args);
   const currentItinerary = (...args) => ctx.currentItinerary(...args);
   const registerToCalendar = (...args) => ctx.registerToCalendar(...args);
+  // 候補日の優先順位（日程タブで設定したもの）
+  const rankOf = (...args) => ctx.rankOf(...args);
+  const rankLabel = (...args) => ctx.rankLabel(...args);
+  const rankColor = (...args) => ctx.rankColor(...args);
 
   function viewRegister() {
     const section = viewCalendarRegistration();
@@ -47,7 +51,22 @@ export function installRegisterTab(ctx) {
       {},
       createEl("h3", {}, "Google カレンダーに登録"),
       cand
-        ? createEl("p", {}, "確定日程: ", createEl("b", {}, T.fmtRange(cand)))
+        ? createEl(
+            "p",
+            {},
+            "登録する候補日: ",
+            createEl("b", {}, T.fmtRange(cand)),
+            rankOf(cand)
+              ? createEl(
+                  "span",
+                  {
+                    class: "badge",
+                    style: `background:${rankColor(rankOf(cand))};color:#fff`,
+                  },
+                  rankLabel(rankOf(cand)),
+                )
+              : null,
+          )
         : null,
       createEl(
         "select",
@@ -60,13 +79,18 @@ export function installRegisterTab(ctx) {
           },
         },
         createEl("option", { value: "" }, "候補日から選択…"),
-        T.datesOf(trip).map((date) =>
-          createEl(
+        T.datesOf(trip).map((date) => {
+          const rank = rankOf(date);
+          return createEl(
             "option",
-            { value: date.id, selected: date.id === getLocal().confirmedId },
-            T.fmtRange(date),
-          ),
-        ),
+            {
+              value: date.id,
+              selected: date.id === getLocal().confirmedId,
+              style: rank ? `color:${rankColor(rank)}` : "",
+            },
+            (rank ? `【${rankLabel(rank)}】` : "") + T.fmtRange(date),
+          );
+        }),
       ),
       createEl(
         "p",
@@ -268,7 +292,10 @@ export function installRegisterTab(ctx) {
               },
               "danger",
             ),
-            createEl("div", { class: "calendar-events-divider", "aria-hidden": "true" }),
+            createEl("div", {
+              class: "calendar-events-divider",
+              "aria-hidden": "true",
+            }),
           )
         : null,
       state.delResults
